@@ -92,7 +92,7 @@ const ContactChatPage = () => {
     if (error) { toast.error("Failed to upload image"); setUploading(false); return; }
     const { data: urlData } = supabase.storage.from("chat-images").getPublicUrl(path);
     await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId, role: "user", content: "[Screenshot]", image_url: urlData.publicUrl,
+      contact_id: contactId, role: "user", content: "[Screenshot]", image_url: urlData.publicUrl, persona: persona,
     }) as any);
     await loadMessages();
     setUploading(false);
