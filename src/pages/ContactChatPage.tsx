@@ -136,7 +136,7 @@ const ContactChatPage = () => {
     setSelectedSuggestion(null);
     setSuggestionsPersona(targetPersona);
 
-    const { data: currentMessages } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
+    const { data: currentMessages } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).eq("persona", targetPersona).order("created_at", { ascending: true }) as any);
     const msgs = (currentMessages || []) as ChatMessage[];
 
     const recentMessages = msgs.slice(-20).map((m) => ({
