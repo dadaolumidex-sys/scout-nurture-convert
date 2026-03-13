@@ -53,7 +53,9 @@ const InboxPage = () => {
   const [newPlatform, setNewPlatform] = useState<"twitch" | "kick">("twitch");
   const [newUrl, setNewUrl] = useState("");
   const [chatHistory, setChatHistory] = useState("");
+  const [chatImages, setChatImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
+  const imageInputRef = useState<HTMLInputElement | null>(null);
 
   useEffect(() => {
     loadContacts();
