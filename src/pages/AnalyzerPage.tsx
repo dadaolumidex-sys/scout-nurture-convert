@@ -64,7 +64,8 @@ const AnalyzerPage = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("analyze-twitch", {
+      const functionName = platform === "twitch" ? "analyze-twitch" : "analyze-kick";
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: { username },
       });
 
