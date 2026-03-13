@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,7 +36,40 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
+    // Fetch knowledge base entries and training conversations for this persona
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const sb = createClient(supabaseUrl, supabaseKey);
+
+    const [knowledgeRes, trainingRes] = await Promise.all([
+      sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${persona},persona.eq.shared`).limit(20),
+      sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", persona === "friend" ? "nifimas" : "brozeen").eq("status", "analyzed").limit(10),
+    ]);
+
+    const knowledgeEntries = knowledgeRes.data || [];
+    const trainingConvos = trainingRes.data || [];
+
+    // Build context sections
+    let knowledgeContext = "";
+    if (knowledgeEntries.length > 0) {
+      knowledgeContext = `\n\n## Knowledge Base (use these strategies and scripts):\n` +
+        knowledgeEntries.map((e: any) => `### ${e.title} [${e.category}]\n${e.content}`).join("\n\n");
+    }
+
+    let styleContext = "";
+    if (trainingConvos.length > 0) {
+      const analyses = trainingConvos.filter((t: any) => t.style_analysis).map((t: any) => t.style_analysis);
+      const examples = trainingConvos.map((t: any) => t.content).slice(0, 5);
+
+      if (analyses.length > 0) {
+        styleContext += `\n\n## Communication Style (match this tone and style closely):\n${analyses.join("\n\n")}`;
+      }
+      if (examples.length > 0) {
+        styleContext += `\n\n## Example Conversations (mimic this writing style):\n${examples.map((e: string, i: number) => `--- Example ${i + 1} ---\n${e}`).join("\n\n")}`;
+      }
+    }
+
+    const systemPrompt = (SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend) + knowledgeContext + styleContext;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -52,7 +86,7 @@ serve(async (req) => {
             role: "user",
             content: `${contactContext || ""}
 
-Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each suggestion should have a different approach/angle.
+Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each suggestion should have a different approach/angle. Match my personal communication style from the training examples and use strategies from the knowledge base when relevant.
 
 Use the suggest_replies tool to return your suggestions.`,
           },
