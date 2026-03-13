@@ -1,11 +1,11 @@
-import { useState } from "react";
-import { Send, Bot, User, ToggleLeft, ToggleRight } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Send, Bot } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { toast } from "sonner";
+import ReactMarkdown from "react-markdown";
 
 type Message = {
   role: "user" | "assistant";
@@ -13,6 +13,8 @@ type Message = {
 };
 
 type Persona = "friend" | "promoter";
+
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 const personaConfig = {
   friend: {
@@ -31,32 +33,122 @@ const personaConfig = {
   },
 };
 
+async function streamChat({
+  messages,
+  persona,
+  onDelta,
+  onDone,
+  onError,
+}: {
+  messages: Message[];
+  persona: Persona;
+  onDelta: (text: string) => void;
+  onDone: () => void;
+  onError: (msg: string) => void;
+}) {
+  const resp = await fetch(CHAT_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+    },
+    body: JSON.stringify({ messages, persona }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: "Request failed" }));
+    onError(err.error || `Error ${resp.status}`);
+    return;
+  }
+
+  if (!resp.body) {
+    onError("No response stream");
+    return;
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    let idx: number;
+    while ((idx = buffer.indexOf("\n")) !== -1) {
+      let line = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 1);
+      if (line.endsWith("\r")) line = line.slice(0, -1);
+      if (!line.startsWith("data: ")) continue;
+      const json = line.slice(6).trim();
+      if (json === "[DONE]") { onDone(); return; }
+      try {
+        const parsed = JSON.parse(json);
+        const content = parsed.choices?.[0]?.delta?.content;
+        if (content) onDelta(content);
+      } catch {
+        buffer = line + "\n" + buffer;
+        break;
+      }
+    }
+  }
+  onDone();
+}
+
 const ChatPage = () => {
   const [persona, setPersona] = useState<Persona>("friend");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const config = personaConfig[persona];
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
 
     const userMsg: Message = { role: "user", content: input };
-    setMessages((prev) => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInput("");
     setLoading(true);
 
-    // Mock AI response — will be replaced with real AI
-    await new Promise((r) => setTimeout(r, 1500));
+    let assistantSoFar = "";
 
-    const mockReply =
-      persona === "friend"
-        ? "That's a great conversation so far! I'd suggest something like: 'Hey, I really enjoyed your last stream — the energy was incredible. Have you thought about doing some collabs? I know a few people who could help boost your reach 😊'"
-        : "Based on this conversation, here's a professional follow-up: 'I appreciate you sharing that. Many streamers at your stage face the same challenge with discoverability. I specialize in helping creators break through that plateau. Would you be open to a 10-minute call to explore some strategies?'";
+    const upsertAssistant = (chunk: string) => {
+      assistantSoFar += chunk;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant") {
+          return prev.map((m, i) =>
+            i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
+          );
+        }
+        return [...prev, { role: "assistant", content: assistantSoFar }];
+      });
+    };
 
-    setMessages((prev) => [...prev, { role: "assistant", content: mockReply }]);
-    setLoading(false);
+    try {
+      await streamChat({
+        messages: newMessages,
+        persona,
+        onDelta: upsertAssistant,
+        onDone: () => setLoading(false),
+        onError: (msg) => {
+          toast.error(msg);
+          setLoading(false);
+        },
+      });
+    } catch (e) {
+      console.error(e);
+      toast.error("Failed to get AI response");
+      setLoading(false);
+    }
   };
 
   return (
@@ -118,7 +210,13 @@ const ChatPage = () => {
                     : "bg-accent text-accent-foreground border border-border"
                 }`}
               >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
+                {msg.role === "assistant" ? (
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                )}
                 {msg.role === "assistant" && (
                   <Button
                     variant="ghost"
@@ -135,13 +233,14 @@ const ChatPage = () => {
               </div>
             </div>
           ))}
-          {loading && (
+          {loading && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex gap-3">
               <div className="bg-accent rounded-xl px-4 py-3 text-sm text-muted-foreground animate-pulse">
                 {config.name} is thinking...
               </div>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input */}
