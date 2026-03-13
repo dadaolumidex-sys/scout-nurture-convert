@@ -193,8 +193,8 @@ const ChatPage = () => {
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground">
                 <Bot className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Paste a conversation and get AI-powered reply suggestions</p>
-                <p className="text-xs mt-1">Switch personas to change the reply style</p>
+                <p className="text-sm">Ask me anything — strategy, settings, ideas, or paste a conversation for reply suggestions</p>
+                <p className="text-xs mt-1">Switch personas to change the response style</p>
               </div>
             </div>
           )}

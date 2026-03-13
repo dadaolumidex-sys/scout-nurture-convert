@@ -98,7 +98,7 @@ const InboxPage = () => {
       username: newName.toLowerCase().replace(/\s+/g, ""),
       display_name: newName,
       platform: newPlatform,
-      channel_url: newUrl || `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}`,
+      channel_url: newUrl || (selectedType === "new_prospect" ? `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}` : null),
       conversation_type: selectedType,
       status: statusMap[selectedType || "new_prospect"],
     }).select().single() as any);
