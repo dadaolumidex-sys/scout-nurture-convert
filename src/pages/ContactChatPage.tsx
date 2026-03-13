@@ -411,26 +411,42 @@ const ContactChatPage = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Generate buttons */}
-        <div className="flex gap-2 mb-3">
+        {/* Generate buttons + Status selector */}
+        <div className="flex gap-2 mb-3 items-center">
           <Button
             onClick={() => generateReply("friend")}
             disabled={loading || messages.length === 0}
             variant="outline"
             size="sm"
-            className="flex-1 border-secondary/30 text-secondary hover:bg-secondary/10"
+            className="border-secondary/30 text-secondary hover:bg-secondary/10"
           >
-            🤝 Generate as Nifimas
+            🤝 Nifimas
           </Button>
           <Button
             onClick={() => generateReply("promoter")}
             disabled={loading || messages.length === 0}
             variant="outline"
             size="sm"
-            className="flex-1 border-primary/30 text-primary hover:bg-primary/10"
+            className="border-primary/30 text-primary hover:bg-primary/10"
           >
-            💼 Generate as Brozeen
+            💼 Brozeen
           </Button>
+          <div className="flex-1" />
+          <select
+            value={contact?.status || "new"}
+            onChange={async (e) => {
+              const newStatus = e.target.value;
+              await (supabase.from("streamer_contacts" as any).update({ status: newStatus }).eq("id", contactId) as any);
+              setContact((prev) => prev ? { ...prev, status: newStatus } : prev);
+              toast.success(`Status: ${newStatus.replace(/_/g, " ")}`);
+            }}
+            className="text-xs bg-muted border border-border rounded-md px-2 py-1 text-foreground"
+          >
+            <option value="new">👋 New friend request</option>
+            <option value="in_conversation">💬 In conversation</option>
+            <option value="ready_to_pitch">🎯 Ready to pitch</option>
+            <option value="converted">✅ Converted</option>
+          </select>
         </div>
 
         {/* Input */}

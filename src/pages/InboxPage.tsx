@@ -164,7 +164,14 @@ const InboxPage = () => {
                         {contact.growth_stage && (
                           <Badge variant="outline" className="text-xs text-muted-foreground">{contact.growth_stage}</Badge>
                         )}
-                        <Badge variant="outline" className={`text-xs ${statusColors[contact.status || "active"]}`}>{contact.status || "active"}</Badge>
+                        {(() => {
+                          const stage = conversationStages[contact.status || "new"] || conversationStages.new;
+                          return (
+                            <Badge variant="outline" className={`text-xs ${stage.className}`}>
+                              {stage.emoji} {stage.label}
+                            </Badge>
+                          );
+                        })()}
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5 truncate max-w-md">
                         {contact.avg_viewers ? `Avg viewers: ${contact.avg_viewers}` : "No analysis data yet"}
