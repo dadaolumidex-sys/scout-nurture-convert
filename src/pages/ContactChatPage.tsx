@@ -117,7 +117,7 @@ const ContactChatPage = () => {
     setSelectedSuggestion(null);
 
     await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId, role: "user", content: messageText,
+      contact_id: contactId, role: "user", content: messageText, persona,
     }) as any);
     await loadMessages();
 
