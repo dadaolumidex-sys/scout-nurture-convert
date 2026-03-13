@@ -129,7 +129,7 @@ const AnalyzerPage = () => {
           <CardContent className="p-5">
             <div className="flex gap-3">
               <Input
-                placeholder="https://twitch.tv/username"
+                placeholder="https://twitch.tv/username or https://kick.com/username"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
