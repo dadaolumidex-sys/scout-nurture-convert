@@ -92,7 +92,7 @@ const ContactChatPage = () => {
     if (error) { toast.error("Failed to upload image"); setUploading(false); return; }
     const { data: urlData } = supabase.storage.from("chat-images").getPublicUrl(path);
     await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId, role: "user", content: "[Screenshot]", image_url: urlData.publicUrl,
+      contact_id: contactId, role: "user", content: "[Screenshot]", image_url: urlData.publicUrl, persona: persona,
     }) as any);
     await loadMessages();
     setUploading(false);
@@ -106,8 +106,8 @@ const ContactChatPage = () => {
     setSuggestions([]);
     setSelectedSuggestion(null);
 
-    await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId, role: "user", content: messageText,
+      await (supabase.from("contact_messages" as any).insert({
+      contact_id: contactId, role: "user", content: messageText, persona: persona,
     }) as any);
     await loadMessages();
 
@@ -129,7 +129,8 @@ const ContactChatPage = () => {
     const { data: currentMessages } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
     const msgs = (currentMessages || []) as ChatMessage[];
 
-    const recentMessages = msgs.slice(-20).map((m) => ({
+    const personaMessages = msgs.filter((m) => !m.persona || m.persona === targetPersona);
+    const recentMessages = personaMessages.slice(-20).map((m) => ({
       role: m.role === "user" ? "user" as const : "assistant" as const,
       content: m.image_url ? `[Image: ${m.image_url}]\n${m.content}` : m.content,
     }));
@@ -226,7 +227,7 @@ const ContactChatPage = () => {
 
         {/* Messages */}
         <div className="flex-1 overflow-auto space-y-3 mb-4 pr-1">
-          {messages.length === 0 && (
+          {messages.filter((msg) => !msg.persona || msg.persona === persona).length === 0 && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground space-y-2">
                 <p className="text-sm">No messages yet. Paste their message to get started!</p>
@@ -238,7 +239,7 @@ const ContactChatPage = () => {
               </div>
             </div>
           )}
-          {messages.map((msg) => (
+          {messages.filter((msg) => !msg.persona || msg.persona === persona).map((msg) => (
             <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`group relative max-w-[80%] rounded-xl px-4 py-3 text-sm ${
                 msg.role === "user"
@@ -348,22 +349,16 @@ const ContactChatPage = () => {
         {/* Generate + Status */}
         <div className="flex gap-2 mb-3 items-center">
           <Button
-            onClick={() => generateSuggestions("friend")}
-            disabled={loading || messages.length === 0}
+            onClick={() => generateSuggestions(persona)}
+            disabled={loading || messages.filter((m) => !m.persona || m.persona === persona).length === 0}
             variant="outline"
             size="sm"
-            className={`border-secondary/30 text-secondary hover:bg-secondary/10 ${persona === "friend" ? "ring-1 ring-secondary/30" : ""}`}
+            className={persona === "friend"
+              ? "border-secondary/30 text-secondary hover:bg-secondary/10"
+              : "border-primary/30 text-primary hover:bg-primary/10"
+            }
           >
-            🤝 Nifimas Reply
-          </Button>
-          <Button
-            onClick={() => generateSuggestions("promoter")}
-            disabled={loading || messages.length === 0}
-            variant="outline"
-            size="sm"
-            className={`border-primary/30 text-primary hover:bg-primary/10 ${persona === "promoter" ? "ring-1 ring-primary/30" : ""}`}
-          >
-            💼 Brozeen Reply
+            {config.emoji} Get {config.name} Reply
           </Button>
           <div className="flex-1" />
           <select
