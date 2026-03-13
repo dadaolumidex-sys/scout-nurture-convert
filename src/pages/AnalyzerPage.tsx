@@ -121,7 +121,7 @@ const AnalyzerPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Streamer Analyzer</h1>
           <p className="text-muted-foreground mt-1">
-            Paste a Twitch channel link to get a real-time AI-powered analysis
+            Paste a Twitch or Kick channel link to get a real-time AI-powered analysis
           </p>
         </div>
 
