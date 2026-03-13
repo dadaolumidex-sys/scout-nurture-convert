@@ -32,6 +32,7 @@ const statusColors: Record<string, string> = {
 };
 
 const InboxPage = () => {
+  const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
