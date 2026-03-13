@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import AnalyzerPage from "./pages/AnalyzerPage";
 import ChatPage from "./pages/ChatPage";
 import InboxPage from "./pages/InboxPage";
+import ContactChatPage from "./pages/ContactChatPage";
 import KnowledgePage from "./pages/KnowledgePage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import SettingsPage from "./pages/SettingsPage";
