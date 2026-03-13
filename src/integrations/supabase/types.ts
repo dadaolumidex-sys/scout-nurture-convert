@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          persona: string | null
+          platform: string | null
+          revenue: number | null
+          streamer_username: string | null
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          persona?: string | null
+          platform?: string | null
+          revenue?: number | null
+          streamer_username?: string | null
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          persona?: string | null
+          platform?: string | null
+          revenue?: number | null
+          streamer_username?: string | null
+        }
+        Relationships: []
+      }
+      knowledge_entries: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          id: string
+          insights: Json | null
+          persona: string
+          source_type: string
+          source_url: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          content: string
+          created_at?: string
+          id?: string
+          insights?: Json | null
+          persona?: string
+          source_type?: string
+          source_url?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          id?: string
+          insights?: Json | null
+          persona?: string
+          source_type?: string
+          source_url?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       streamer_contacts: {
         Row: {
           avg_viewers: string | null
@@ -101,6 +173,39 @@ export type Database = {
           updated_at?: string | null
           username?: string
           weaknesses?: string[] | null
+        }
+        Relationships: []
+      }
+      training_conversations: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          persona: string
+          source_type: string
+          status: string
+          style_analysis: string | null
+          title: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          persona?: string
+          source_type?: string
+          status?: string
+          style_analysis?: string | null
+          title: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          persona?: string
+          source_type?: string
+          status?: string
+          style_analysis?: string | null
+          title?: string
         }
         Relationships: []
       }

@@ -4,6 +4,7 @@ import {
   MessageSquare,
   Bot,
   BookOpen,
+  BarChart3,
   Settings,
   Zap,
 } from "lucide-react";
@@ -26,7 +27,8 @@ const navItems = [
   { title: "Streamer Analyzer", url: "/analyzer", icon: Search },
   { title: "Conversation Inbox", url: "/inbox", icon: MessageSquare },
   { title: "AI Chat Assistant", url: "/chat", icon: Bot },
-  { title: "Knowledge Base", url: "/knowledge", icon: BookOpen },
+  { title: "Knowledge & Training", url: "/knowledge", icon: BookOpen },
+  { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
