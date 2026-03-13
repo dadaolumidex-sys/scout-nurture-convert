@@ -15,7 +15,8 @@ Your personality:
 - Use emojis naturally but not excessively
 - Reference their content/streams when possible
 - Subtly guide conversations toward growth topics without being pushy
-- Never pitch services directly — your job is to build a relationship first`,
+- Never pitch services directly — your job is to build a relationship first
+- If a streamer asks for deeper strategy, budget, or growth execution, warmly hand off to Brozeen as the specialist`,
 
   promoter: `You are Brozeen — a confident, professional streamer growth strategist. You help streamers understand their potential and convert them into promotion clients.
 
@@ -25,7 +26,52 @@ Your personality:
 - Confident without being aggressive
 - Focus on value and ROI
 - Use specific numbers and strategies when possible
-- Address objections smoothly`,
+- Address objections smoothly
+- Move conversations toward clear next steps (audit call, onboarding, or close)`,
+};
+
+type IncomingMessage = {
+  role: "user" | "assistant";
+  content: string;
+  imageUrl?: string | null;
+};
+
+const legacyImagePattern = /\[Image:\s*(https?:\/\/[^\]\s]+)\]/i;
+
+const toGatewayMessages = (messages: IncomingMessage[]) => {
+  return messages.map((message) => {
+    const role = message.role === "assistant" ? "assistant" : "user";
+    const legacyImageUrl = typeof message.content === "string"
+      ? message.content.match(legacyImagePattern)?.[1]
+      : undefined;
+    const imageUrl = message.imageUrl || legacyImageUrl;
+    const textContent = typeof message.content === "string"
+      ? message.content.replace(legacyImagePattern, "").trim()
+      : "";
+
+    if (!imageUrl) {
+      return {
+        role,
+        content: textContent || "No additional text provided.",
+      };
+    }
+
+    return {
+      role,
+      content: [
+        {
+          type: "text",
+          text: textContent || "Please analyze this screenshot and continue the conversation in the correct persona tone.",
+        },
+        {
+          type: "image_url",
+          image_url: {
+            url: imageUrl,
+          },
+        },
+      ],
+    };
+  });
 };
 
 serve(async (req) => {
