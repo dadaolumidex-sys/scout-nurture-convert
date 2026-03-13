@@ -71,6 +71,7 @@ Deno.serve(async (req) => {
       broadcasterType,
       createdAt,
       platform: 'kick',
+      contentCategory: livestream?.categories?.[0]?.name || recentCategories?.[0]?.name || 'Variety',
       followersEstimate,
       avgViewers: avgViewers !== null ? `~${avgViewers}` : 'Unknown',
       streamingFrequency: frequency,
