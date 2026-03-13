@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
     const vodData = await vodRes.json();
     const vods = vodData.data || [];
 
-    // 4. Try to get follower count
+    // 5. Try to get follower count
     let followerCount: number | null = null;
     try {
       const followerRes = await fetch(`${GATEWAY_URL}/channels/followers?broadcaster_id=${user.id}&first=1`, {
