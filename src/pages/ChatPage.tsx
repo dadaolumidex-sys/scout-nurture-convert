@@ -1,15 +1,17 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot } from "lucide-react";
+import { Send, Bot, Plus, ImagePlus, Sparkles, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
+import { Badge } from "@/components/ui/badge";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
+  images?: string[]; // base64 data URLs
 };
 
 type Persona = "friend" | "promoter";
@@ -36,23 +38,42 @@ const personaConfig = {
 async function streamChat({
   messages,
   persona,
+  deepResearch,
   onDelta,
   onDone,
   onError,
 }: {
   messages: Message[];
   persona: Persona;
+  deepResearch: boolean;
   onDelta: (text: string) => void;
   onDone: () => void;
   onError: (msg: string) => void;
 }) {
+  // Convert messages to API format with image support
+  const apiMessages = messages.map((msg) => {
+    if (msg.images && msg.images.length > 0) {
+      return {
+        role: msg.role,
+        content: [
+          { type: "text" as const, text: msg.content || "What do you see in this image?" },
+          ...msg.images.map((img) => ({
+            type: "image_url" as const,
+            image_url: { url: img },
+          })),
+        ],
+      };
+    }
+    return { role: msg.role, content: msg.content };
+  });
+
   const resp = await fetch(CHAT_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
     },
-    body: JSON.stringify({ messages, persona }),
+    body: JSON.stringify({ messages: apiMessages, persona, deepResearch }),
   });
 
   if (!resp.ok) {
@@ -101,7 +122,10 @@ const ChatPage = () => {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const [deepResearch, setDeepResearch] = useState(false);
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const config = personaConfig[persona];
 
@@ -109,13 +133,47 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
 
-    const userMsg: Message = { role: "user", content: input };
+    Array.from(files).forEach((file) => {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("Image must be under 10MB");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPendingImages((prev) => [...prev, reader.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const removePendingImage = (index: number) => {
+    setPendingImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleNewChat = () => {
+    setMessages([]);
+    setInput("");
+    setPendingImages([]);
+  };
+
+  const handleSend = async () => {
+    if ((!input.trim() && pendingImages.length === 0) || loading) return;
+
+    const userMsg: Message = {
+      role: "user",
+      content: input,
+      images: pendingImages.length > 0 ? [...pendingImages] : undefined,
+    };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
+    setPendingImages([]);
     setLoading(true);
 
     let assistantSoFar = "";
@@ -137,6 +195,7 @@ const ChatPage = () => {
       await streamChat({
         messages: newMessages,
         persona,
+        deepResearch,
         onDelta: upsertAssistant,
         onDone: () => setLoading(false),
         onError: (msg) => {
@@ -166,12 +225,39 @@ const ChatPage = () => {
             <Button
               variant="outline"
               size="sm"
+              onClick={handleNewChat}
+              className="gap-1.5"
+            >
+              <Plus className="h-4 w-4" />
+              New Chat
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => setPersona(persona === "friend" ? "promoter" : "friend")}
               className={`${config.badgeClass} hover:opacity-80`}
             >
               {config.emoji} {config.name}
             </Button>
           </div>
+        </div>
+
+        {/* Toolbar */}
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            variant={deepResearch ? "default" : "outline"}
+            size="sm"
+            onClick={() => setDeepResearch(!deepResearch)}
+            className={`gap-1.5 ${deepResearch ? "gradient-primary text-primary-foreground" : ""}`}
+          >
+            <Sparkles className="h-4 w-4" />
+            Deep Research
+          </Button>
+          {deepResearch && (
+            <Badge variant="outline" className="text-xs border-primary/30 text-primary">
+              Uses advanced model for thorough analysis
+            </Badge>
+          )}
         </div>
 
         {/* Persona Banner */}
@@ -194,7 +280,7 @@ const ChatPage = () => {
               <div className="text-center text-muted-foreground">
                 <Bot className="h-12 w-12 mx-auto mb-3 opacity-30" />
                 <p className="text-sm">Ask me anything — strategy, settings, ideas, or paste a conversation for reply suggestions</p>
-                <p className="text-xs mt-1">Switch personas to change the response style</p>
+                <p className="text-xs mt-1">Upload images, toggle Deep Research, or switch personas</p>
               </div>
             </div>
           )}
@@ -210,12 +296,25 @@ const ChatPage = () => {
                     : "bg-accent text-accent-foreground border border-border"
                 }`}
               >
+                {/* User images */}
+                {msg.images && msg.images.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {msg.images.map((img, idx) => (
+                      <img
+                        key={idx}
+                        src={img}
+                        alt={`Uploaded ${idx + 1}`}
+                        className="rounded-lg max-h-40 object-cover border border-border"
+                      />
+                    ))}
+                  </div>
+                )}
                 {msg.role === "assistant" ? (
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <ReactMarkdown>{msg.content}</ReactMarkdown>
                   </div>
                 ) : (
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
                 {msg.role === "assistant" && (
                   <Button
@@ -236,30 +335,70 @@ const ChatPage = () => {
           {loading && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex gap-3">
               <div className="bg-accent rounded-xl px-4 py-3 text-sm text-muted-foreground animate-pulse">
-                {config.name} is thinking...
+                {config.name} is {deepResearch ? "researching deeply" : "thinking"}...
               </div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Pending image previews */}
+        {pendingImages.length > 0 && (
+          <div className="flex gap-2 mb-2 flex-wrap">
+            {pendingImages.map((img, idx) => (
+              <div key={idx} className="relative group">
+                <img
+                  src={img}
+                  alt={`Pending ${idx + 1}`}
+                  className="h-16 w-16 rounded-lg object-cover border border-border"
+                />
+                <button
+                  onClick={() => removePendingImage(idx)}
+                  className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Input */}
         <div className="flex gap-3">
-          <Textarea
-            placeholder="Paste the conversation or type your message..."
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[80px]"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
+          <div className="flex-1 relative">
+            <Textarea
+              placeholder="Type your message or upload an image..."
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[80px] pr-12"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-2 bottom-2 h-8 w-8 text-muted-foreground hover:text-foreground"
+              onClick={() => fileInputRef.current?.click()}
+              type="button"
+            >
+              <ImagePlus className="h-4 w-4" />
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleImageUpload}
+            />
+          </div>
           <Button
             onClick={handleSend}
-            disabled={loading || !input.trim()}
+            disabled={loading || (!input.trim() && pendingImages.length === 0)}
             className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0"
           >
             <Send className="h-4 w-4" />

@@ -21,9 +21,10 @@ You can help with:
 - App settings, configuration, and how things work
 - Marketing and business advice
 - Writing, editing, brainstorming ideas
+- Analyzing images and screenshots
 - Any other question the user has
 
-Always respond helpfully and clearly. If given a conversation history to analyze, suggest a natural reply. Format your responses with markdown when helpful.`,
+Always respond helpfully and clearly. If given a conversation history to analyze, suggest a natural reply. If given images, analyze them thoroughly. Format your responses with markdown when helpful.`,
 
   promoter: `You are Brozeen — a confident, professional growth strategist and AI assistant. You combine business expertise with broad general knowledge to help with any task.
 
@@ -39,20 +40,37 @@ You can help with:
 - General questions about anything
 - App settings, configuration, and troubleshooting
 - Writing professional messages, proposals, and pitches
+- Analyzing images and screenshots
 - Any other question the user has
 
-When discussing streamer outreach, position promotion as an investment and use specific strategies. For all other topics, provide clear, expert-level advice. Format your responses with markdown when helpful.`,
+When discussing streamer outreach, position promotion as an investment and use specific strategies. For all other topics, provide clear, expert-level advice. If given images, analyze them thoroughly. Format your responses with markdown when helpful.`,
 };
+
+const DEEP_RESEARCH_SUFFIX = `
+
+IMPORTANT: The user has enabled Deep Research mode. Provide an extremely thorough, detailed, and comprehensive answer. Include:
+- Multiple perspectives and angles
+- Specific data points, examples, and evidence where possible
+- Step-by-step breakdowns
+- Pros and cons analysis when relevant
+- Actionable recommendations
+Take your time and be exhaustive in your analysis.`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, persona } = await req.json();
+    const { messages, persona, deepResearch } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    const systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
+    let systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
+    if (deepResearch) {
+      systemPrompt += DEEP_RESEARCH_SUFFIX;
+    }
+
+    // Use a more powerful model for deep research
+    const model = deepResearch ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -61,7 +79,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model,
         messages: [
           { role: "system", content: systemPrompt },
           ...messages,
