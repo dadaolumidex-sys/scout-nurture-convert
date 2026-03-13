@@ -54,10 +54,7 @@ const AnalyzerPage = () => {
       return;
     }
 
-    if (isKick) {
-      toast.info("Kick support coming soon! Only Twitch is available right now.");
-      return;
-    }
+    const platform = isTwitch ? "twitch" : "kick";
 
     const username = url.split("/").filter(Boolean).pop()?.replace(/[?#].*/, "") || "";
     if (!username) {
