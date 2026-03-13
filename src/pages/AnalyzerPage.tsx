@@ -84,7 +84,7 @@ const AnalyzerPage = () => {
         {
           username: data.username,
           platform: data.platform,
-          channel_url: `https://twitch.tv/${data.username}`,
+          channel_url: platform === "twitch" ? `https://twitch.tv/${data.username}` : `https://kick.com/${data.username}`,
           display_name: data.displayName,
           description: data.description,
           profile_image_url: data.profileImageUrl,
