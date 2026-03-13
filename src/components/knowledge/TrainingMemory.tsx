@@ -222,6 +222,5 @@ export function TrainingMemory() {
         </div>
       </Tabs>
     </div>
-    </div>
   );
 }
