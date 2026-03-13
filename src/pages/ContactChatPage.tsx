@@ -370,7 +370,7 @@ const ContactChatPage = () => {
         <div className="flex gap-2 mb-3 items-center">
           <Button
             onClick={() => generateSuggestions(persona)}
-            disabled={loading || messages.filter((m) => !m.persona || m.persona === persona).length === 0}
+            disabled={loading || messages.filter((m) => m.persona === persona).length === 0}
             variant="outline"
             size="sm"
             className={persona === "friend"
