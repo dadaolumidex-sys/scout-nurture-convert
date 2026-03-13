@@ -91,19 +91,28 @@ const InboxPage = () => {
       existing_chat: "in_conversation",
       re_engage: "new",
     };
-    const { error } = await (supabase.from("streamer_contacts" as any).insert({
+    const { data, error } = await (supabase.from("streamer_contacts" as any).insert({
       username: newName.toLowerCase().replace(/\s+/g, ""),
       display_name: newName,
       platform: newPlatform,
       channel_url: newUrl || `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}`,
       conversation_type: selectedType,
       status: statusMap[selectedType || "new_prospect"],
-    }) as any);
+    }).select().single() as any);
 
     if (error) {
       toast.error("Failed to add contact");
       console.error(error);
     } else {
+      // If chat history was pasted, save it as context message
+      if (chatHistory.trim() && data?.id) {
+        await (supabase.from("contact_messages" as any).insert({
+          contact_id: data.id,
+          content: `📋 Previous chat history:\n\n${chatHistory}`,
+          role: "context",
+          persona: "nifimas",
+        }) as any);
+      }
       toast.success("Contact added!");
       resetDialog();
       setDialogOpen(false);
