@@ -1,1 +1,4 @@
 project_id = "uqbhrwpcmfbtxkvtuxeo"
+
+[functions.analyze-twitch]
+verify_jwt = false

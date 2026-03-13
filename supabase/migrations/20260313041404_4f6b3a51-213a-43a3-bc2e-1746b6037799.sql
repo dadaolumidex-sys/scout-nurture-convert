@@ -1,0 +1,1 @@
+ALTER TABLE public.streamer_contacts ADD CONSTRAINT streamer_contacts_username_key UNIQUE (username);

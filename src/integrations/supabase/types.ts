@@ -14,7 +14,96 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      streamer_contacts: {
+        Row: {
+          avg_viewers: string | null
+          broadcaster_type: string | null
+          channel_url: string | null
+          created_at: string | null
+          created_at_twitch: string | null
+          description: string | null
+          display_name: string | null
+          followers_estimate: string | null
+          friend_message: string | null
+          growth_stage: string | null
+          id: string
+          is_live: boolean | null
+          last_message: string | null
+          live_game: string | null
+          live_title: string | null
+          live_viewers: number | null
+          opportunities: string[] | null
+          platform: string
+          profile_image_url: string | null
+          promoter_message: string | null
+          promotion_potential: string | null
+          status: string | null
+          streaming_frequency: string | null
+          strengths: string[] | null
+          updated_at: string | null
+          username: string
+          weaknesses: string[] | null
+        }
+        Insert: {
+          avg_viewers?: string | null
+          broadcaster_type?: string | null
+          channel_url?: string | null
+          created_at?: string | null
+          created_at_twitch?: string | null
+          description?: string | null
+          display_name?: string | null
+          followers_estimate?: string | null
+          friend_message?: string | null
+          growth_stage?: string | null
+          id?: string
+          is_live?: boolean | null
+          last_message?: string | null
+          live_game?: string | null
+          live_title?: string | null
+          live_viewers?: number | null
+          opportunities?: string[] | null
+          platform?: string
+          profile_image_url?: string | null
+          promoter_message?: string | null
+          promotion_potential?: string | null
+          status?: string | null
+          streaming_frequency?: string | null
+          strengths?: string[] | null
+          updated_at?: string | null
+          username: string
+          weaknesses?: string[] | null
+        }
+        Update: {
+          avg_viewers?: string | null
+          broadcaster_type?: string | null
+          channel_url?: string | null
+          created_at?: string | null
+          created_at_twitch?: string | null
+          description?: string | null
+          display_name?: string | null
+          followers_estimate?: string | null
+          friend_message?: string | null
+          growth_stage?: string | null
+          id?: string
+          is_live?: boolean | null
+          last_message?: string | null
+          live_game?: string | null
+          live_title?: string | null
+          live_viewers?: number | null
+          opportunities?: string[] | null
+          platform?: string
+          profile_image_url?: string | null
+          promoter_message?: string | null
+          promotion_potential?: string | null
+          status?: string | null
+          streaming_frequency?: string | null
+          strengths?: string[] | null
+          updated_at?: string | null
+          username?: string
+          weaknesses?: string[] | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
