@@ -19,6 +19,7 @@ type Contact = {
   profile_image_url: string | null;
   conversation_type: string | null;
   growth_stage: string | null;
+  status: string | null;
 };
 
 type ChatMessage = {
