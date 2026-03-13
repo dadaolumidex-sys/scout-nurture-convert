@@ -25,10 +25,11 @@ type Contact = {
   profile_image_url: string | null;
 };
 
-const statusColors: Record<string, string> = {
-  active: "bg-success/20 text-success border-success/30",
-  waiting: "bg-warning/20 text-warning border-warning/30",
-  cold: "bg-muted text-muted-foreground border-border",
+const conversationStages: Record<string, { label: string; emoji: string; className: string }> = {
+  new: { label: "New friend request", emoji: "👋", className: "bg-primary/15 text-primary border-primary/30" },
+  in_conversation: { label: "In conversation", emoji: "💬", className: "bg-secondary/15 text-secondary border-secondary/30" },
+  ready_to_pitch: { label: "Ready to pitch", emoji: "🎯", className: "bg-[hsl(38,92%,55%)]/15 text-[hsl(38,92%,55%)] border-[hsl(38,92%,55%)]/30" },
+  converted: { label: "Converted", emoji: "✅", className: "bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] border-[hsl(var(--success))]/30" },
 };
 
 const InboxPage = () => {
@@ -163,7 +164,14 @@ const InboxPage = () => {
                         {contact.growth_stage && (
                           <Badge variant="outline" className="text-xs text-muted-foreground">{contact.growth_stage}</Badge>
                         )}
-                        <Badge variant="outline" className={`text-xs ${statusColors[contact.status || "active"]}`}>{contact.status || "active"}</Badge>
+                        {(() => {
+                          const stage = conversationStages[contact.status || "new"] || conversationStages.new;
+                          return (
+                            <Badge variant="outline" className={`text-xs ${stage.className}`}>
+                              {stage.emoji} {stage.label}
+                            </Badge>
+                          );
+                        })()}
                       </div>
                       <p className="text-sm text-muted-foreground mt-0.5 truncate max-w-md">
                         {contact.avg_viewers ? `Avg viewers: ${contact.avg_viewers}` : "No analysis data yet"}

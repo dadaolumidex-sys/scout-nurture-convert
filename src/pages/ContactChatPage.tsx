@@ -19,6 +19,7 @@ type Contact = {
   profile_image_url: string | null;
   conversation_type: string | null;
   growth_stage: string | null;
+  status: string | null;
 };
 
 type ChatMessage = {
@@ -103,27 +104,43 @@ const ContactChatPage = () => {
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
+    const messageText = input.trim();
+    setInput("");
     // Save user message (the pasted streamer message)
     await (supabase.from("contact_messages" as any).insert({
       contact_id: contactId,
       role: "user",
-      content: input.trim(),
+      content: messageText,
     }) as any);
     await loadMessages();
-    setInput("");
+
+    // Update status to in_conversation if still new
+    if (contact?.status === "new" || !contact?.status) {
+      await (supabase.from("streamer_contacts" as any).update({ status: "in_conversation" }).eq("id", contactId) as any);
+      setContact((prev) => prev ? { ...prev, status: "in_conversation" } : prev);
+    }
+
+    // Auto-generate replies from both personas
+    setLoading(true);
+    await Promise.all([
+      generateReplyInternal("friend"),
+      generateReplyInternal("promoter"),
+    ]);
+    setLoading(false);
   };
 
-  const generateReply = async (targetPersona: Persona) => {
-    if (loading) return;
-    setLoading(true);
+  const generateReplyInternal = async (targetPersona: Persona) => {
+    // Build context from recent messages (use latest state)
+    const currentMessages = await (async () => {
+      const { data } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
+      return (data || []) as ChatMessage[];
+    })();
 
-    // Build context from recent messages
-    const recentMessages = messages.slice(-20).map((m) => ({
+    const recentMessages = currentMessages.slice(-20).map((m: ChatMessage) => ({
       role: m.role === "user" ? "user" as const : "assistant" as const,
       content: m.image_url ? `[Image: ${m.image_url}]\n${m.content}` : m.content,
     }));
 
-    // Add contact context
     const contactContext = contact
       ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}. Generate the next reply I should send them.`
       : "";
@@ -148,8 +165,7 @@ const ContactChatPage = () => {
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: "Request failed" }));
-        toast.error(err.error || `Error ${resp.status}`);
-        setLoading(false);
+        toast.error(`${personaConfig[targetPersona].name}: ${err.error || `Error ${resp.status}`}`);
         return;
       }
 
@@ -157,8 +173,7 @@ const ContactChatPage = () => {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      // Create a placeholder AI message
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${targetPersona}-${Date.now()}`;
       setMessages((prev) => [...prev, {
         id: tempId,
         contact_id: contactId!,
@@ -217,8 +232,14 @@ const ContactChatPage = () => {
 
     } catch (e) {
       console.error(e);
-      toast.error("Failed to generate reply");
+      toast.error(`${personaConfig[targetPersona].name}: Failed to generate reply`);
     }
+  };
+
+  const generateReply = async (targetPersona: Persona) => {
+    if (loading) return;
+    setLoading(true);
+    await generateReplyInternal(targetPersona);
     setLoading(false);
   };
 
@@ -391,26 +412,42 @@ const ContactChatPage = () => {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Generate buttons */}
-        <div className="flex gap-2 mb-3">
+        {/* Generate buttons + Status selector */}
+        <div className="flex gap-2 mb-3 items-center">
           <Button
             onClick={() => generateReply("friend")}
             disabled={loading || messages.length === 0}
             variant="outline"
             size="sm"
-            className="flex-1 border-secondary/30 text-secondary hover:bg-secondary/10"
+            className="border-secondary/30 text-secondary hover:bg-secondary/10"
           >
-            🤝 Generate as Nifimas
+            🤝 Nifimas
           </Button>
           <Button
             onClick={() => generateReply("promoter")}
             disabled={loading || messages.length === 0}
             variant="outline"
             size="sm"
-            className="flex-1 border-primary/30 text-primary hover:bg-primary/10"
+            className="border-primary/30 text-primary hover:bg-primary/10"
           >
-            💼 Generate as Brozeen
+            💼 Brozeen
           </Button>
+          <div className="flex-1" />
+          <select
+            value={contact?.status || "new"}
+            onChange={async (e) => {
+              const newStatus = e.target.value;
+              await (supabase.from("streamer_contacts" as any).update({ status: newStatus }).eq("id", contactId) as any);
+              setContact((prev) => prev ? { ...prev, status: newStatus } : prev);
+              toast.success(`Status: ${newStatus.replace(/_/g, " ")}`);
+            }}
+            className="text-xs bg-muted border border-border rounded-md px-2 py-1 text-foreground"
+          >
+            <option value="new">👋 New friend request</option>
+            <option value="in_conversation">💬 In conversation</option>
+            <option value="ready_to_pitch">🎯 Ready to pitch</option>
+            <option value="converted">✅ Converted</option>
+          </select>
         </div>
 
         {/* Input */}
