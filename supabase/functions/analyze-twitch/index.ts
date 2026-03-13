@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
       broadcasterType: user.broadcaster_type,
       createdAt: user.created_at,
       platform: 'twitch',
+      contentCategory: stream?.game_name || channel?.game_name || 'Variety',
       followersEstimate: followersEstimate,
       avgViewers: avgViewers !== null ? `~${avgViewers}` : 'Unknown',
       streamingFrequency: frequency,
