@@ -166,9 +166,13 @@ const InboxPage = () => {
                       {selectedType && conversationTypes[selectedType].icon}
                       {selectedType && conversationTypes[selectedType].label}
                     </DialogTitle>
-                    <DialogDescription className="text-muted-foreground">Add streamer details</DialogDescription>
+                    <DialogDescription className="text-muted-foreground">
+                      {selectedType === "new_prospect" && "Add the streamer you want to reach out to"}
+                      {selectedType === "existing_chat" && "Continue a conversation you've already started"}
+                      {selectedType === "re_engage" && "Re-engage a streamer who hasn't replied"}
+                    </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 mt-2">
+                  <div className="space-y-4 mt-2 max-h-[60vh] overflow-y-auto pr-1">
                     <div>
                       <Label className="text-foreground text-sm">Name</Label>
                       <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Streamer name" className="bg-muted border-border text-foreground mt-1" />
@@ -187,9 +191,31 @@ const InboxPage = () => {
                       <Label className="text-foreground text-sm">Channel URL</Label>
                       <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
                     </div>
-                    <div className="flex gap-2">
+
+                    {/* Chat history paste area for Existing Chat & Re-engage */}
+                    {(selectedType === "existing_chat" || selectedType === "re_engage") && (
+                      <div>
+                        <Label className="text-foreground text-sm flex items-center gap-1.5">
+                          <Upload className="h-3.5 w-3.5" />
+                          Paste Previous Chat
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
+                          Paste your Discord/DM conversation so the AI knows the context
+                        </p>
+                        <Textarea
+                          value={chatHistory}
+                          onChange={(e) => setChatHistory(e.target.value)}
+                          placeholder={"Example:\nYou: Hey bro, love your streams!\nStreamer: Thanks man!\nYou: I've got something that could help grow your channel..."}
+                          className="bg-muted border-border text-foreground min-h-[120px] text-sm"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 pt-1">
                       <Button variant="outline" onClick={() => setDialogStep("type")} className="flex-1 border-border text-muted-foreground hover:text-foreground">Back</Button>
-                      <Button onClick={handleAddContact} className="flex-1 gradient-primary text-primary-foreground">Add Contact</Button>
+                      <Button onClick={handleAddContact} className="flex-1 gradient-primary text-primary-foreground">
+                        {selectedType === "new_prospect" ? "Add & Start Chat" : "Add & Continue"}
+                      </Button>
                     </div>
                   </div>
                 </>
