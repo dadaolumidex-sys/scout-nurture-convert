@@ -86,6 +86,15 @@ const InboxPage = () => {
     setChatImages([]);
   };
 
+  const handleDeleteContact = async (contactId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Delete messages first, then contact
+    await (supabase.from("contact_messages" as any).delete().eq("contact_id", contactId) as any);
+    await (supabase.from("streamer_contacts" as any).delete().eq("id", contactId) as any);
+    toast.success("Contact deleted");
+    loadContacts();
+  };
+
   const handleAddContact = async () => {
     if (!newName.trim()) {
       toast.error("Name is required");
