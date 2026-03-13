@@ -159,7 +159,7 @@ const ChatPage = () => {
           <div>
             <h1 className="text-2xl font-bold text-foreground">AI Chat Assistant</h1>
             <p className="text-muted-foreground text-sm">
-              Paste conversation messages and get AI reply suggestions
+              Ask anything — strategy, settings, ideas, or get reply suggestions
             </p>
           </div>
           <div className="flex items-center gap-2">
