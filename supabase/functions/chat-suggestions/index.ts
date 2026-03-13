@@ -78,9 +78,16 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, persona, contactContext } = await req.json();
+    const { messages = [], persona, contactContext } = await req.json() as {
+      messages?: IncomingMessage[];
+      persona?: string;
+      contactContext?: string;
+    };
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const activePersona = persona === "promoter" ? "promoter" : "friend";
+    const preparedMessages = toGatewayMessages(Array.isArray(messages) ? messages : []);
 
     // Fetch knowledge base entries and training conversations for this persona
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -88,8 +95,8 @@ serve(async (req) => {
     const sb = createClient(supabaseUrl, supabaseKey);
 
     const [knowledgeRes, trainingRes] = await Promise.all([
-      sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${persona},persona.eq.shared`).limit(20),
-      sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", persona === "friend" ? "nifimas" : "brozeen").eq("status", "analyzed").limit(10),
+      sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${activePersona},persona.eq.shared`).limit(20),
+      sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").eq("status", "analyzed").limit(10),
     ]);
 
     const knowledgeEntries = knowledgeRes.data || [];
