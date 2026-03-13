@@ -220,8 +220,8 @@ export function TrainingMemory() {
             </div>
           )}
         </div>
-        </div>
       </Tabs>
+    </div>
     </div>
   );
 }
