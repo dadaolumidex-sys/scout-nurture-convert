@@ -98,7 +98,7 @@ const InboxPage = () => {
       username: newName.toLowerCase().replace(/\s+/g, ""),
       display_name: newName,
       platform: newPlatform,
-      channel_url: newUrl || `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}`,
+      channel_url: newUrl || (selectedType === "new_prospect" ? `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}` : null),
       conversation_type: selectedType,
       status: statusMap[selectedType || "new_prospect"],
     }).select().single() as any);
@@ -207,10 +207,18 @@ const InboxPage = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label className="text-foreground text-sm">Channel URL</Label>
-                      <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
-                    </div>
+                    {selectedType === "new_prospect" && (
+                      <div>
+                        <Label className="text-foreground text-sm">Channel URL</Label>
+                        <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
+                      </div>
+                    )}
+                    {(selectedType === "existing_chat" || selectedType === "re_engage") && (
+                      <div>
+                        <Label className="text-foreground text-sm">Channel URL <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                        <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
+                      </div>
+                    )}
 
                     {/* Chat history paste area for Existing Chat & Re-engage */}
                      {(selectedType === "existing_chat" || selectedType === "re_engage") && (
