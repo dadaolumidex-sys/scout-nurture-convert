@@ -64,9 +64,15 @@ const ContactChatPage = () => {
   useEffect(() => {
     if (contactId) {
       loadContact();
-      loadMessages();
     }
   }, [contactId]);
+
+  useEffect(() => {
+    if (contactId) {
+      setMessages([]);
+      loadMessages(persona);
+    }
+  }, [contactId, persona]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -77,8 +83,12 @@ const ContactChatPage = () => {
     if (data) setContact(data);
   };
 
-  const loadMessages = async () => {
-    const { data } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
+  const loadMessages = async (targetPersona: Persona = persona) => {
+    const { data } = await (supabase.from("contact_messages" as any)
+      .select("*")
+      .eq("contact_id", contactId)
+      .eq("persona", targetPersona)
+      .order("created_at", { ascending: true }) as any);
     if (data) setMessages(data);
   };
 
