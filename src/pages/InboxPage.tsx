@@ -52,6 +52,7 @@ const InboxPage = () => {
   const [newName, setNewName] = useState("");
   const [newPlatform, setNewPlatform] = useState<"twitch" | "kick">("twitch");
   const [newUrl, setNewUrl] = useState("");
+  const [chatHistory, setChatHistory] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
