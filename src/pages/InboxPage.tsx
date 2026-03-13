@@ -213,21 +213,70 @@ const InboxPage = () => {
                     </div>
 
                     {/* Chat history paste area for Existing Chat & Re-engage */}
-                    {(selectedType === "existing_chat" || selectedType === "re_engage") && (
-                      <div>
-                        <Label className="text-foreground text-sm flex items-center gap-1.5">
-                          <Upload className="h-3.5 w-3.5" />
-                          Paste Previous Chat
-                        </Label>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
-                          Paste your Discord/DM conversation so the AI knows the context
-                        </p>
-                        <Textarea
-                          value={chatHistory}
-                          onChange={(e) => setChatHistory(e.target.value)}
-                          placeholder={"Example:\nYou: Hey bro, love your streams!\nStreamer: Thanks man!\nYou: I've got something that could help grow your channel..."}
-                          className="bg-muted border-border text-foreground min-h-[120px] text-sm"
-                        />
+                     {(selectedType === "existing_chat" || selectedType === "re_engage") && (
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-foreground text-sm flex items-center gap-1.5">
+                            <Upload className="h-3.5 w-3.5" />
+                            Paste Previous Chat
+                          </Label>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
+                            Paste your Discord/DM conversation so the AI knows the context
+                          </p>
+                          <Textarea
+                            value={chatHistory}
+                            onChange={(e) => setChatHistory(e.target.value)}
+                            placeholder={"Example:\nYou: Hey bro, love your streams!\nStreamer: Thanks man!\nYou: I've got something that could help grow your channel..."}
+                            className="bg-muted border-border text-foreground min-h-[100px] text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-foreground text-sm flex items-center gap-1.5">
+                            <ImagePlus className="h-3.5 w-3.5" />
+                            Upload Chat Screenshots
+                          </Label>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
+                            Upload screenshots of your DMs for the AI to analyze
+                          </p>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            id="chat-screenshot-upload"
+                            onChange={(e) => {
+                              if (e.target.files) {
+                                setChatImages(prev => [...prev, ...Array.from(e.target.files!)]);
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor="chat-screenshot-upload"
+                            className="flex items-center justify-center gap-2 w-full p-3 rounded-lg border border-dashed border-border bg-muted/50 hover:border-primary/50 hover:bg-accent/20 transition-all cursor-pointer text-sm text-muted-foreground"
+                          >
+                            <ImagePlus className="h-4 w-4" />
+                            Click to upload screenshots
+                          </label>
+                          {chatImages.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {chatImages.map((file, i) => (
+                                <div key={i} className="relative group">
+                                  <img
+                                    src={URL.createObjectURL(file)}
+                                    alt={`Screenshot ${i + 1}`}
+                                    className="h-16 w-16 rounded-md object-cover border border-border"
+                                  />
+                                  <button
+                                    onClick={() => setChatImages(prev => prev.filter((_, idx) => idx !== i))}
+                                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
