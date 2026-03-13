@@ -73,6 +73,10 @@
   }
 }
 
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 @layer utilities {
   .glow-primary {
     box-shadow: var(--glow-primary);

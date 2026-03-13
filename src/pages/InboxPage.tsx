@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, ImagePlus, X } from "lucide-react";
+import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, ImagePlus, X, Trash2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 
 type Contact = {
   id: string;
@@ -44,6 +45,7 @@ const conversationTypes: Record<ConversationType, { label: string; description: 
 
 const InboxPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -84,6 +86,15 @@ const InboxPage = () => {
     setChatImages([]);
   };
 
+  const handleDeleteContact = async (contactId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Delete messages first, then contact
+    await (supabase.from("contact_messages" as any).delete().eq("contact_id", contactId) as any);
+    await (supabase.from("streamer_contacts" as any).delete().eq("id", contactId) as any);
+    toast.success("Contact deleted");
+    loadContacts();
+  };
+
   const handleAddContact = async () => {
     if (!newName.trim()) {
       toast.error("Name is required");
@@ -101,6 +112,7 @@ const InboxPage = () => {
       channel_url: newUrl || (selectedType === "new_prospect" ? `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}` : null),
       conversation_type: selectedType,
       status: statusMap[selectedType || "new_prospect"],
+      user_id: user?.id,
     }).select().single() as any);
 
     if (error) {
@@ -350,11 +362,19 @@ const InboxPage = () => {
                       </p>
                     </div>
                   </div>
-                  {contact.channel_url && (
-                    <a href={contact.channel_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-primary shrink-0">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {contact.channel_url && (
+                      <a href={contact.channel_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-primary p-1">
+                        <ExternalLink className="h-4 w-4" />
+                      </a>
+                    )}
+                    <button
+                      onClick={(e) => handleDeleteContact(contact.id, e)}
+                      className="text-muted-foreground hover:text-destructive p-1 transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </CardContent>
               </Card>
             ))
