@@ -238,7 +238,7 @@ const ContactChatPage = () => {
               </div>
             </div>
           )}
-          {messages.map((msg) => (
+          {messages.filter((msg) => !msg.persona || msg.persona === persona).map((msg) => (
             <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`group relative max-w-[80%] rounded-xl px-4 py-3 text-sm ${
                 msg.role === "user"
