@@ -155,14 +155,14 @@ export function TrainingMemory() {
 
       {/* Persona tabs */}
       <Tabs value={personaTab} onValueChange={setPersonaTab}>
-        <TabsList className="bg-muted border border-border">
+         <TabsList className="bg-muted border border-border">
           <TabsTrigger value="nifimas" className="data-[state=active]:bg-secondary/10 data-[state=active]:text-secondary">
             🤝 Nifimas (Friend)
           </TabsTrigger>
           <TabsTrigger value="brozeen" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
             💼 Brozeen (Promoter)
           </TabsTrigger>
-        </Tabs>
+        </TabsList>
 
         <div className="mt-3">
           <p className="text-sm text-muted-foreground mb-3">
