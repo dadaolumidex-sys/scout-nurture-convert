@@ -85,18 +85,37 @@ const ContactChatPage = () => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     setUploading(true);
     const ext = file.name.split(".").pop();
     const path = `${contactId}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("chat-images").upload(path, file);
-    if (error) { toast.error("Failed to upload image"); setUploading(false); return; }
+    if (error) {
+      toast.error("Failed to upload image");
+      setUploading(false);
+      return;
+    }
+
     const { data: urlData } = supabase.storage.from("chat-images").getPublicUrl(path);
     await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId, role: "user", content: "[Screenshot]", image_url: urlData.publicUrl, persona: persona,
+      contact_id: contactId,
+      role: "user",
+      content: "[Screenshot]",
+      image_url: urlData.publicUrl,
+      persona,
     }) as any);
+
     await loadMessages();
+
+    if (contact?.status === "new" || !contact?.status) {
+      await (supabase.from("streamer_contacts" as any).update({ status: "in_conversation" }).eq("id", contactId) as any);
+      setContact((prev) => prev ? { ...prev, status: "in_conversation" } : prev);
+    }
+
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+
+    await generateSuggestions(persona);
   };
 
   const handleSend = async () => {
