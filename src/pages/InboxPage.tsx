@@ -81,6 +81,7 @@ const InboxPage = () => {
     setNewName("");
     setNewUrl("");
     setChatHistory("");
+    setChatImages([]);
   };
 
   const handleAddContact = async () => {
