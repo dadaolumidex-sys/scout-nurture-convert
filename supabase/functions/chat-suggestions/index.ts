@@ -134,12 +134,19 @@ serve(async (req) => {
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          ...messages,
+          ...preparedMessages,
           {
             role: "user",
             content: `${contactContext || ""}
 
-Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each suggestion should have a different approach/angle. Match my personal communication style from the training examples and use strategies from the knowledge base when relevant.
+Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each suggestion should have a different approach/angle.
+
+Critical persona rules:
+- Never mix personas.
+- If persona is Nifimas (friend), stay warm/casual and only softly refer to Brozeen when streamer asks for deeper strategy or execution.
+- If persona is Brozeen (promoter), stay expert/professional and drive toward conversion with a clear next step.
+
+Match my personal communication style from the training examples and use strategies from the knowledge base when relevant.
 
 Use the suggest_replies tool to return your suggestions.`,
           },
