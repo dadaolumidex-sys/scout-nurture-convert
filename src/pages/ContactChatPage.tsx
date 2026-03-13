@@ -349,22 +349,16 @@ const ContactChatPage = () => {
         {/* Generate + Status */}
         <div className="flex gap-2 mb-3 items-center">
           <Button
-            onClick={() => generateSuggestions("friend")}
-            disabled={loading || messages.length === 0}
+            onClick={() => generateSuggestions(persona)}
+            disabled={loading || messages.filter((m) => !m.persona || m.persona === persona).length === 0}
             variant="outline"
             size="sm"
-            className={`border-secondary/30 text-secondary hover:bg-secondary/10 ${persona === "friend" ? "ring-1 ring-secondary/30" : ""}`}
+            className={persona === "friend"
+              ? "border-secondary/30 text-secondary hover:bg-secondary/10"
+              : "border-primary/30 text-primary hover:bg-primary/10"
+            }
           >
-            🤝 Nifimas Reply
-          </Button>
-          <Button
-            onClick={() => generateSuggestions("promoter")}
-            disabled={loading || messages.length === 0}
-            variant="outline"
-            size="sm"
-            className={`border-primary/30 text-primary hover:bg-primary/10 ${persona === "promoter" ? "ring-1 ring-primary/30" : ""}`}
-          >
-            💼 Brozeen Reply
+            {config.emoji} Get {config.name} Reply
           </Button>
           <div className="flex-1" />
           <select
