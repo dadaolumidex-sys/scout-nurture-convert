@@ -47,6 +47,47 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_messages: {
+        Row: {
+          contact_id: string
+          content: string
+          created_at: string
+          id: string
+          image_url: string | null
+          persona: string | null
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          contact_id: string
+          content: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          persona?: string | null
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          contact_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          persona?: string | null
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "streamer_contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       knowledge_entries: {
         Row: {
           category: string
@@ -91,6 +132,7 @@ export type Database = {
           avg_viewers: string | null
           broadcaster_type: string | null
           channel_url: string | null
+          conversation_type: string | null
           created_at: string | null
           created_at_twitch: string | null
           description: string | null
@@ -120,6 +162,7 @@ export type Database = {
           avg_viewers?: string | null
           broadcaster_type?: string | null
           channel_url?: string | null
+          conversation_type?: string | null
           created_at?: string | null
           created_at_twitch?: string | null
           description?: string | null
@@ -149,6 +192,7 @@ export type Database = {
           avg_viewers?: string | null
           broadcaster_type?: string | null
           channel_url?: string | null
+          conversation_type?: string | null
           created_at?: string | null
           created_at_twitch?: string | null
           description?: string | null
