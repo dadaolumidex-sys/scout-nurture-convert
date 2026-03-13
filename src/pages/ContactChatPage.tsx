@@ -103,14 +103,29 @@ const ContactChatPage = () => {
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
+    const messageText = input.trim();
+    setInput("");
     // Save user message (the pasted streamer message)
     await (supabase.from("contact_messages" as any).insert({
       contact_id: contactId,
       role: "user",
-      content: input.trim(),
+      content: messageText,
     }) as any);
     await loadMessages();
-    setInput("");
+
+    // Update status to in_conversation if still new
+    if (contact?.status === "new" || !contact?.status) {
+      await (supabase.from("streamer_contacts" as any).update({ status: "in_conversation" }).eq("id", contactId) as any);
+      setContact((prev) => prev ? { ...prev, status: "in_conversation" } : prev);
+    }
+
+    // Auto-generate replies from both personas
+    setLoading(true);
+    await Promise.all([
+      generateReplyInternal("friend"),
+      generateReplyInternal("promoter"),
+    ]);
+    setLoading(false);
   };
 
   const generateReply = async (targetPersona: Persona) => {
