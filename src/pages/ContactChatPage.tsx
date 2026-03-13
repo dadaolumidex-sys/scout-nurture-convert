@@ -64,15 +64,9 @@ const ContactChatPage = () => {
   useEffect(() => {
     if (contactId) {
       loadContact();
+      loadMessages();
     }
   }, [contactId]);
-
-  useEffect(() => {
-    if (contactId) {
-      setMessages([]);
-      loadMessages(persona);
-    }
-  }, [contactId, persona]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -83,12 +77,8 @@ const ContactChatPage = () => {
     if (data) setContact(data);
   };
 
-  const loadMessages = async (targetPersona: Persona = persona) => {
-    const { data } = await (supabase.from("contact_messages" as any)
-      .select("*")
-      .eq("contact_id", contactId)
-      .eq("persona", targetPersona)
-      .order("created_at", { ascending: true }) as any);
+  const loadMessages = async () => {
+    const { data } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
     if (data) setMessages(data);
   };
 
@@ -102,7 +92,7 @@ const ContactChatPage = () => {
     if (error) { toast.error("Failed to upload image"); setUploading(false); return; }
     const { data: urlData } = supabase.storage.from("chat-images").getPublicUrl(path);
     await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId, role: "user", content: "[Screenshot]", image_url: urlData.publicUrl, persona,
+      contact_id: contactId, role: "user", content: "[Screenshot]", image_url: urlData.publicUrl,
     }) as any);
     await loadMessages();
     setUploading(false);
@@ -117,7 +107,7 @@ const ContactChatPage = () => {
     setSelectedSuggestion(null);
 
     await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId, role: "user", content: messageText, persona,
+      contact_id: contactId, role: "user", content: messageText,
     }) as any);
     await loadMessages();
 
@@ -136,7 +126,7 @@ const ContactChatPage = () => {
     setSelectedSuggestion(null);
     setSuggestionsPersona(targetPersona);
 
-    const { data: currentMessages } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).eq("persona", targetPersona).order("created_at", { ascending: true }) as any);
+    const { data: currentMessages } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
     const msgs = (currentMessages || []) as ChatMessage[];
 
     const recentMessages = msgs.slice(-20).map((m) => ({
