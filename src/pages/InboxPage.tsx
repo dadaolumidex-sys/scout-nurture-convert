@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost } from "lucide-react";
+import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, ImagePlus, X } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,7 +53,9 @@ const InboxPage = () => {
   const [newPlatform, setNewPlatform] = useState<"twitch" | "kick">("twitch");
   const [newUrl, setNewUrl] = useState("");
   const [chatHistory, setChatHistory] = useState("");
+  const [chatImages, setChatImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
+  const imageInputRef = useState<HTMLInputElement | null>(null);
 
   useEffect(() => {
     loadContacts();
@@ -79,6 +81,7 @@ const InboxPage = () => {
     setNewName("");
     setNewUrl("");
     setChatHistory("");
+    setChatImages([]);
   };
 
   const handleAddContact = async () => {
@@ -104,7 +107,7 @@ const InboxPage = () => {
       toast.error("Failed to add contact");
       console.error(error);
     } else {
-      // If chat history was pasted, save it as context message
+      // Save pasted chat history as context
       if (chatHistory.trim() && data?.id) {
         await (supabase.from("contact_messages" as any).insert({
           contact_id: data.id,
@@ -112,6 +115,23 @@ const InboxPage = () => {
           role: "context",
           persona: "nifimas",
         }) as any);
+      }
+      // Upload chat screenshot images
+      if (chatImages.length > 0 && data?.id) {
+        for (const file of chatImages) {
+          const filePath = `${data.id}/${Date.now()}-${file.name}`;
+          const { data: uploadData } = await supabase.storage.from("chat-images").upload(filePath, file);
+          if (uploadData?.path) {
+            const { data: urlData } = supabase.storage.from("chat-images").getPublicUrl(uploadData.path);
+            await (supabase.from("contact_messages" as any).insert({
+              contact_id: data.id,
+              content: "📸 Chat screenshot uploaded for context",
+              role: "context",
+              persona: "nifimas",
+              image_url: urlData.publicUrl,
+            }) as any);
+          }
+        }
       }
       toast.success("Contact added!");
       resetDialog();
@@ -193,21 +213,70 @@ const InboxPage = () => {
                     </div>
 
                     {/* Chat history paste area for Existing Chat & Re-engage */}
-                    {(selectedType === "existing_chat" || selectedType === "re_engage") && (
-                      <div>
-                        <Label className="text-foreground text-sm flex items-center gap-1.5">
-                          <Upload className="h-3.5 w-3.5" />
-                          Paste Previous Chat
-                        </Label>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
-                          Paste your Discord/DM conversation so the AI knows the context
-                        </p>
-                        <Textarea
-                          value={chatHistory}
-                          onChange={(e) => setChatHistory(e.target.value)}
-                          placeholder={"Example:\nYou: Hey bro, love your streams!\nStreamer: Thanks man!\nYou: I've got something that could help grow your channel..."}
-                          className="bg-muted border-border text-foreground min-h-[120px] text-sm"
-                        />
+                     {(selectedType === "existing_chat" || selectedType === "re_engage") && (
+                      <div className="space-y-3">
+                        <div>
+                          <Label className="text-foreground text-sm flex items-center gap-1.5">
+                            <Upload className="h-3.5 w-3.5" />
+                            Paste Previous Chat
+                          </Label>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
+                            Paste your Discord/DM conversation so the AI knows the context
+                          </p>
+                          <Textarea
+                            value={chatHistory}
+                            onChange={(e) => setChatHistory(e.target.value)}
+                            placeholder={"Example:\nYou: Hey bro, love your streams!\nStreamer: Thanks man!\nYou: I've got something that could help grow your channel..."}
+                            className="bg-muted border-border text-foreground min-h-[100px] text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-foreground text-sm flex items-center gap-1.5">
+                            <ImagePlus className="h-3.5 w-3.5" />
+                            Upload Chat Screenshots
+                          </Label>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
+                            Upload screenshots of your DMs for the AI to analyze
+                          </p>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            className="hidden"
+                            id="chat-screenshot-upload"
+                            onChange={(e) => {
+                              if (e.target.files) {
+                                setChatImages(prev => [...prev, ...Array.from(e.target.files!)]);
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor="chat-screenshot-upload"
+                            className="flex items-center justify-center gap-2 w-full p-3 rounded-lg border border-dashed border-border bg-muted/50 hover:border-primary/50 hover:bg-accent/20 transition-all cursor-pointer text-sm text-muted-foreground"
+                          >
+                            <ImagePlus className="h-4 w-4" />
+                            Click to upload screenshots
+                          </label>
+                          {chatImages.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              {chatImages.map((file, i) => (
+                                <div key={i} className="relative group">
+                                  <img
+                                    src={URL.createObjectURL(file)}
+                                    alt={`Screenshot ${i + 1}`}
+                                    className="h-16 w-16 rounded-md object-cover border border-border"
+                                  />
+                                  <button
+                                    onClick={() => setChatImages(prev => prev.filter((_, idx) => idx !== i))}
+                                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
