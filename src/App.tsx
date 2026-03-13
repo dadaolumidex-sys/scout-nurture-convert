@@ -8,6 +8,7 @@ import AnalyzerPage from "./pages/AnalyzerPage";
 import ChatPage from "./pages/ChatPage";
 import InboxPage from "./pages/InboxPage";
 import KnowledgePage from "./pages/KnowledgePage";
+import AnalyticsPage from "./pages/AnalyticsPage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -25,6 +26,7 @@ const App = () => (
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
