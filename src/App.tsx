@@ -17,7 +17,21 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function AppRoutes() {
+function ProtectedRoutes() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-muted-foreground animate-pulse">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <AuthPage />;
+  }
+
   return (
     <Routes>
       <Route path="/" element={<Index />} />
@@ -28,7 +42,6 @@ function AppRoutes() {
       <Route path="/knowledge" element={<KnowledgePage />} />
       <Route path="/analytics" element={<AnalyticsPage />} />
       <Route path="/settings" element={<SettingsPage />} />
-      <Route path="/auth" element={<AuthPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
@@ -41,7 +54,7 @@ const App = () => (
       <Sonner />
       <AuthProvider>
         <BrowserRouter>
-          <AppRoutes />
+          <ProtectedRoutes />
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>
