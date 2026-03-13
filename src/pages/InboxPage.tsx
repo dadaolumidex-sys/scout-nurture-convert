@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, MessageSquare, ExternalLink, Search } from "lucide-react";
+import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -23,13 +23,22 @@ type Contact = {
   status: string | null;
   last_message: string | null;
   profile_image_url: string | null;
+  conversation_type: string | null;
 };
 
+type ConversationType = "new_prospect" | "existing_chat" | "re_engage";
+
 const conversationStages: Record<string, { label: string; emoji: string; className: string }> = {
-  new: { label: "New friend request", emoji: "👋", className: "bg-primary/15 text-primary border-primary/30" },
+  new: { label: "New", emoji: "👋", className: "bg-primary/15 text-primary border-primary/30" },
   in_conversation: { label: "In conversation", emoji: "💬", className: "bg-secondary/15 text-secondary border-secondary/30" },
-  ready_to_pitch: { label: "Ready to pitch", emoji: "🎯", className: "bg-[hsl(38,92%,55%)]/15 text-[hsl(38,92%,55%)] border-[hsl(38,92%,55%)]/30" },
-  converted: { label: "Converted", emoji: "✅", className: "bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] border-[hsl(var(--success))]/30" },
+  ready_to_pitch: { label: "Ready to pitch", emoji: "🎯", className: "bg-warning/15 text-warning border-warning/30" },
+  converted: { label: "Converted", emoji: "✅", className: "bg-success/15 text-success border-success/30" },
+};
+
+const conversationTypes: Record<ConversationType, { label: string; description: string; icon: React.ReactNode }> = {
+  new_prospect: { label: "New Prospect", description: "Cold outreach — start fresh", icon: <UserPlus className="h-6 w-6" /> },
+  existing_chat: { label: "Existing Chat", description: "Upload DMs to continue", icon: <Upload className="h-6 w-6" /> },
+  re_engage: { label: "Re-engage", description: "They saw but didn't reply", icon: <Ghost className="h-6 w-6" /> },
 };
 
 const InboxPage = () => {
@@ -37,6 +46,8 @@ const InboxPage = () => {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogStep, setDialogStep] = useState<"type" | "details">("type");
+  const [selectedType, setSelectedType] = useState<ConversationType | null>(null);
   const [newName, setNewName] = useState("");
   const [newPlatform, setNewPlatform] = useState<"twitch" | "kick">("twitch");
   const [newUrl, setNewUrl] = useState("");
@@ -60,16 +71,30 @@ const InboxPage = () => {
     (c.display_name || c.username).toLowerCase().includes(search.toLowerCase())
   );
 
+  const resetDialog = () => {
+    setDialogStep("type");
+    setSelectedType(null);
+    setNewName("");
+    setNewUrl("");
+  };
+
   const handleAddContact = async () => {
     if (!newName.trim()) {
       toast.error("Name is required");
       return;
     }
+    const statusMap: Record<ConversationType, string> = {
+      new_prospect: "new",
+      existing_chat: "in_conversation",
+      re_engage: "new",
+    };
     const { error } = await (supabase.from("streamer_contacts" as any).insert({
       username: newName.toLowerCase().replace(/\s+/g, ""),
       display_name: newName,
       platform: newPlatform,
       channel_url: newUrl || `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}`,
+      conversation_type: selectedType,
+      status: statusMap[selectedType || "new_prospect"],
     }) as any);
 
     if (error) {
@@ -77,8 +102,7 @@ const InboxPage = () => {
       console.error(error);
     } else {
       toast.success("Contact added!");
-      setNewName("");
-      setNewUrl("");
+      resetDialog();
       setDialogOpen(false);
       loadContacts();
     }
@@ -86,54 +110,90 @@ const InboxPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="max-w-5xl mx-auto space-y-6 animate-slide-in">
-        <div className="flex items-center justify-between">
+      <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-slide-in">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Conversation Inbox</h1>
-            <p className="text-muted-foreground text-sm">Manage your streamer conversations</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Conversation Inbox</h1>
+            <p className="text-muted-foreground text-xs sm:text-sm">Manage your streamer conversations</p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetDialog(); }}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground font-semibold hover:opacity-90">
+              <Button className="gradient-primary text-primary-foreground font-semibold hover:opacity-90 w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
-                New Contact
+                New Chat
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-border">
-              <DialogHeader>
-                <DialogTitle className="text-foreground">Add Streamer Contact</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-2">
-                <div>
-                  <Label className="text-foreground">Name</Label>
-                  <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Streamer name" className="bg-muted border-border text-foreground" />
-                </div>
-                <div>
-                  <Label className="text-foreground">Platform</Label>
-                  <Select value={newPlatform} onValueChange={(v) => setNewPlatform(v as "twitch" | "kick")}>
-                    <SelectTrigger className="bg-muted border-border text-foreground"><SelectValue /></SelectTrigger>
-                    <SelectContent className="bg-card border-border">
-                      <SelectItem value="twitch">Twitch</SelectItem>
-                      <SelectItem value="kick">Kick</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label className="text-foreground">Channel URL</Label>
-                  <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground" />
-                </div>
-                <Button onClick={handleAddContact} className="w-full gradient-primary text-primary-foreground">Add Contact</Button>
-              </div>
+            <DialogContent className="bg-card border-border max-w-md mx-auto">
+              {dialogStep === "type" ? (
+                <>
+                  <DialogHeader>
+                    <DialogTitle className="text-foreground">New Chat</DialogTitle>
+                    <DialogDescription className="text-muted-foreground">What type of conversation is this?</DialogDescription>
+                  </DialogHeader>
+                  <div className="grid grid-cols-3 gap-3 mt-2">
+                    {(Object.entries(conversationTypes) as [ConversationType, typeof conversationTypes[ConversationType]][]).map(([key, type]) => (
+                      <button
+                        key={key}
+                        onClick={() => { setSelectedType(key); setDialogStep("details"); }}
+                        className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-muted/50 hover:border-primary/50 hover:bg-accent/30 transition-all text-center group"
+                      >
+                        <div className="text-muted-foreground group-hover:text-primary transition-colors">
+                          {type.icon}
+                        </div>
+                        <span className="text-xs sm:text-sm font-semibold text-foreground">{type.label}</span>
+                        <span className="text-[10px] sm:text-xs text-muted-foreground leading-tight">{type.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <DialogHeader>
+                    <DialogTitle className="text-foreground flex items-center gap-2">
+                      {selectedType && conversationTypes[selectedType].icon}
+                      {selectedType && conversationTypes[selectedType].label}
+                    </DialogTitle>
+                    <DialogDescription className="text-muted-foreground">Add streamer details</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-2">
+                    <div>
+                      <Label className="text-foreground text-sm">Name</Label>
+                      <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Streamer name" className="bg-muted border-border text-foreground mt-1" />
+                    </div>
+                    <div>
+                      <Label className="text-foreground text-sm">Platform</Label>
+                      <Select value={newPlatform} onValueChange={(v) => setNewPlatform(v as "twitch" | "kick")}>
+                        <SelectTrigger className="bg-muted border-border text-foreground mt-1"><SelectValue /></SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          <SelectItem value="twitch">Twitch</SelectItem>
+                          <SelectItem value="kick">Kick</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-foreground text-sm">Channel URL</Label>
+                      <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setDialogStep("type")} className="flex-1 border-border text-muted-foreground hover:text-foreground">Back</Button>
+                      <Button onClick={handleAddContact} className="flex-1 gradient-primary text-primary-foreground">Add Contact</Button>
+                    </div>
+                  </div>
+                </>
+              )}
             </DialogContent>
           </Dialog>
         </div>
 
+        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search contacts..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 bg-muted border-border text-foreground placeholder:text-muted-foreground" />
         </div>
 
-        <div className="space-y-3">
+        {/* Contacts list */}
+        <div className="space-y-2 sm:space-y-3">
           {loading ? (
             <Card className="bg-card border-border">
               <CardContent className="p-8 text-center text-muted-foreground">Loading contacts...</CardContent>
@@ -142,44 +202,41 @@ const InboxPage = () => {
             <Card className="bg-card border-border">
               <CardContent className="p-8 text-center text-muted-foreground">
                 <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                <p>No contacts yet. Analyze a streamer or add one manually!</p>
+                <p>No contacts yet. Add a new chat to get started!</p>
               </CardContent>
             </Card>
           ) : (
             filteredContacts.map((contact) => (
               <Card key={contact.id} className="bg-card border-border hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate(`/inbox/${contact.id}`)}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
+                <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
                       {contact.profile_image_url ? (
-                        <img src={contact.profile_image_url} alt={contact.display_name || contact.username} className="h-10 w-10 rounded-full" />
+                        <img src={contact.profile_image_url} alt={contact.display_name || contact.username} className="h-full w-full rounded-full object-cover" />
                       ) : (
-                        <span className="text-sm font-bold text-foreground">{(contact.display_name || contact.username)[0].toUpperCase()}</span>
+                        <span className="text-xs sm:text-sm font-bold text-foreground">{(contact.display_name || contact.username)[0].toUpperCase()}</span>
                       )}
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-foreground">{contact.display_name || contact.username}</h3>
-                        <Badge variant="outline" className="border-primary/30 text-primary text-xs capitalize">{contact.platform}</Badge>
-                        {contact.growth_stage && (
-                          <Badge variant="outline" className="text-xs text-muted-foreground">{contact.growth_stage}</Badge>
-                        )}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                        <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">{contact.display_name || contact.username}</h3>
+                        <Badge variant="outline" className="border-primary/30 text-primary text-[10px] sm:text-xs capitalize shrink-0">{contact.platform}</Badge>
                         {(() => {
                           const stage = conversationStages[contact.status || "new"] || conversationStages.new;
                           return (
-                            <Badge variant="outline" className={`text-xs ${stage.className}`}>
-                              {stage.emoji} {stage.label}
+                            <Badge variant="outline" className={`text-[10px] sm:text-xs shrink-0 ${stage.className}`}>
+                              {stage.emoji} <span className="hidden sm:inline ml-1">{stage.label}</span>
                             </Badge>
                           );
                         })()}
                       </div>
-                      <p className="text-sm text-muted-foreground mt-0.5 truncate max-w-md">
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
                         {contact.avg_viewers ? `Avg viewers: ${contact.avg_viewers}` : "No analysis data yet"}
                       </p>
                     </div>
                   </div>
                   {contact.channel_url && (
-                    <a href={contact.channel_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-primary">
+                    <a href={contact.channel_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-muted-foreground hover:text-primary shrink-0">
                       <ExternalLink className="h-4 w-4" />
                     </a>
                   )}
