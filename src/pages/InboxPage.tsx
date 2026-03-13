@@ -107,7 +107,7 @@ const InboxPage = () => {
       toast.error("Failed to add contact");
       console.error(error);
     } else {
-      // If chat history was pasted, save it as context message
+      // Save pasted chat history as context
       if (chatHistory.trim() && data?.id) {
         await (supabase.from("contact_messages" as any).insert({
           contact_id: data.id,
@@ -115,6 +115,23 @@ const InboxPage = () => {
           role: "context",
           persona: "nifimas",
         }) as any);
+      }
+      // Upload chat screenshot images
+      if (chatImages.length > 0 && data?.id) {
+        for (const file of chatImages) {
+          const filePath = `${data.id}/${Date.now()}-${file.name}`;
+          const { data: uploadData } = await supabase.storage.from("chat-images").upload(filePath, file);
+          if (uploadData?.path) {
+            const { data: urlData } = supabase.storage.from("chat-images").getPublicUrl(uploadData.path);
+            await (supabase.from("contact_messages" as any).insert({
+              contact_id: data.id,
+              content: "📸 Chat screenshot uploaded for context",
+              role: "context",
+              persona: "nifimas",
+              image_url: urlData.publicUrl,
+            }) as any);
+          }
+        }
       }
       toast.success("Contact added!");
       resetDialog();
