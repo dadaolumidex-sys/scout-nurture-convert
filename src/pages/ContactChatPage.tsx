@@ -128,17 +128,18 @@ const ContactChatPage = () => {
     setLoading(false);
   };
 
-  const generateReply = async (targetPersona: Persona) => {
-    if (loading) return;
-    setLoading(true);
+  const generateReplyInternal = async (targetPersona: Persona) => {
+    // Build context from recent messages (use latest state)
+    const currentMessages = await (async () => {
+      const { data } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
+      return (data || []) as ChatMessage[];
+    })();
 
-    // Build context from recent messages
-    const recentMessages = messages.slice(-20).map((m) => ({
+    const recentMessages = currentMessages.slice(-20).map((m: ChatMessage) => ({
       role: m.role === "user" ? "user" as const : "assistant" as const,
       content: m.image_url ? `[Image: ${m.image_url}]\n${m.content}` : m.content,
     }));
 
-    // Add contact context
     const contactContext = contact
       ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}. Generate the next reply I should send them.`
       : "";
@@ -163,8 +164,7 @@ const ContactChatPage = () => {
 
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: "Request failed" }));
-        toast.error(err.error || `Error ${resp.status}`);
-        setLoading(false);
+        toast.error(`${personaConfig[targetPersona].name}: ${err.error || `Error ${resp.status}`}`);
         return;
       }
 
@@ -172,8 +172,7 @@ const ContactChatPage = () => {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      // Create a placeholder AI message
-      const tempId = `temp-${Date.now()}`;
+      const tempId = `temp-${targetPersona}-${Date.now()}`;
       setMessages((prev) => [...prev, {
         id: tempId,
         contact_id: contactId!,
@@ -232,8 +231,14 @@ const ContactChatPage = () => {
 
     } catch (e) {
       console.error(e);
-      toast.error("Failed to generate reply");
+      toast.error(`${personaConfig[targetPersona].name}: Failed to generate reply`);
     }
+  };
+
+  const generateReply = async (targetPersona: Persona) => {
+    if (loading) return;
+    setLoading(true);
+    await generateReplyInternal(targetPersona);
     setLoading(false);
   };
 
