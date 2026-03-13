@@ -207,10 +207,18 @@ const InboxPage = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label className="text-foreground text-sm">Channel URL</Label>
-                      <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
-                    </div>
+                    {selectedType === "new_prospect" && (
+                      <div>
+                        <Label className="text-foreground text-sm">Channel URL</Label>
+                        <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
+                      </div>
+                    )}
+                    {(selectedType === "existing_chat" || selectedType === "re_engage") && (
+                      <div>
+                        <Label className="text-foreground text-sm">Channel URL <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                        <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
+                      </div>
+                    )}
 
                     {/* Chat history paste area for Existing Chat & Re-engage */}
                      {(selectedType === "existing_chat" || selectedType === "re_engage") && (
