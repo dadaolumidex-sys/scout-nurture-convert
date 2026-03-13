@@ -103,6 +103,7 @@ const InboxPage = () => {
       channel_url: newUrl || (selectedType === "new_prospect" ? `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}` : null),
       conversation_type: selectedType,
       status: statusMap[selectedType || "new_prospect"],
+      user_id: user?.id,
     }).select().single() as any);
 
     if (error) {
