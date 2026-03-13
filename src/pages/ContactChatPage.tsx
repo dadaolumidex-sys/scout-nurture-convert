@@ -226,7 +226,7 @@ const ContactChatPage = () => {
 
         {/* Messages */}
         <div className="flex-1 overflow-auto space-y-3 mb-4 pr-1">
-          {messages.length === 0 && (
+          {messages.filter((msg) => !msg.persona || msg.persona === persona).length === 0 && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground space-y-2">
                 <p className="text-sm">No messages yet. Paste their message to get started!</p>
