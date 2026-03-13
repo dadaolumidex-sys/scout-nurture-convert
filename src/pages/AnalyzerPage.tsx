@@ -54,10 +54,7 @@ const AnalyzerPage = () => {
       return;
     }
 
-    if (isKick) {
-      toast.info("Kick support coming soon! Only Twitch is available right now.");
-      return;
-    }
+    const platform = isTwitch ? "twitch" : "kick";
 
     const username = url.split("/").filter(Boolean).pop()?.replace(/[?#].*/, "") || "";
     if (!username) {
@@ -67,7 +64,8 @@ const AnalyzerPage = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("analyze-twitch", {
+      const functionName = platform === "twitch" ? "analyze-twitch" : "analyze-kick";
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: { username },
       });
 
@@ -86,7 +84,7 @@ const AnalyzerPage = () => {
         {
           username: data.username,
           platform: data.platform,
-          channel_url: `https://twitch.tv/${data.username}`,
+          channel_url: platform === "twitch" ? `https://twitch.tv/${data.username}` : `https://kick.com/${data.username}`,
           display_name: data.displayName,
           description: data.description,
           profile_image_url: data.profileImageUrl,
@@ -123,7 +121,7 @@ const AnalyzerPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Streamer Analyzer</h1>
           <p className="text-muted-foreground mt-1">
-            Paste a Twitch channel link to get a real-time AI-powered analysis
+            Paste a Twitch or Kick channel link to get a real-time AI-powered analysis
           </p>
         </div>
 
@@ -131,7 +129,7 @@ const AnalyzerPage = () => {
           <CardContent className="p-5">
             <div className="flex gap-3">
               <Input
-                placeholder="https://twitch.tv/username"
+                placeholder="https://twitch.tv/username or https://kick.com/username"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground"
