@@ -322,10 +322,8 @@ const ContactChatPage = () => {
                 {editingId !== msg.id && (
                   <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground">
-                          <MoreVertical className="h-3 w-3" />
-                        </Button>
+                      <DropdownMenuTrigger className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                        <MoreVertical className="h-3 w-3" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="bg-card border-border">
                         {msg.role === "assistant" && (
