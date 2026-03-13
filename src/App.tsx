@@ -26,6 +26,7 @@ const App = () => (
           <Route path="/analyzer" element={<AnalyzerPage />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/inbox" element={<InboxPage />} />
+          <Route path="/inbox/:contactId" element={<ContactChatPage />} />
           <Route path="/knowledge" element={<KnowledgePage />} />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/settings" element={<SettingsPage />} />

@@ -146,7 +146,7 @@ const InboxPage = () => {
             </Card>
           ) : (
             filteredContacts.map((contact) => (
-              <Card key={contact.id} className="bg-card border-border hover:border-primary/30 transition-colors cursor-pointer">
+              <Card key={contact.id} className="bg-card border-border hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate(`/inbox/${contact.id}`)}>
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
