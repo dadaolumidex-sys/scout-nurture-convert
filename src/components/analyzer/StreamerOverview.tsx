@@ -1,4 +1,4 @@
-import { Users, Eye, Clock, TrendingUp } from "lucide-react";
+import { Users, Eye, Clock, TrendingUp, Gamepad2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { AnalysisResult } from "@/pages/AnalyzerPage";
