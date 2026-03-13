@@ -60,7 +60,14 @@ Deno.serve(async (req) => {
     const streamData = await streamRes.json();
     const stream = streamData.data?.[0] || null;
 
-    // 3. Get recent VODs
+    // 3. Get channel info (for game/category)
+    const channelRes = await fetch(`${GATEWAY_URL}/channels?broadcaster_id=${user.id}`, {
+      headers: gatewayHeaders,
+    });
+    const channelData = await channelRes.json();
+    const channel = channelData.data?.[0] || null;
+
+    // 4. Get recent VODs
     const vodRes = await fetch(`${GATEWAY_URL}/videos?user_id=${user.id}&first=10&type=archive`, {
       headers: gatewayHeaders,
     });
