@@ -15,7 +15,8 @@ Your personality:
 - Use emojis naturally but not excessively
 - Reference their content/streams when possible
 - Subtly guide conversations toward growth topics without being pushy
-- Never pitch services directly — your job is to build a relationship first`,
+- Never pitch services directly — your job is to build a relationship first
+- If a streamer asks for deeper strategy, budget, or growth execution, warmly hand off to Brozeen as the specialist`,
 
   promoter: `You are Brozeen — a confident, professional streamer growth strategist. You help streamers understand their potential and convert them into promotion clients.
 
@@ -25,16 +26,68 @@ Your personality:
 - Confident without being aggressive
 - Focus on value and ROI
 - Use specific numbers and strategies when possible
-- Address objections smoothly`,
+- Address objections smoothly
+- Move conversations toward clear next steps (audit call, onboarding, or close)`,
+};
+
+type IncomingMessage = {
+  role: "user" | "assistant";
+  content: string;
+  imageUrl?: string | null;
+};
+
+const legacyImagePattern = /\[Image:\s*(https?:\/\/[^\]\s]+)\]/i;
+
+const toGatewayMessages = (messages: IncomingMessage[]) => {
+  return messages.map((message) => {
+    const role = message.role === "assistant" ? "assistant" : "user";
+    const legacyImageUrl = typeof message.content === "string"
+      ? message.content.match(legacyImagePattern)?.[1]
+      : undefined;
+    const imageUrl = message.imageUrl || legacyImageUrl;
+    const textContent = typeof message.content === "string"
+      ? message.content.replace(legacyImagePattern, "").trim()
+      : "";
+
+    if (!imageUrl) {
+      return {
+        role,
+        content: textContent || "No additional text provided.",
+      };
+    }
+
+    return {
+      role,
+      content: [
+        {
+          type: "text",
+          text: textContent || "Please analyze this screenshot and continue the conversation in the correct persona tone.",
+        },
+        {
+          type: "image_url",
+          image_url: {
+            url: imageUrl,
+          },
+        },
+      ],
+    };
+  });
 };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, persona, contactContext } = await req.json();
+    const { messages = [], persona, contactContext } = await req.json() as {
+      messages?: IncomingMessage[];
+      persona?: string;
+      contactContext?: string;
+    };
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+
+    const activePersona = persona === "promoter" ? "promoter" : "friend";
+    const preparedMessages = toGatewayMessages(Array.isArray(messages) ? messages : []);
 
     // Fetch knowledge base entries and training conversations for this persona
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -42,8 +95,8 @@ serve(async (req) => {
     const sb = createClient(supabaseUrl, supabaseKey);
 
     const [knowledgeRes, trainingRes] = await Promise.all([
-      sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${persona},persona.eq.shared`).limit(20),
-      sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", persona === "friend" ? "nifimas" : "brozeen").eq("status", "analyzed").limit(10),
+      sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${activePersona},persona.eq.shared`).limit(20),
+      sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").eq("status", "analyzed").limit(10),
     ]);
 
     const knowledgeEntries = knowledgeRes.data || [];
@@ -69,7 +122,7 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = (SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend) + knowledgeContext + styleContext;
+    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + knowledgeContext + styleContext;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -81,12 +134,19 @@ serve(async (req) => {
         model: "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
-          ...messages,
+          ...preparedMessages,
           {
             role: "user",
             content: `${contactContext || ""}
 
-Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each suggestion should have a different approach/angle. Match my personal communication style from the training examples and use strategies from the knowledge base when relevant.
+Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each suggestion should have a different approach/angle.
+
+Critical persona rules:
+- Never mix personas.
+- If persona is Nifimas (friend), stay warm/casual and only softly refer to Brozeen when streamer asks for deeper strategy or execution.
+- If persona is Brozeen (promoter), stay expert/professional and drive toward conversion with a clear next step.
+
+Match my personal communication style from the training examples and use strategies from the knowledge base when relevant.
 
 Use the suggest_replies tool to return your suggestions.`,
           },

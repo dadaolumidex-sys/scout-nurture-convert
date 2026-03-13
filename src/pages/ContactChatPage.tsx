@@ -85,18 +85,37 @@ const ContactChatPage = () => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     setUploading(true);
     const ext = file.name.split(".").pop();
     const path = `${contactId}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("chat-images").upload(path, file);
-    if (error) { toast.error("Failed to upload image"); setUploading(false); return; }
+    if (error) {
+      toast.error("Failed to upload image");
+      setUploading(false);
+      return;
+    }
+
     const { data: urlData } = supabase.storage.from("chat-images").getPublicUrl(path);
     await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId, role: "user", content: "[Screenshot]", image_url: urlData.publicUrl, persona: persona,
+      contact_id: contactId,
+      role: "user",
+      content: "[Screenshot]",
+      image_url: urlData.publicUrl,
+      persona,
     }) as any);
+
     await loadMessages();
+
+    if (contact?.status === "new" || !contact?.status) {
+      await (supabase.from("streamer_contacts" as any).update({ status: "in_conversation" }).eq("id", contactId) as any);
+      setContact((prev) => prev ? { ...prev, status: "in_conversation" } : prev);
+    }
+
     setUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
+
+    await generateSuggestions(persona);
   };
 
   const handleSend = async () => {
@@ -129,10 +148,11 @@ const ContactChatPage = () => {
     const { data: currentMessages } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
     const msgs = (currentMessages || []) as ChatMessage[];
 
-    const personaMessages = msgs.filter((m) => !m.persona || m.persona === targetPersona);
+    const personaMessages = msgs.filter((m) => m.persona === targetPersona);
     const recentMessages = personaMessages.slice(-20).map((m) => ({
       role: m.role === "user" ? "user" as const : "assistant" as const,
-      content: m.image_url ? `[Image: ${m.image_url}]\n${m.content}` : m.content,
+      content: m.content,
+      imageUrl: m.image_url,
     }));
 
     const contactContext = contact
@@ -227,7 +247,7 @@ const ContactChatPage = () => {
 
         {/* Messages */}
         <div className="flex-1 overflow-auto space-y-3 mb-4 pr-1">
-          {messages.filter((msg) => !msg.persona || msg.persona === persona).length === 0 && (
+          {messages.filter((msg) => msg.persona === persona).length === 0 && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground space-y-2">
                 <p className="text-sm">No messages yet. Paste their message to get started!</p>
@@ -239,7 +259,7 @@ const ContactChatPage = () => {
               </div>
             </div>
           )}
-          {messages.filter((msg) => !msg.persona || msg.persona === persona).map((msg) => (
+          {messages.filter((msg) => msg.persona === persona).map((msg) => (
             <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`group relative max-w-[80%] rounded-xl px-4 py-3 text-sm ${
                 msg.role === "user"
@@ -302,10 +322,8 @@ const ContactChatPage = () => {
                 {editingId !== msg.id && (
                   <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground">
-                          <MoreVertical className="h-3 w-3" />
-                        </Button>
+                      <DropdownMenuTrigger className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                        <MoreVertical className="h-3 w-3" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="bg-card border-border">
                         {msg.role === "assistant" && (
@@ -350,7 +368,7 @@ const ContactChatPage = () => {
         <div className="flex gap-2 mb-3 items-center">
           <Button
             onClick={() => generateSuggestions(persona)}
-            disabled={loading || messages.filter((m) => !m.persona || m.persona === persona).length === 0}
+            disabled={loading || messages.filter((m) => m.persona === persona).length === 0}
             variant="outline"
             size="sm"
             className={persona === "friend"
