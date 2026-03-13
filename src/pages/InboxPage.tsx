@@ -45,6 +45,7 @@ const conversationTypes: Record<ConversationType, { label: string; description: 
 
 const InboxPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
