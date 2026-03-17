@@ -21,6 +21,7 @@ export type AnalysisResult = {
   platform: "twitch" | "kick";
   followersEstimate: string;
   avgViewers: string;
+  contentCategory: string;
   streamingFrequency: string;
   growthStage: string;
   strengths: string[];
