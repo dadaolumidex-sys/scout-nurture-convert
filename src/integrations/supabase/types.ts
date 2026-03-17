@@ -14,74 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      ai_conversations: {
-        Row: {
-          created_at: string
-          deep_research: boolean
-          id: string
-          persona: string
-          title: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          deep_research?: boolean
-          id?: string
-          persona?: string
-          title?: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          deep_research?: boolean
-          id?: string
-          persona?: string
-          title?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
-      ai_messages: {
-        Row: {
-          content: string
-          conversation_id: string
-          created_at: string
-          id: string
-          images: string[] | null
-          role: string
-          updated_at: string
-        }
-        Insert: {
-          content: string
-          conversation_id: string
-          created_at?: string
-          id?: string
-          images?: string[] | null
-          role?: string
-          updated_at?: string
-        }
-        Update: {
-          content?: string
-          conversation_id?: string
-          created_at?: string
-          id?: string
-          images?: string[] | null
-          role?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ai_messages_conversation_id_fkey"
-            columns: ["conversation_id"]
-            isOneToOne: false
-            referencedRelation: "ai_conversations"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       analytics_events: {
         Row: {
           created_at: string
@@ -92,7 +24,6 @@ export type Database = {
           platform: string | null
           revenue: number | null
           streamer_username: string | null
-          user_id: string | null
         }
         Insert: {
           created_at?: string
@@ -103,7 +34,6 @@ export type Database = {
           platform?: string | null
           revenue?: number | null
           streamer_username?: string | null
-          user_id?: string | null
         }
         Update: {
           created_at?: string
@@ -114,7 +44,6 @@ export type Database = {
           platform?: string | null
           revenue?: number | null
           streamer_username?: string | null
-          user_id?: string | null
         }
         Relationships: []
       }
@@ -129,7 +58,6 @@ export type Database = {
           role: string
           selected: boolean | null
           updated_at: string
-          user_id: string | null
         }
         Insert: {
           contact_id: string
@@ -141,7 +69,6 @@ export type Database = {
           role?: string
           selected?: boolean | null
           updated_at?: string
-          user_id?: string | null
         }
         Update: {
           contact_id?: string
@@ -153,7 +80,6 @@ export type Database = {
           role?: string
           selected?: boolean | null
           updated_at?: string
-          user_id?: string | null
         }
         Relationships: [
           {
@@ -177,7 +103,6 @@ export type Database = {
           source_url: string | null
           title: string
           updated_at: string
-          user_id: string | null
         }
         Insert: {
           category?: string
@@ -190,7 +115,6 @@ export type Database = {
           source_url?: string | null
           title: string
           updated_at?: string
-          user_id?: string | null
         }
         Update: {
           category?: string
@@ -203,7 +127,6 @@ export type Database = {
           source_url?: string | null
           title?: string
           updated_at?: string
-          user_id?: string | null
         }
         Relationships: []
       }
@@ -235,7 +158,6 @@ export type Database = {
           streaming_frequency: string | null
           strengths: string[] | null
           updated_at: string | null
-          user_id: string | null
           username: string
           weaknesses: string[] | null
         }
@@ -266,7 +188,6 @@ export type Database = {
           streaming_frequency?: string | null
           strengths?: string[] | null
           updated_at?: string | null
-          user_id?: string | null
           username: string
           weaknesses?: string[] | null
         }
@@ -297,7 +218,6 @@ export type Database = {
           streaming_frequency?: string | null
           strengths?: string[] | null
           updated_at?: string | null
-          user_id?: string | null
           username?: string
           weaknesses?: string[] | null
         }
@@ -313,7 +233,6 @@ export type Database = {
           status: string
           style_analysis: string | null
           title: string
-          user_id: string | null
         }
         Insert: {
           content: string
@@ -324,7 +243,6 @@ export type Database = {
           status?: string
           style_analysis?: string | null
           title: string
-          user_id?: string | null
         }
         Update: {
           content?: string
@@ -335,7 +253,6 @@ export type Database = {
           status?: string
           style_analysis?: string | null
           title?: string
-          user_id?: string | null
         }
         Relationships: []
       }

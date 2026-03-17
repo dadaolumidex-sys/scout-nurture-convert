@@ -1,4 +1,4 @@
-import { Users, Eye, Clock, TrendingUp, Gamepad2 } from "lucide-react";
+import { Users, Eye, Clock, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { AnalysisResult } from "@/pages/AnalyzerPage";
@@ -24,11 +24,10 @@ export const StreamerOverview = ({ result }: { result: AnalysisResult }) => (
         </div>
       </div>
     </CardHeader>
-    <CardContent className="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
       {[
         { icon: Users, label: "Followers", value: result.followersEstimate },
         { icon: Eye, label: "Avg Viewers", value: result.avgViewers },
-        { icon: Gamepad2, label: "Category", value: result.contentCategory || "Unknown" },
         { icon: Clock, label: "Frequency", value: result.streamingFrequency },
         { icon: TrendingUp, label: "Stage", value: result.growthStage },
       ].map((m) => (

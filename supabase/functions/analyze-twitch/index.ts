@@ -60,21 +60,14 @@ Deno.serve(async (req) => {
     const streamData = await streamRes.json();
     const stream = streamData.data?.[0] || null;
 
-    // 3. Get channel info (for game/category)
-    const channelRes = await fetch(`${GATEWAY_URL}/channels?broadcaster_id=${user.id}`, {
-      headers: gatewayHeaders,
-    });
-    const channelData = await channelRes.json();
-    const channel = channelData.data?.[0] || null;
-
-    // 4. Get recent VODs
+    // 3. Get recent VODs
     const vodRes = await fetch(`${GATEWAY_URL}/videos?user_id=${user.id}&first=10&type=archive`, {
       headers: gatewayHeaders,
     });
     const vodData = await vodRes.json();
     const vods = vodData.data || [];
 
-    // 5. Try to get follower count
+    // 4. Try to get follower count
     let followerCount: number | null = null;
     try {
       const followerRes = await fetch(`${GATEWAY_URL}/channels/followers?broadcaster_id=${user.id}&first=1`, {
@@ -111,7 +104,6 @@ Deno.serve(async (req) => {
       broadcasterType: user.broadcaster_type,
       createdAt: user.created_at,
       platform: 'twitch',
-      contentCategory: stream?.game_name || channel?.game_name || 'Variety',
       followersEstimate: followersEstimate,
       avgViewers: avgViewers !== null ? `~${avgViewers}` : 'Unknown',
       streamingFrequency: frequency,
