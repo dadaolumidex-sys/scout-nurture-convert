@@ -30,6 +30,49 @@ Your personality:
 - Move conversations toward clear next steps (audit call, onboarding, or close)`,
 };
 
+const GEMINI_MODEL_MAP: Record<string, string> = {
+  "google/gemini-3-flash-preview": "gemini-2.5-flash-preview-05-20",
+};
+
+async function callAI(body: Record<string, unknown>): Promise<Response> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+
+  if (LOVABLE_API_KEY) {
+    try {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (response.status !== 402 && response.status !== 429) return response;
+      console.log(`Lovable AI returned ${response.status}, falling back to Gemini API`);
+    } catch (e) {
+      console.error("Lovable AI failed, falling back to Gemini:", e);
+    }
+  }
+
+  if (!GEMINI_API_KEY) {
+    throw new Error("No AI API key available.");
+  }
+
+  const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
+  const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.5-flash-preview-05-20";
+  const geminiBody = { ...body, model: geminiModel };
+
+  return await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(geminiBody),
+    }
+  );
+}
+
 type IncomingMessage = {
   role: "user" | "assistant";
   content: string;
@@ -83,13 +126,10 @@ serve(async (req) => {
       persona?: string;
       contactContext?: string;
     };
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     const activePersona = persona === "promoter" ? "promoter" : "friend";
     const preparedMessages = toGatewayMessages(Array.isArray(messages) ? messages : []);
 
-    // Fetch knowledge base entries and training conversations for this persona
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, supabaseKey);
@@ -102,7 +142,6 @@ serve(async (req) => {
     const knowledgeEntries = knowledgeRes.data || [];
     const trainingConvos = trainingRes.data || [];
 
-    // Build context sections
     let knowledgeContext = "";
     if (knowledgeEntries.length > 0) {
       knowledgeContext = `\n\n## Knowledge Base (use these strategies and scripts):\n` +
@@ -124,20 +163,14 @@ serve(async (req) => {
 
     const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + knowledgeContext + styleContext;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...preparedMessages,
-          {
-            role: "user",
-            content: `${contactContext || ""}
+    const response = await callAI({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...preparedMessages,
+        {
+          role: "user",
+          content: `${contactContext || ""}
 
 Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each suggestion should have a different approach/angle.
 
@@ -149,39 +182,38 @@ Critical persona rules:
 Match my personal communication style from the training examples and use strategies from the knowledge base when relevant.
 
 Use the suggest_replies tool to return your suggestions.`,
-          },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "suggest_replies",
-              description: "Return 3 reply suggestions with reasons",
-              parameters: {
-                type: "object",
-                properties: {
-                  suggestions: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        message: { type: "string", description: "The actual message text to send" },
-                        reason: { type: "string", description: "Why this message works and what effect it will have on the streamer" },
-                        approach: { type: "string", description: "Short label for the approach, e.g. 'Empathetic', 'Direct', 'Curious'" },
-                      },
-                      required: ["message", "reason", "approach"],
-                      additionalProperties: false,
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "suggest_replies",
+            description: "Return 3 reply suggestions with reasons",
+            parameters: {
+              type: "object",
+              properties: {
+                suggestions: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      message: { type: "string", description: "The actual message text to send" },
+                      reason: { type: "string", description: "Why this message works and what effect it will have on the streamer" },
+                      approach: { type: "string", description: "Short label for the approach, e.g. 'Empathetic', 'Direct', 'Curious'" },
                     },
+                    required: ["message", "reason", "approach"],
+                    additionalProperties: false,
                   },
                 },
-                required: ["suggestions"],
-                additionalProperties: false,
               },
+              required: ["suggestions"],
+              additionalProperties: false,
             },
           },
-        ],
-        tool_choice: { type: "function", function: { name: "suggest_replies" } },
-      }),
+        },
+      ],
+      tool_choice: { type: "function", function: { name: "suggest_replies" } },
     });
 
     if (!response.ok) {

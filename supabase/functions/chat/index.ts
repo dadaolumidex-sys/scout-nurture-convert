@@ -56,37 +56,82 @@ IMPORTANT: The user has enabled Deep Research mode. Provide an extremely thoroug
 - Actionable recommendations
 Take your time and be exhaustive in your analysis.`;
 
+// Model mapping from Lovable AI model names to Gemini API model names
+const GEMINI_MODEL_MAP: Record<string, string> = {
+  "google/gemini-2.5-pro": "gemini-2.5-pro-preview-06-05",
+  "google/gemini-3-flash-preview": "gemini-2.5-flash-preview-05-20",
+  "google/gemini-2.5-flash": "gemini-2.5-flash-preview-05-20",
+};
+
+async function callAI(body: Record<string, unknown>, stream: boolean): Promise<Response> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+
+  // Try Lovable AI first
+  if (LOVABLE_API_KEY) {
+    try {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      // If not a credit/rate issue, use this response
+      if (response.status !== 402 && response.status !== 429) {
+        return response;
+      }
+      console.log(`Lovable AI returned ${response.status}, falling back to Gemini API`);
+    } catch (e) {
+      console.error("Lovable AI failed, falling back to Gemini:", e);
+    }
+  }
+
+  // Fallback to Google Gemini API
+  if (!GEMINI_API_KEY) {
+    throw new Error("No AI API key available. Please configure GEMINI_API_KEY or add Lovable AI credits.");
+  }
+
+  const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
+  const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.5-flash-preview-05-20";
+
+  const geminiBody = { ...body, model: geminiModel };
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(geminiBody),
+    }
+  );
+
+  return response;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { messages, persona, deepResearch } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     let systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
     if (deepResearch) {
       systemPrompt += DEEP_RESEARCH_SUFFIX;
     }
 
-    // Use a more powerful model for deep research
     const model = deepResearch ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messages,
-        ],
-        stream: true,
-      }),
-    });
+    const response = await callAI({
+      model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...messages,
+      ],
+      stream: true,
+    }, true);
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -100,7 +145,7 @@ serve(async (req) => {
         });
       }
       const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
+      console.error("AI error:", response.status, t);
       return new Response(JSON.stringify({ error: "AI service error. Please try again." }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
