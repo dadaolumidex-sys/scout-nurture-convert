@@ -5,13 +5,54 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const GEMINI_MODEL_MAP: Record<string, string> = {
+  "google/gemini-3-flash-preview": "gemini-2.5-flash-preview-05-20",
+};
+
+async function callAI(body: Record<string, unknown>): Promise<Response> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+
+  if (LOVABLE_API_KEY) {
+    try {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (response.status !== 402 && response.status !== 429) return response;
+      console.log(`Lovable AI returned ${response.status}, falling back to Gemini API`);
+    } catch (e) {
+      console.error("Lovable AI failed, falling back to Gemini:", e);
+    }
+  }
+
+  if (!GEMINI_API_KEY) {
+    throw new Error("No AI API key available.");
+  }
+
+  const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
+  const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.5-flash-preview-05-20";
+  const geminiBody = { ...body, model: geminiModel };
+
+  return await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(geminiBody),
+    }
+  );
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { content, type, persona } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
     let systemPrompt = "";
 
@@ -41,19 +82,12 @@ Format as JSON array:
 Only return the JSON array, nothing else.`;
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: content.slice(0, 8000) },
-        ],
-      }),
+    const response = await callAI({
+      model: "google/gemini-3-flash-preview",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: content.slice(0, 8000) },
+      ],
     });
 
     if (!response.ok) {
