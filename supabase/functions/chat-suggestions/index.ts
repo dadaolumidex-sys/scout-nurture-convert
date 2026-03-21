@@ -231,7 +231,7 @@ Use the suggest_replies tool to return your suggestions.`,
         },
       ],
       tool_choice: { type: "function", function: { name: "suggest_replies" } },
-    });
+    }, userGeminiKey);
 
     if (!response.ok) {
       if (response.status === 429) {
