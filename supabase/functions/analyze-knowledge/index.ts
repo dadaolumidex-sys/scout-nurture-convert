@@ -39,10 +39,13 @@ async function callAI(body: Record<string, unknown>): Promise<Response> {
   const geminiBody = { ...body, model: geminiModel };
 
   return await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/openai/chat/completions?key=${GEMINI_API_KEY}`,
+    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GEMINI_API_KEY}`,
+      },
       body: JSON.stringify(geminiBody),
     }
   );
