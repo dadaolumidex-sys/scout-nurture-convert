@@ -34,9 +34,9 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-3-flash-preview": "gemini-2.0-flash-lite",
 };
 
-async function callAI(body: Record<string, unknown>): Promise<Response> {
+async function callAI(body: Record<string, unknown>, userGeminiKey?: string): Promise<Response> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  const GEMINI_API_KEY = userGeminiKey || Deno.env.get("GEMINI_API_KEY");
 
   if (LOVABLE_API_KEY) {
     try {
