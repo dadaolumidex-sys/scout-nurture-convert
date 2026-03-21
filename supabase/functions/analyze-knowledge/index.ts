@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-3-flash-preview": "gemini-2.5-flash-preview-05-20",
+  "google/gemini-3-flash-preview": "gemini-2.0-flash",
 };
 
 async function callAI(body: Record<string, unknown>): Promise<Response> {
