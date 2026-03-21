@@ -137,6 +137,20 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, supabaseKey);
 
+    // Get user's API key
+    let userGeminiKey: string | undefined;
+    const authHeader = req.headers.get("authorization");
+    if (authHeader) {
+      try {
+        const token = authHeader.replace("Bearer ", "");
+        const { data: { user } } = await sb.auth.getUser(token);
+        if (user) {
+          const { data: settings } = await sb.from("user_settings").select("gemini_api_key").eq("user_id", user.id).single();
+          if (settings?.gemini_api_key) userGeminiKey = settings.gemini_api_key;
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     const [knowledgeRes, trainingRes] = await Promise.all([
       sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${activePersona},persona.eq.shared`).limit(20),
       sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").eq("status", "analyzed").limit(10),
