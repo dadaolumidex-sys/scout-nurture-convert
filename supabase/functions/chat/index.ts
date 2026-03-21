@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,9 +64,9 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-2.5-flash": "gemini-2.0-flash-lite",
 };
 
-async function callAI(body: Record<string, unknown>, stream: boolean): Promise<Response> {
+async function callAI(body: Record<string, unknown>, stream: boolean, userGeminiKey?: string): Promise<Response> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  const GEMINI_API_KEY = userGeminiKey || Deno.env.get("GEMINI_API_KEY");
 
   // Try Lovable AI first
   if (LOVABLE_API_KEY) {
@@ -197,6 +198,33 @@ serve(async (req) => {
   try {
     const { messages, persona, deepResearch } = await req.json();
 
+    // Try to get user's own Gemini API key from their settings
+    let userGeminiKey: string | undefined;
+    const authHeader = req.headers.get("authorization");
+    if (authHeader) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        const token = authHeader.replace("Bearer ", "");
+        const { data: { user } } = await supabase.auth.getUser(token);
+        
+        if (user) {
+          const { data: settings } = await supabase
+            .from("user_settings")
+            .select("gemini_api_key")
+            .eq("user_id", user.id)
+            .single();
+          if (settings?.gemini_api_key) {
+            userGeminiKey = settings.gemini_api_key;
+          }
+        }
+      } catch (e) {
+        console.log("Could not fetch user API key, using defaults:", e);
+      }
+    }
+
     let systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
     if (deepResearch) {
       systemPrompt += DEEP_RESEARCH_SUFFIX;
@@ -211,7 +239,7 @@ serve(async (req) => {
         ...messages,
       ],
       stream: true,
-    }, true);
+    }, true, userGeminiKey);
 
     if (!response.ok) {
       const t = await response.text();

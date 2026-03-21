@@ -34,9 +34,9 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-3-flash-preview": "gemini-2.0-flash-lite",
 };
 
-async function callAI(body: Record<string, unknown>): Promise<Response> {
+async function callAI(body: Record<string, unknown>, userGeminiKey?: string): Promise<Response> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  const GEMINI_API_KEY = userGeminiKey || Deno.env.get("GEMINI_API_KEY");
 
   if (LOVABLE_API_KEY) {
     try {
@@ -137,6 +137,20 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, supabaseKey);
 
+    // Get user's API key
+    let userGeminiKey: string | undefined;
+    const authHeader = req.headers.get("authorization");
+    if (authHeader) {
+      try {
+        const token = authHeader.replace("Bearer ", "");
+        const { data: { user } } = await sb.auth.getUser(token);
+        if (user) {
+          const { data: settings } = await sb.from("user_settings").select("gemini_api_key").eq("user_id", user.id).single();
+          if (settings?.gemini_api_key) userGeminiKey = settings.gemini_api_key;
+        }
+      } catch (_) { /* ignore */ }
+    }
+
     const [knowledgeRes, trainingRes] = await Promise.all([
       sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${activePersona},persona.eq.shared`).limit(20),
       sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").eq("status", "analyzed").limit(10),
@@ -217,7 +231,7 @@ Use the suggest_replies tool to return your suggestions.`,
         },
       ],
       tool_choice: { type: "function", function: { name: "suggest_replies" } },
-    });
+    }, userGeminiKey);
 
     if (!response.ok) {
       if (response.status === 429) {
