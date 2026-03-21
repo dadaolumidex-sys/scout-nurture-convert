@@ -89,7 +89,7 @@ async function callAI(body: Record<string, unknown>, stream: boolean): Promise<R
     }
   }
 
-  // Fallback to Google Gemini API
+  // Fallback to Google Gemini API (native endpoint)
   if (!GEMINI_API_KEY) {
     throw new Error("No AI API key available. Please configure GEMINI_API_KEY or add Lovable AI credits.");
   }
@@ -97,31 +97,97 @@ async function callAI(body: Record<string, unknown>, stream: boolean): Promise<R
   const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
   const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.0-flash-lite";
 
-  const geminiBody = { ...body, model: geminiModel };
+  // Convert OpenAI-format messages to Gemini native format
+  const messages = body.messages as Array<{ role: string; content: unknown }>;
+  const systemInstruction = messages.find(m => m.role === "system");
+  const chatMessages = messages.filter(m => m.role !== "system");
 
-  // Try multiple Gemini models as fallback chain
-  const modelsToTry = [geminiModel, "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
+  const geminiContents = chatMessages.map(m => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: typeof m.content === "string" 
+      ? [{ text: m.content }] 
+      : (m.content as Array<{ type: string; text?: string; image_url?: { url: string } }>).map(p => {
+          if (p.type === "text") return { text: p.text || "" };
+          if (p.type === "image_url" && p.image_url?.url) {
+            const url = p.image_url.url;
+            if (url.startsWith("data:")) {
+              const [meta, data] = url.split(",");
+              const mimeType = meta.split(":")[1]?.split(";")[0] || "image/jpeg";
+              return { inline_data: { mime_type: mimeType, data } };
+            }
+            return { text: `[Image: ${url}]` };
+          }
+          return { text: "" };
+        }),
+  }));
+
+  const geminiBody: Record<string, unknown> = {
+    contents: geminiContents,
+    generationConfig: { temperature: 0.7 },
+  };
+  if (systemInstruction && typeof systemInstruction.content === "string") {
+    geminiBody.system_instruction = { parts: [{ text: systemInstruction.content }] };
+  }
+
+  const modelsToTry = [geminiModel, "gemini-2.0-flash-lite", "gemini-2.0-flash"];
   
   for (const model of modelsToTry) {
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${GEMINI_API_KEY}`,
-        },
-        body: JSON.stringify({ ...geminiBody, model }),
-      }
-    );
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(geminiBody),
+    });
     
-    if (response.status !== 429) return response;
+    if (response.status !== 429) {
+      // Convert Gemini SSE stream to OpenAI-compatible SSE stream
+      if (response.ok && response.body) {
+        const { readable, writable } = new TransformStream();
+        const writer = writable.getWriter();
+        const encoder = new TextEncoder();
+        
+        (async () => {
+          const reader = response.body!.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            
+            let idx: number;
+            while ((idx = buffer.indexOf("\n")) !== -1) {
+              let line = buffer.slice(0, idx);
+              buffer = buffer.slice(idx + 1);
+              if (line.endsWith("\r")) line = line.slice(0, -1);
+              if (!line.startsWith("data: ")) continue;
+              const jsonStr = line.slice(6).trim();
+              if (!jsonStr) continue;
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                if (text) {
+                  const openaiChunk = {
+                    choices: [{ delta: { content: text }, index: 0 }],
+                  };
+                  await writer.write(encoder.encode(`data: ${JSON.stringify(openaiChunk)}\n\n`));
+                }
+              } catch { /* skip */ }
+            }
+          }
+          await writer.write(encoder.encode("data: [DONE]\n\n"));
+          await writer.close();
+        })();
+        
+        return new Response(readable);
+      }
+      return response;
+    }
     console.log(`Gemini model ${model} rate limited, trying next...`);
-    // Must consume body before retrying
     await response.text();
   }
 
-  // All models exhausted - return a clear message
   throw new Error("All AI models are temporarily rate limited. Please wait a minute and try again.");
 }
 
