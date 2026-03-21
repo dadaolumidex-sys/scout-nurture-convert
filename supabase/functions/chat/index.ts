@@ -95,7 +95,7 @@ async function callAI(body: Record<string, unknown>, stream: boolean): Promise<R
   }
 
   const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
-  const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.5-flash-preview-05-20";
+  const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.0-flash";
 
   const geminiBody = { ...body, model: geminiModel };
 
