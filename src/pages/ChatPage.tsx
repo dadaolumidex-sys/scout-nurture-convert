@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, Plus, ImagePlus, Sparkles, X } from "lucide-react";
+import { Send, Bot, Plus, ImagePlus, Sparkles, X, Pencil, Trash2, Copy, MoreVertical, Check, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,11 +7,12 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type Message = {
   role: "user" | "assistant";
   content: string;
-  images?: string[]; // base64 data URLs
+  images?: string[];
 };
 
 type Persona = "friend" | "promoter";
@@ -50,7 +51,6 @@ async function streamChat({
   onDone: () => void;
   onError: (msg: string) => void;
 }) {
-  // Convert messages to API format with image support
   const apiMessages = messages.map((msg) => {
     if (msg.images && msg.images.length > 0) {
       return {
@@ -124,6 +124,8 @@ const ChatPage = () => {
   const [loading, setLoading] = useState(false);
   const [deepResearch, setDeepResearch] = useState(false);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editContent, setEditContent] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -160,22 +162,11 @@ const ChatPage = () => {
     setMessages([]);
     setInput("");
     setPendingImages([]);
+    setEditingIndex(null);
   };
 
-  const handleSend = async () => {
-    if ((!input.trim() && pendingImages.length === 0) || loading) return;
-
-    const userMsg: Message = {
-      role: "user",
-      content: input,
-      images: pendingImages.length > 0 ? [...pendingImages] : undefined,
-    };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setInput("");
-    setPendingImages([]);
+  const sendMessages = async (msgs: Message[]) => {
     setLoading(true);
-
     let assistantSoFar = "";
 
     const upsertAssistant = (chunk: string) => {
@@ -193,7 +184,7 @@ const ChatPage = () => {
 
     try {
       await streamChat({
-        messages: newMessages,
+        messages: msgs,
         persona,
         deepResearch,
         onDelta: upsertAssistant,
@@ -208,6 +199,47 @@ const ChatPage = () => {
       toast.error("Failed to get AI response");
       setLoading(false);
     }
+  };
+
+  const handleSend = async () => {
+    if ((!input.trim() && pendingImages.length === 0) || loading) return;
+
+    const userMsg: Message = {
+      role: "user",
+      content: input,
+      images: pendingImages.length > 0 ? [...pendingImages] : undefined,
+    };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput("");
+    setPendingImages([]);
+
+    await sendMessages(newMessages);
+  };
+
+  const handleEditSave = async (index: number) => {
+    if (!editContent.trim()) return;
+    // Update the message and remove everything after it, then resend
+    const updated = messages.slice(0, index).concat({
+      ...messages[index],
+      content: editContent,
+    });
+    setMessages(updated);
+    setEditingIndex(null);
+    setEditContent("");
+    await sendMessages(updated);
+  };
+
+  const handleResend = async (index: number) => {
+    // Resend from this message onwards (remove assistant replies after it)
+    const truncated = messages.slice(0, index + 1);
+    setMessages(truncated);
+    await sendMessages(truncated);
+  };
+
+  const handleDelete = (index: number) => {
+    setMessages((prev) => prev.filter((_, i) => i !== index));
+    toast.success("Message deleted");
   };
 
   return (
@@ -290,7 +322,7 @@ const ChatPage = () => {
               className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               <div
-                className={`max-w-[80%] rounded-xl px-4 py-3 text-sm ${
+                className={`group relative max-w-[80%] rounded-xl px-4 py-3 text-sm ${
                   msg.role === "user"
                     ? "bg-muted text-foreground"
                     : "bg-accent text-accent-foreground border border-border"
@@ -309,25 +341,60 @@ const ChatPage = () => {
                     ))}
                   </div>
                 )}
-                {msg.role === "assistant" ? (
-                  <div className="prose prose-sm dark:prose-invert max-w-none">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
+
+                {editingIndex === i ? (
+                  <div className="space-y-2">
+                    <Textarea
+                      value={editContent}
+                      onChange={(e) => setEditContent(e.target.value)}
+                      className="bg-background border-border text-foreground text-sm min-h-[60px]"
+                    />
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => handleEditSave(i)} className="h-6 px-2 text-xs text-primary">
+                        <Check className="h-3 w-3 mr-1" /> Save & Resend
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingIndex(null)} className="h-6 px-2 text-xs text-muted-foreground">
+                        <X className="h-3 w-3 mr-1" /> Cancel
+                      </Button>
+                    </div>
                   </div>
                 ) : (
-                  msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>
+                  <>
+                    {msg.role === "assistant" ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>
+                    )}
+                  </>
                 )}
-                {msg.role === "assistant" && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="mt-2 text-xs text-primary hover:text-primary/80 p-0 h-auto"
-                    onClick={() => {
-                      navigator.clipboard.writeText(msg.content);
-                      toast.success("Copied!");
-                    }}
-                  >
-                    Copy reply
-                  </Button>
+
+                {/* Actions menu */}
+                {editingIndex !== i && (
+                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                        <MoreVertical className="h-3 w-3" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-card border-border">
+                        <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.content); toast.success("Copied!"); }} className="text-foreground">
+                          <Copy className="h-3 w-3 mr-2" /> Copy
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setEditingIndex(i); setEditContent(msg.content); }} className="text-foreground">
+                          <Pencil className="h-3 w-3 mr-2" /> Edit
+                        </DropdownMenuItem>
+                        {msg.role === "user" && (
+                          <DropdownMenuItem onClick={() => handleResend(i)} className="text-foreground">
+                            <RotateCcw className="h-3 w-3 mr-2" /> Resend
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={() => handleDelete(i)} className="text-destructive">
+                          <Trash2 className="h-3 w-3 mr-2" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 )}
               </div>
             </div>
