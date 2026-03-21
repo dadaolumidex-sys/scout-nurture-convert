@@ -198,6 +198,33 @@ serve(async (req) => {
   try {
     const { messages, persona, deepResearch } = await req.json();
 
+    // Try to get user's own Gemini API key from their settings
+    let userGeminiKey: string | undefined;
+    const authHeader = req.headers.get("authorization");
+    if (authHeader) {
+      try {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+        const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        const token = authHeader.replace("Bearer ", "");
+        const { data: { user } } = await supabase.auth.getUser(token);
+        
+        if (user) {
+          const { data: settings } = await supabase
+            .from("user_settings")
+            .select("gemini_api_key")
+            .eq("user_id", user.id)
+            .single();
+          if (settings?.gemini_api_key) {
+            userGeminiKey = settings.gemini_api_key;
+          }
+        }
+      } catch (e) {
+        console.log("Could not fetch user API key, using defaults:", e);
+      }
+    }
+
     let systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
     if (deepResearch) {
       systemPrompt += DEEP_RESEARCH_SUFFIX;
@@ -212,7 +239,7 @@ serve(async (req) => {
         ...messages,
       ],
       stream: true,
-    }, true);
+    }, true, userGeminiKey);
 
     if (!response.ok) {
       const t = await response.text();
