@@ -58,9 +58,9 @@ Take your time and be exhaustive in your analysis.`;
 
 // Model mapping from Lovable AI model names to Gemini API model names
 const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-2.5-pro": "gemini-2.0-flash",
-  "google/gemini-3-flash-preview": "gemini-2.0-flash",
-  "google/gemini-2.5-flash": "gemini-2.0-flash",
+  "google/gemini-2.5-pro": "gemini-2.0-flash-lite",
+  "google/gemini-3-flash-preview": "gemini-2.0-flash-lite",
+  "google/gemini-2.5-flash": "gemini-2.0-flash-lite",
 };
 
 async function callAI(body: Record<string, unknown>, stream: boolean): Promise<Response> {
