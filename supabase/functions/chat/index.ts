@@ -99,19 +99,30 @@ async function callAI(body: Record<string, unknown>, stream: boolean): Promise<R
 
   const geminiBody = { ...body, model: geminiModel };
 
-  const response = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GEMINI_API_KEY}`,
-      },
-      body: JSON.stringify(geminiBody),
-    }
-  );
+  // Try multiple Gemini models as fallback chain
+  const modelsToTry = [geminiModel, "gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-1.5-flash"];
+  
+  for (const model of modelsToTry) {
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${GEMINI_API_KEY}`,
+        },
+        body: JSON.stringify({ ...geminiBody, model }),
+      }
+    );
+    
+    if (response.status !== 429) return response;
+    console.log(`Gemini model ${model} rate limited, trying next...`);
+    // Must consume body before retrying
+    await response.text();
+  }
 
-  return response;
+  // All models exhausted - return a clear message
+  throw new Error("All AI models are temporarily rate limited. Please wait a minute and try again.");
 }
 
 serve(async (req) => {
