@@ -34,46 +34,65 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-3-flash-preview": "gemini-2.0-flash-lite",
 };
 
-async function callAI(body: Record<string, unknown>, userGeminiKey?: string): Promise<Response> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  const GEMINI_API_KEY = userGeminiKey || Deno.env.get("GEMINI_API_KEY");
+async function callOpenAISuggestions(body: Record<string, unknown>, openaiKey: string): Promise<Response> {
+  return await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, model: "gpt-4o-mini" }),
+  });
+}
 
-  if (LOVABLE_API_KEY) {
+async function callAI(body: Record<string, unknown>, keys: { gemini?: string; openai?: string }): Promise<Response> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+
+  // 1. Try Lovable AI
+  if (LOVABLE_API_KEY && !keys.openai && !keys.gemini) {
     try {
       const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       if (response.status !== 402 && response.status !== 429) return response;
-      console.log(`Lovable AI returned ${response.status}, falling back to Gemini API`);
+      console.log(`Lovable AI returned ${response.status}, falling back...`);
     } catch (e) {
-      console.error("Lovable AI failed, falling back to Gemini:", e);
+      console.error("Lovable AI failed:", e);
     }
   }
 
-  if (!GEMINI_API_KEY) {
-    throw new Error("No AI API key available.");
+  // 2. Try OpenAI
+  if (keys.openai) {
+    try {
+      const resp = await callOpenAISuggestions(body, keys.openai);
+      if (resp.ok) return resp;
+      await resp.text();
+    } catch (e) {
+      console.error("OpenAI error:", e);
+    }
   }
 
-  const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
-  const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.5-flash-preview-05-20";
-  const geminiBody = { ...body, model: geminiModel };
-
-  return await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-    {
+  // 3. Try Gemini
+  const geminiKey = keys.gemini || Deno.env.get("GEMINI_API_KEY");
+  if (geminiKey) {
+    const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
+    const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.0-flash-lite";
+    return await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GEMINI_API_KEY}`,
-      },
-      body: JSON.stringify(geminiBody),
-    }
-  );
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${geminiKey}` },
+      body: JSON.stringify({ ...body, model: geminiModel }),
+    });
+  }
+
+  // 4. Last resort Lovable
+  if (LOVABLE_API_KEY) {
+    return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  }
+
+  throw new Error("No AI API key available. Please add an API key in Settings.");
 }
 
 type IncomingMessage = {
@@ -137,16 +156,17 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, supabaseKey);
 
-    // Get user's API key
-    let userGeminiKey: string | undefined;
+    // Get user's API keys
+    let userKeys: { gemini?: string; openai?: string } = {};
     const authHeader = req.headers.get("authorization");
     if (authHeader) {
       try {
         const token = authHeader.replace("Bearer ", "");
         const { data: { user } } = await sb.auth.getUser(token);
         if (user) {
-          const { data: settings } = await sb.from("user_settings").select("gemini_api_key").eq("user_id", user.id).single();
-          if (settings?.gemini_api_key) userGeminiKey = settings.gemini_api_key;
+          const { data: settings } = await sb.from("user_settings").select("gemini_api_key, openai_api_key").eq("user_id", user.id).single();
+          if (settings?.gemini_api_key) userKeys.gemini = settings.gemini_api_key;
+          if (settings?.openai_api_key) userKeys.openai = settings.openai_api_key;
         }
       } catch (_) { /* ignore */ }
     }
@@ -231,7 +251,7 @@ Use the suggest_replies tool to return your suggestions.`,
         },
       ],
       tool_choice: { type: "function", function: { name: "suggest_replies" } },
-    }, userGeminiKey);
+    }, userKeys);
 
     if (!response.ok) {
       if (response.status === 429) {

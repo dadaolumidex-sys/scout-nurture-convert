@@ -57,24 +57,10 @@ IMPORTANT: The user has enabled Deep Research mode. Provide an extremely thoroug
 - Actionable recommendations
 Take your time and be exhaustive in your analysis.`;
 
-// Model mapping from Lovable AI model names to Gemini API model names
-const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-2.5-pro": "gemini-2.0-flash",
-  "google/gemini-3-flash-preview": "gemini-2.0-flash-lite",
-  "google/gemini-2.5-flash": "gemini-2.0-flash",
-};
-
-const GEMINI_FALLBACK_MODELS = [
-  "gemini-2.0-flash-lite",
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-];
-
-const GEMINI_MAX_RETRIES = 2;
+// ── AI Provider helpers ──
 
 class AIProviderError extends Error {
   status: number;
-
   constructor(status: number, message: string) {
     super(message);
     this.name = "AIProviderError";
@@ -82,190 +68,220 @@ class AIProviderError extends Error {
   }
 }
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function callAI(body: Record<string, unknown>, userGeminiKey?: string): Promise<Response> {
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  const GEMINI_API_KEY = userGeminiKey || Deno.env.get("GEMINI_API_KEY");
-  let lovableFallbackStatus: number | null = null;
+// ── OpenAI direct call (streaming, OpenAI-compatible SSE) ──
 
-  // If a user-specific Gemini key is available, prioritize it to avoid workspace credit dependency
-  const shouldTryLovableFirst = LOVABLE_API_KEY && !userGeminiKey;
+async function callOpenAI(body: Record<string, unknown>, openaiKey: string): Promise<Response> {
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${openaiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ ...body, model: "gpt-4o-mini", stream: true }),
+  });
+  return resp; // Already OpenAI-compatible SSE
+}
 
-  if (shouldTryLovableFirst) {
-    try {
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
+// ── Gemini native call (streaming, converted to OpenAI SSE) ──
 
-      if (response.status !== 402 && response.status !== 429) {
-        return response;
-      }
+const GEMINI_MODEL_MAP: Record<string, string> = {
+  "google/gemini-2.5-pro": "gemini-2.0-flash",
+  "google/gemini-3-flash-preview": "gemini-2.0-flash-lite",
+  "google/gemini-2.5-flash": "gemini-2.0-flash",
+};
 
-      lovableFallbackStatus = response.status;
-      await response.text();
-      console.log(`Lovable AI returned ${response.status}, falling back to Gemini API`);
-    } catch (e) {
-      console.error("Lovable AI failed, falling back to Gemini:", e);
-    }
-  }
+const GEMINI_FALLBACK_MODELS = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-exp"];
 
-  if (!GEMINI_API_KEY) {
-    if (lovableFallbackStatus === 402) {
-      throw new AIProviderError(402, "AI credits are exhausted. Add workspace AI credits or save a fresh Gemini API key in Settings.");
-    }
-    if (lovableFallbackStatus === 429) {
-      throw new AIProviderError(429, "AI service is rate limited. Please wait a minute and try again.");
-    }
-    throw new AIProviderError(500, "No AI API key available. Please configure GEMINI_API_KEY or add Lovable AI credits.");
-  }
-
-  const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
-  const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.0-flash-lite";
-
-  // Convert OpenAI-format messages to Gemini native format
+function convertToGeminiFormat(body: Record<string, unknown>) {
   const messages = body.messages as Array<{ role: string; content: unknown }>;
   const systemInstruction = messages.find((m) => m.role === "system");
   const chatMessages = messages.filter((m) => m.role !== "system");
 
-  const geminiContents = chatMessages.map((m) => ({
+  const contents = chatMessages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
-    parts: typeof m.content === "string"
-      ? [{ text: m.content }]
-      : (m.content as Array<{ type: string; text?: string; image_url?: { url: string } }>).map((p) => {
-          if (p.type === "text") return { text: p.text || "" };
-          if (p.type === "image_url" && p.image_url?.url) {
-            const url = p.image_url.url;
-            if (url.startsWith("data:")) {
-              const [meta, data] = url.split(",");
-              const mimeType = meta.split(":")[1]?.split(";")[0] || "image/jpeg";
-              return { inline_data: { mime_type: mimeType, data } };
+    parts:
+      typeof m.content === "string"
+        ? [{ text: m.content }]
+        : (m.content as Array<{ type: string; text?: string; image_url?: { url: string } }>).map((p) => {
+            if (p.type === "text") return { text: p.text || "" };
+            if (p.type === "image_url" && p.image_url?.url) {
+              const url = p.image_url.url;
+              if (url.startsWith("data:")) {
+                const [meta, data] = url.split(",");
+                const mimeType = meta.split(":")[1]?.split(";")[0] || "image/jpeg";
+                return { inline_data: { mime_type: mimeType, data } };
+              }
+              return { text: `[Image: ${url}]` };
             }
-            return { text: `[Image: ${url}]` };
-          }
-          return { text: "" };
-        }),
+            return { text: "" };
+          }),
   }));
 
   const geminiBody: Record<string, unknown> = {
-    contents: geminiContents,
+    contents,
     generationConfig: { temperature: 0.7 },
   };
   if (systemInstruction && typeof systemInstruction.content === "string") {
     geminiBody.system_instruction = { parts: [{ text: systemInstruction.content }] };
   }
+  return geminiBody;
+}
 
-  const modelsToTry = Array.from(new Set([geminiModel, ...GEMINI_FALLBACK_MODELS]));
+function geminiSSEtoOpenAISSE(response: Response): Response {
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
 
-  let sawGeminiRateLimit = false;
-  let lastNonRateLimitFailure: { status: number; body: string } | null = null;
+  (async () => {
+    try {
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buffer.indexOf("\n")) !== -1) {
+          let line = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + 1);
+          if (line.endsWith("\r")) line = line.slice(0, -1);
+          if (!line.startsWith("data: ")) continue;
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+          try {
+            const parsed = JSON.parse(jsonStr);
+            const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
+            if (text) {
+              await writer.write(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text }, index: 0 }] })}\n\n`));
+            }
+          } catch { /* skip */ }
+        }
+      }
+      await writer.write(encoder.encode("data: [DONE]\n\n"));
+    } finally {
+      await writer.close();
+    }
+  })();
 
-  for (let attempt = 0; attempt <= GEMINI_MAX_RETRIES; attempt++) {
+  return new Response(readable);
+}
+
+async function callGemini(body: Record<string, unknown>, geminiKey: string): Promise<Response | null> {
+  const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
+  const primary = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.0-flash-lite";
+  const modelsToTry = Array.from(new Set([primary, ...GEMINI_FALLBACK_MODELS]));
+  const geminiBody = convertToGeminiFormat(body);
+
+  for (let attempt = 0; attempt <= 2; attempt++) {
     for (const model of modelsToTry) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
-      const response = await fetch(url, {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${geminiKey}`;
+      const resp = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(geminiBody),
       });
 
-      if (response.status === 429) {
-        sawGeminiRateLimit = true;
-        await response.text();
-        console.log(`Gemini model ${model} rate limited (attempt ${attempt + 1}), trying next...`);
+      if (resp.status === 429) {
+        await resp.text();
+        console.log(`Gemini ${model} rate limited (attempt ${attempt + 1})`);
         continue;
       }
-
-      // Some models can be temporarily unavailable by account/region. Try next model.
-      if (response.status === 400 || response.status === 404 || response.status === 503) {
-        const bodyText = await response.text();
-        lastNonRateLimitFailure = { status: response.status, body: bodyText };
-        console.log(`Gemini model ${model} unavailable (${response.status}), trying next model...`);
+      if (resp.status === 400 || resp.status === 404 || resp.status === 503) {
+        await resp.text();
         continue;
       }
-
-      if (response.ok && response.body) {
-        const { readable, writable } = new TransformStream();
-        const writer = writable.getWriter();
-        const encoder = new TextEncoder();
-
-        (async () => {
-          try {
-            const reader = response.body!.getReader();
-            const decoder = new TextDecoder();
-            let buffer = "";
-
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              buffer += decoder.decode(value, { stream: true });
-
-              let idx: number;
-              while ((idx = buffer.indexOf("\n")) !== -1) {
-                let line = buffer.slice(0, idx);
-                buffer = buffer.slice(idx + 1);
-                if (line.endsWith("\r")) line = line.slice(0, -1);
-                if (!line.startsWith("data: ")) continue;
-                const jsonStr = line.slice(6).trim();
-                if (!jsonStr) continue;
-                try {
-                  const parsed = JSON.parse(jsonStr);
-                  const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                  if (text) {
-                    const openaiChunk = {
-                      choices: [{ delta: { content: text }, index: 0 }],
-                    };
-                    await writer.write(encoder.encode(`data: ${JSON.stringify(openaiChunk)}\n\n`));
-                  }
-                } catch {
-                  // Skip malformed chunk
-                }
-              }
-            }
-
-            await writer.write(encoder.encode("data: [DONE]\n\n"));
-          } finally {
-            await writer.close();
-          }
-        })();
-
-        return new Response(readable);
+      if (resp.ok && resp.body) {
+        return geminiSSEtoOpenAISSE(resp);
       }
-
-      const failureBody = await response.text();
-      lastNonRateLimitFailure = { status: response.status, body: failureBody };
-      console.error(`Gemini model ${model} failed:`, response.status, failureBody);
+      // Other error — return as-is
+      return resp;
     }
-
-    if (attempt < GEMINI_MAX_RETRIES && sawGeminiRateLimit) {
-      const retryDelay = 1000 * (attempt + 1);
-      console.log(`All Gemini models rate limited on attempt ${attempt + 1}. Retrying in ${retryDelay}ms...`);
-      await delay(retryDelay);
-      continue;
+    if (attempt < 2) {
+      console.log(`All Gemini models limited, retrying in ${(attempt + 1) * 1000}ms...`);
+      await delay((attempt + 1) * 1000);
     }
   }
-
-  if (sawGeminiRateLimit) {
-    if (lovableFallbackStatus === 402 || shouldTryLovableFirst) {
-      throw new AIProviderError(429, "Both AI providers are unavailable right now: workspace AI credits are exhausted and Gemini is rate limited. Please wait 1-2 minutes, then retry. If it continues, save a fresh Gemini key in Settings.");
-    }
-    throw new AIProviderError(429, "All AI models are temporarily rate limited. Please wait 1-2 minutes and try again.");
-  }
-
-  if (lastNonRateLimitFailure) {
-    return new Response(lastNonRateLimitFailure.body || JSON.stringify({ error: "Gemini request failed" }), {
-      status: lastNonRateLimitFailure.status,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-
-  throw new AIProviderError(500, "AI service temporarily unavailable. Please try again in a moment.");
+  return null; // All rate limited
 }
+
+// ── Main orchestrator ──
+
+async function callAI(body: Record<string, unknown>, keys: { gemini?: string; openai?: string }): Promise<Response> {
+  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+  const errors: string[] = [];
+
+  // 1. Try Lovable AI first (only if no user keys to avoid wasting credits)
+  if (LOVABLE_API_KEY && !keys.openai && !keys.gemini) {
+    try {
+      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (resp.status !== 402 && resp.status !== 429) return resp;
+      await resp.text();
+      errors.push(`Lovable AI: ${resp.status}`);
+      console.log(`Lovable AI returned ${resp.status}, trying user keys...`);
+    } catch (e) {
+      errors.push("Lovable AI: network error");
+      console.error("Lovable AI failed:", e);
+    }
+  }
+
+  // 2. Try OpenAI (user's key) — most reliable paid option
+  if (keys.openai) {
+    try {
+      const resp = await callOpenAI(body, keys.openai);
+      if (resp.ok) return resp;
+      const t = await resp.text();
+      errors.push(`OpenAI: ${resp.status}`);
+      console.log(`OpenAI failed: ${resp.status} ${t.slice(0, 200)}`);
+      if (resp.status === 401) {
+        throw new AIProviderError(401, "OpenAI API key is invalid. Please update it in Settings.");
+      }
+    } catch (e) {
+      if (e instanceof AIProviderError) throw e;
+      errors.push("OpenAI: error");
+      console.error("OpenAI error:", e);
+    }
+  }
+
+  // 3. Try Gemini (user's key) — free tier available
+  const geminiKey = keys.gemini || Deno.env.get("GEMINI_API_KEY");
+  if (geminiKey) {
+    const resp = await callGemini(body, geminiKey);
+    if (resp) {
+      if (resp.ok || (resp.body && resp.status === 200)) return resp;
+      errors.push(`Gemini: ${resp.status}`);
+    } else {
+      errors.push("Gemini: all models rate limited");
+    }
+  }
+
+  // 4. Last resort: try Lovable AI even with user keys
+  if (LOVABLE_API_KEY && (keys.openai || keys.gemini)) {
+    try {
+      const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (resp.status !== 402 && resp.status !== 429) return resp;
+      await resp.text();
+      errors.push(`Lovable AI fallback: ${resp.status}`);
+    } catch { /* already tried */ }
+  }
+
+  // All failed
+  const detail = errors.join("; ");
+  console.error("All AI providers failed:", detail);
+  throw new AIProviderError(429, "All AI providers are temporarily unavailable. Please wait a minute and try again, or check your API keys in Settings.");
+}
+
+// ── Edge function handler ──
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -273,70 +289,54 @@ serve(async (req) => {
   try {
     const { messages, persona, deepResearch } = await req.json();
 
-    // Try to get user's own Gemini API key from their settings
-    let userGeminiKey: string | undefined;
+    // Get user's API keys
+    let userKeys: { gemini?: string; openai?: string } = {};
     const authHeader = req.headers.get("authorization");
     if (authHeader) {
       try {
         const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
         const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
         const supabase = createClient(supabaseUrl, supabaseKey);
-
         const token = authHeader.replace("Bearer ", "");
         const { data: { user } } = await supabase.auth.getUser(token);
-
         if (user) {
           const { data: settings } = await supabase
             .from("user_settings")
-            .select("gemini_api_key")
+            .select("gemini_api_key, openai_api_key")
             .eq("user_id", user.id)
             .single();
-          if (settings?.gemini_api_key) {
-            userGeminiKey = settings.gemini_api_key;
-          }
+          if (settings?.gemini_api_key) userKeys.gemini = settings.gemini_api_key;
+          if (settings?.openai_api_key) userKeys.openai = settings.openai_api_key;
         }
       } catch (e) {
-        console.log("Could not fetch user API key, using defaults:", e);
+        console.log("Could not fetch user API keys:", e);
       }
     }
 
     let systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
-    if (deepResearch) {
-      systemPrompt += DEEP_RESEARCH_SUFFIX;
-    }
+    if (deepResearch) systemPrompt += DEEP_RESEARCH_SUFFIX;
 
     const model = deepResearch ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
 
-    const response = await callAI({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...messages,
-      ],
-      stream: true,
-    }, userGeminiKey);
+    const response = await callAI(
+      {
+        model,
+        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        stream: true,
+      },
+      userKeys
+    );
 
     if (!response.ok) {
       const t = await response.text();
       console.error("AI error:", response.status, t);
-
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please wait a minute and try again." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add usage credits or use your personal Gemini key in Settings." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      return new Response(JSON.stringify({ error: "AI service temporarily unavailable. Please try again in a moment." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      const status = response.status;
+      const msg =
+        status === 429 ? "Rate limit exceeded. Please wait a minute and try again."
+        : status === 402 ? "AI credits exhausted. Please add credits or use your API keys in Settings."
+        : "AI service temporarily unavailable. Please try again.";
+      return new Response(JSON.stringify({ error: msg }), {
+        status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -345,17 +345,13 @@ serve(async (req) => {
     });
   } catch (e) {
     console.error("chat error:", e);
-
     if (e instanceof AIProviderError) {
       return new Response(JSON.stringify({ error: e.message }), {
-        status: e.status,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
