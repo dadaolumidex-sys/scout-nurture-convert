@@ -1,0 +1,1 @@
+ALTER TABLE public.user_settings ADD COLUMN openai_api_key text;
