@@ -59,10 +59,18 @@ Take your time and be exhaustive in your analysis.`;
 
 // Model mapping from Lovable AI model names to Gemini API model names
 const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-2.5-pro": "gemini-2.0-flash-lite",
+  "google/gemini-2.5-pro": "gemini-2.0-flash",
   "google/gemini-3-flash-preview": "gemini-2.0-flash-lite",
-  "google/gemini-2.5-flash": "gemini-2.0-flash-lite",
+  "google/gemini-2.5-flash": "gemini-2.0-flash",
 };
+
+const GEMINI_FALLBACK_MODELS = [
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+];
+
+const GEMINI_MAX_RETRIES = 2;
 
 class AIProviderError extends Error {
   status: number;
@@ -81,8 +89,10 @@ async function callAI(body: Record<string, unknown>, userGeminiKey?: string): Pr
   const GEMINI_API_KEY = userGeminiKey || Deno.env.get("GEMINI_API_KEY");
   let lovableFallbackStatus: number | null = null;
 
-  // Try Lovable AI first
-  if (LOVABLE_API_KEY) {
+  // If a user-specific Gemini key is available, prioritize it to avoid workspace credit dependency
+  const shouldTryLovableFirst = LOVABLE_API_KEY && !userGeminiKey;
+
+  if (shouldTryLovableFirst) {
     try {
       const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -93,20 +103,18 @@ async function callAI(body: Record<string, unknown>, userGeminiKey?: string): Pr
         body: JSON.stringify(body),
       });
 
-      // If not a credit/rate issue, use this response
       if (response.status !== 402 && response.status !== 429) {
         return response;
       }
 
       lovableFallbackStatus = response.status;
-      await response.text(); // drain body before fallback
+      await response.text();
       console.log(`Lovable AI returned ${response.status}, falling back to Gemini API`);
     } catch (e) {
       console.error("Lovable AI failed, falling back to Gemini:", e);
     }
   }
 
-  // Fallback to Google Gemini API (native endpoint)
   if (!GEMINI_API_KEY) {
     if (lovableFallbackStatus === 402) {
       throw new AIProviderError(402, "AI credits are exhausted. Add workspace AI credits or save a fresh Gemini API key in Settings.");
@@ -152,92 +160,108 @@ async function callAI(body: Record<string, unknown>, userGeminiKey?: string): Pr
     geminiBody.system_instruction = { parts: [{ text: systemInstruction.content }] };
   }
 
-  const modelsToTry = Array.from(new Set([
-    geminiModel,
-    "gemini-2.0-flash-lite",
-    "gemini-2.0-flash",
-  ]));
+  const modelsToTry = Array.from(new Set([geminiModel, ...GEMINI_FALLBACK_MODELS]));
 
   let sawGeminiRateLimit = false;
+  let lastNonRateLimitFailure: { status: number; body: string } | null = null;
 
-  for (const model of modelsToTry) {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(geminiBody),
-    });
+  for (let attempt = 0; attempt <= GEMINI_MAX_RETRIES; attempt++) {
+    for (const model of modelsToTry) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${GEMINI_API_KEY}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(geminiBody),
+      });
 
-    if (response.status === 429) {
-      sawGeminiRateLimit = true;
-      console.log(`Gemini model ${model} rate limited, trying next...`);
-      await response.text();
-      await delay(250);
-      continue;
-    }
+      if (response.status === 429) {
+        sawGeminiRateLimit = true;
+        await response.text();
+        console.log(`Gemini model ${model} rate limited (attempt ${attempt + 1}), trying next...`);
+        continue;
+      }
 
-    // Convert Gemini SSE stream to OpenAI-compatible SSE stream
-    if (response.ok && response.body) {
-      const { readable, writable } = new TransformStream();
-      const writer = writable.getWriter();
-      const encoder = new TextEncoder();
+      // Some models can be temporarily unavailable by account/region. Try next model.
+      if (response.status === 400 || response.status === 404 || response.status === 503) {
+        const bodyText = await response.text();
+        lastNonRateLimitFailure = { status: response.status, body: bodyText };
+        console.log(`Gemini model ${model} unavailable (${response.status}), trying next model...`);
+        continue;
+      }
 
-      (async () => {
-        try {
-          const reader = response.body!.getReader();
-          const decoder = new TextDecoder();
-          let buffer = "";
+      if (response.ok && response.body) {
+        const { readable, writable } = new TransformStream();
+        const writer = writable.getWriter();
+        const encoder = new TextEncoder();
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
+        (async () => {
+          try {
+            const reader = response.body!.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
 
-            let idx: number;
-            while ((idx = buffer.indexOf("\n")) !== -1) {
-              let line = buffer.slice(0, idx);
-              buffer = buffer.slice(idx + 1);
-              if (line.endsWith("\r")) line = line.slice(0, -1);
-              if (!line.startsWith("data: ")) continue;
-              const jsonStr = line.slice(6).trim();
-              if (!jsonStr) continue;
-              try {
-                const parsed = JSON.parse(jsonStr);
-                const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
-                if (text) {
-                  const openaiChunk = {
-                    choices: [{ delta: { content: text }, index: 0 }],
-                  };
-                  await writer.write(encoder.encode(`data: ${JSON.stringify(openaiChunk)}\n\n`));
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+
+              let idx: number;
+              while ((idx = buffer.indexOf("\n")) !== -1) {
+                let line = buffer.slice(0, idx);
+                buffer = buffer.slice(idx + 1);
+                if (line.endsWith("\r")) line = line.slice(0, -1);
+                if (!line.startsWith("data: ")) continue;
+                const jsonStr = line.slice(6).trim();
+                if (!jsonStr) continue;
+                try {
+                  const parsed = JSON.parse(jsonStr);
+                  const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
+                  if (text) {
+                    const openaiChunk = {
+                      choices: [{ delta: { content: text }, index: 0 }],
+                    };
+                    await writer.write(encoder.encode(`data: ${JSON.stringify(openaiChunk)}\n\n`));
+                  }
+                } catch {
+                  // Skip malformed chunk
                 }
-              } catch {
-                // Skip malformed chunk
               }
             }
+
+            await writer.write(encoder.encode("data: [DONE]\n\n"));
+          } finally {
+            await writer.close();
           }
+        })();
 
-          await writer.write(encoder.encode("data: [DONE]\n\n"));
-        } finally {
-          await writer.close();
-        }
-      })();
+        return new Response(readable);
+      }
 
-      return new Response(readable);
+      const failureBody = await response.text();
+      lastNonRateLimitFailure = { status: response.status, body: failureBody };
+      console.error(`Gemini model ${model} failed:`, response.status, failureBody);
     }
 
-    const failureBody = await response.text();
-    console.error(`Gemini model ${model} failed:`, response.status, failureBody);
-    return new Response(failureBody || JSON.stringify({ error: "Gemini request failed" }), {
-      status: response.status,
-      headers: { "Content-Type": "application/json" },
-    });
+    if (attempt < GEMINI_MAX_RETRIES && sawGeminiRateLimit) {
+      const retryDelay = 1000 * (attempt + 1);
+      console.log(`All Gemini models rate limited on attempt ${attempt + 1}. Retrying in ${retryDelay}ms...`);
+      await delay(retryDelay);
+      continue;
+    }
   }
 
   if (sawGeminiRateLimit) {
-    if (lovableFallbackStatus === 402) {
-      throw new AIProviderError(429, "Both AI providers are unavailable right now: workspace AI credits are exhausted and Gemini is rate limited. Add credits or use a fresh Gemini key from a new Google project.");
+    if (lovableFallbackStatus === 402 || shouldTryLovableFirst) {
+      throw new AIProviderError(429, "Both AI providers are unavailable right now: workspace AI credits are exhausted and Gemini is rate limited. Please wait 1-2 minutes, then retry. If it continues, save a fresh Gemini key in Settings.");
     }
-    throw new AIProviderError(429, "All AI models are temporarily rate limited. Please wait a minute and try again.");
+    throw new AIProviderError(429, "All AI models are temporarily rate limited. Please wait 1-2 minutes and try again.");
+  }
+
+  if (lastNonRateLimitFailure) {
+    return new Response(lastNonRateLimitFailure.body || JSON.stringify({ error: "Gemini request failed" }), {
+      status: lastNonRateLimitFailure.status,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   throw new AIProviderError(500, "AI service temporarily unavailable. Please try again in a moment.");
