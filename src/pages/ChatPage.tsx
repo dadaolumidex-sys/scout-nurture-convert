@@ -134,6 +134,7 @@ const ChatPage = () => {
   const [editContent, setEditContent] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const sendLockRef = useRef(false);
 
   const config = personaConfig[persona];
 
@@ -172,8 +173,14 @@ const ChatPage = () => {
   };
 
   const sendMessages = async (msgs: Message[]) => {
+    sendLockRef.current = true;
     setLoading(true);
     let assistantSoFar = "";
+
+    const unlock = () => {
+      sendLockRef.current = false;
+      setLoading(false);
+    };
 
     const upsertAssistant = (chunk: string) => {
       assistantSoFar += chunk;
@@ -194,21 +201,21 @@ const ChatPage = () => {
         persona,
         deepResearch,
         onDelta: upsertAssistant,
-        onDone: () => setLoading(false),
+        onDone: unlock,
         onError: (msg) => {
           toast.error(msg);
-          setLoading(false);
+          unlock();
         },
       });
     } catch (e) {
       console.error(e);
       toast.error("Failed to get AI response");
-      setLoading(false);
+      unlock();
     }
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && pendingImages.length === 0) || loading) return;
+    if ((!input.trim() && pendingImages.length === 0) || loading || sendLockRef.current) return;
 
     const userMsg: Message = {
       role: "user",
