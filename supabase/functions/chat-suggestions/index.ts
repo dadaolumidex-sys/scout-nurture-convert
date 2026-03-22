@@ -156,16 +156,17 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const sb = createClient(supabaseUrl, supabaseKey);
 
-    // Get user's API key
-    let userGeminiKey: string | undefined;
+    // Get user's API keys
+    let userKeys: { gemini?: string; openai?: string } = {};
     const authHeader = req.headers.get("authorization");
     if (authHeader) {
       try {
         const token = authHeader.replace("Bearer ", "");
         const { data: { user } } = await sb.auth.getUser(token);
         if (user) {
-          const { data: settings } = await sb.from("user_settings").select("gemini_api_key").eq("user_id", user.id).single();
-          if (settings?.gemini_api_key) userGeminiKey = settings.gemini_api_key;
+          const { data: settings } = await sb.from("user_settings").select("gemini_api_key, openai_api_key").eq("user_id", user.id).single();
+          if (settings?.gemini_api_key) userKeys.gemini = settings.gemini_api_key;
+          if (settings?.openai_api_key) userKeys.openai = settings.openai_api_key;
         }
       } catch (_) { /* ignore */ }
     }
