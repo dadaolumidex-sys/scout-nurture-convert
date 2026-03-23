@@ -261,15 +261,19 @@ async function callAI(body: Record<string, unknown>, keys: { gemini?: string; op
     }
   }
 
-  // 3. Try Gemini (user's key) — free tier available
-  const geminiKey = keys.gemini || Deno.env.get("GEMINI_API_KEY");
-  if (geminiKey) {
-    const resp = await callGemini(body, geminiKey);
+  // 3. Try Gemini — try user key first, then server key (separate quotas)
+  const userGeminiKey = keys.gemini;
+  const serverGeminiKey = Deno.env.get("GEMINI_API_KEY");
+  const geminiKeysToTry = Array.from(new Set([userGeminiKey, serverGeminiKey].filter(Boolean))) as string[];
+
+  for (const gk of geminiKeysToTry) {
+    const label = gk === userGeminiKey ? "user" : "server";
+    const resp = await callGemini(body, gk);
     if (resp) {
       if (resp.ok || (resp.body && resp.status === 200)) return resp;
-      errors.push(`Gemini: ${resp.status}`);
+      errors.push(`Gemini(${label}): ${resp.status}`);
     } else {
-      errors.push("Gemini: all models rate limited");
+      errors.push(`Gemini(${label}): all models rate limited`);
     }
   }
 
