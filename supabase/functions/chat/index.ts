@@ -181,36 +181,42 @@ async function callGemini(body: Record<string, unknown>, geminiKey: string): Pro
   const modelsToTry = Array.from(new Set([primary, ...GEMINI_FALLBACK_MODELS]));
   const geminiBody = convertToGeminiFormat(body);
 
-  for (let attempt = 0; attempt <= 2; attempt++) {
+  // More retries with longer exponential backoff for free tier
+  for (let attempt = 0; attempt <= 4; attempt++) {
     for (const model of modelsToTry) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${geminiKey}`;
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(geminiBody),
-      });
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(geminiBody),
+        });
 
-      if (resp.status === 429) {
-        await resp.text();
-        console.log(`Gemini ${model} rate limited (attempt ${attempt + 1})`);
+        if (resp.status === 429) {
+          await resp.text();
+          console.log(`Gemini ${model} rate limited (attempt ${attempt + 1})`);
+          continue;
+        }
+        if (resp.status === 400 || resp.status === 404 || resp.status === 503) {
+          await resp.text();
+          continue;
+        }
+        if (resp.ok && resp.body) {
+          return geminiSSEtoOpenAISSE(resp);
+        }
+        return resp;
+      } catch (e) {
+        console.log(`Gemini ${model} fetch error: ${e}`);
         continue;
       }
-      if (resp.status === 400 || resp.status === 404 || resp.status === 503) {
-        await resp.text();
-        continue;
-      }
-      if (resp.ok && resp.body) {
-        return geminiSSEtoOpenAISSE(resp);
-      }
-      // Other error — return as-is
-      return resp;
     }
-    if (attempt < 2) {
-      console.log(`All Gemini models limited, retrying in ${(attempt + 1) * 1000}ms...`);
-      await delay((attempt + 1) * 1000);
+    if (attempt < 4) {
+      const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000); // 1s, 2s, 4s, 8s
+      console.log(`All Gemini models limited, retrying in ${waitMs}ms...`);
+      await delay(waitMs);
     }
   }
-  return null; // All rate limited
+  return null;
 }
 
 // ── Main orchestrator ──
