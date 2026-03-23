@@ -92,7 +92,13 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-2.5-flash": "gemini-2.0-flash",
 };
 
-const GEMINI_FALLBACK_MODELS = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-exp"];
+// Each model has its own per-minute quota — more models = more chances
+const GEMINI_FALLBACK_MODELS = [
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-8b",
+];
 
 function convertToGeminiFormat(body: Record<string, unknown>) {
   const messages = body.messages as Array<{ role: string; content: unknown }>;
