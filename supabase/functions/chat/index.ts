@@ -239,14 +239,17 @@ function geminiSSEtoOpenAISSE(response: Response): Response {
   return new Response(readable);
 }
 
-async function callGemini(body: Record<string, unknown>, geminiKey: string): Promise<Response | null> {
+async function callGemini(
+  body: Record<string, unknown>,
+  geminiKey: string,
+  maxAttempts = 3
+): Promise<Response | null> {
   const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
   const primary = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.0-flash-lite";
   const modelsToTry = Array.from(new Set([primary, ...GEMINI_FALLBACK_MODELS]));
   const geminiBody = convertToGeminiFormat(body);
 
-  // More retries with longer exponential backoff for free tier
-  for (let attempt = 0; attempt <= 4; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     for (const model of modelsToTry) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${geminiKey}`;
       try {
@@ -258,7 +261,7 @@ async function callGemini(body: Record<string, unknown>, geminiKey: string): Pro
 
         if (resp.status === 429) {
           await resp.text();
-          console.log(`Gemini ${model} rate limited (attempt ${attempt + 1})`);
+          console.log(`Gemini ${model} rate limited (attempt ${attempt + 1}/${maxAttempts})`);
           continue;
         }
 
@@ -279,8 +282,8 @@ async function callGemini(body: Record<string, unknown>, geminiKey: string): Pro
       }
     }
 
-    if (attempt < 4) {
-      const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000); // 1s, 2s, 4s, 8s
+    if (attempt < maxAttempts - 1) {
+      const waitMs = Math.min(1000 * Math.pow(2, attempt), 4000); // 1s, 2s, 4s
       console.log(`All Gemini models limited, retrying in ${waitMs}ms...`);
       await delay(waitMs);
     }
@@ -331,19 +334,27 @@ async function callAI(body: Record<string, unknown>, keys: { gemini?: string; op
     }
   }
 
-  // 3. Try Gemini — try user key first, then server key (separate quotas)
-  const userGeminiKey = keys.gemini;
-  const serverGeminiKey = Deno.env.get("GEMINI_API_KEY");
-  const geminiKeysToTry = Array.from(new Set([userGeminiKey, serverGeminiKey].filter(Boolean))) as string[];
+  // 3. Try Gemini — prioritize user key (full retries), then quick server fallback
+  const userGeminiKey = keys.gemini?.trim();
+  const serverGeminiKey = Deno.env.get("GEMINI_API_KEY")?.trim();
 
-  for (const gk of geminiKeysToTry) {
-    const label = gk === userGeminiKey ? "user" : "server";
-    const resp = await callGemini(body, gk);
+  if (userGeminiKey) {
+    const resp = await callGemini(body, userGeminiKey, 3);
     if (resp) {
       if (resp.ok || (resp.body && resp.status === 200)) return resp;
-      errors.push(`Gemini(${label}): ${resp.status}`);
+      errors.push(`Gemini(user): ${resp.status}`);
     } else {
-      errors.push(`Gemini(${label}): all models rate limited`);
+      errors.push("Gemini(user): all models rate limited");
+    }
+  }
+
+  if (serverGeminiKey && serverGeminiKey !== userGeminiKey) {
+    const resp = await callGemini(body, serverGeminiKey, 1);
+    if (resp) {
+      if (resp.ok || (resp.body && resp.status === 200)) return resp;
+      errors.push(`Gemini(server): ${resp.status}`);
+    } else {
+      errors.push("Gemini(server): all models rate limited");
     }
   }
 
