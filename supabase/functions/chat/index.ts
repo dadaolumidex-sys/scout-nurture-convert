@@ -70,6 +70,63 @@ class AIProviderError extends Error {
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const MAX_CONTEXT_MESSAGES_STANDARD = 12;
+const MAX_CONTEXT_MESSAGES_DEEP_RESEARCH = 20;
+const MAX_MESSAGE_CHARS = 1800;
+const MAX_OUTPUT_TOKENS_STANDARD = 512;
+const MAX_OUTPUT_TOKENS_DEEP_RESEARCH = 1024;
+const RATE_LIMIT_RETRY_AFTER_SECONDS = 60;
+
+type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
+type ChatMessage = { role: "user" | "assistant"; content: string | ChatMessagePart[] };
+
+function trimText(input: string, max = MAX_MESSAGE_CHARS): string {
+  return input.length <= max ? input : `${input.slice(0, max)}…`;
+}
+
+function normalizeMessages(rawMessages: unknown, deepResearch: boolean): ChatMessage[] {
+  if (!Array.isArray(rawMessages)) return [];
+
+  const normalized = rawMessages
+    .map((m) => {
+      if (!m || typeof m !== "object") return null;
+      const role = (m as { role?: unknown }).role;
+      const content = (m as { content?: unknown }).content;
+      if (role !== "user" && role !== "assistant") return null;
+
+      if (typeof content === "string") {
+        return { role, content: trimText(content) } as ChatMessage;
+      }
+
+      if (Array.isArray(content)) {
+        const safeParts = content
+          .map((part) => {
+            if (!part || typeof part !== "object") return null;
+            const typed = part as { type?: unknown; text?: unknown; image_url?: { url?: unknown } };
+
+            if (typed.type === "text") {
+              return { type: "text", text: trimText(typeof typed.text === "string" ? typed.text : "") } as ChatMessagePart;
+            }
+
+            if (typed.type === "image_url" && typeof typed.image_url?.url === "string") {
+              return { type: "image_url", image_url: { url: typed.image_url.url } } as ChatMessagePart;
+            }
+
+            return null;
+          })
+          .filter(Boolean) as ChatMessagePart[];
+
+        return { role, content: safeParts } as ChatMessage;
+      }
+
+      return null;
+    })
+    .filter(Boolean) as ChatMessage[];
+
+  const maxContext = deepResearch ? MAX_CONTEXT_MESSAGES_DEEP_RESEARCH : MAX_CONTEXT_MESSAGES_STANDARD;
+  return normalized.slice(-maxContext);
+}
+
 // ── OpenAI direct call (streaming, OpenAI-compatible SSE) ──
 
 async function callOpenAI(body: Record<string, unknown>, openaiKey: string): Promise<Response> {
@@ -98,12 +155,14 @@ const GEMINI_FALLBACK_MODELS = [
   "gemini-2.0-flash",
   "gemini-1.5-flash",
   "gemini-1.5-flash-8b",
+  "gemini-2.0-flash-exp",
 ];
 
 function convertToGeminiFormat(body: Record<string, unknown>) {
   const messages = body.messages as Array<{ role: string; content: unknown }>;
   const systemInstruction = messages.find((m) => m.role === "system");
   const chatMessages = messages.filter((m) => m.role !== "system");
+  const deepResearch = Boolean(body.deepResearch);
 
   const contents = chatMessages.map((m) => ({
     role: m.role === "assistant" ? "model" : "user",
@@ -127,7 +186,10 @@ function convertToGeminiFormat(body: Record<string, unknown>) {
 
   const geminiBody: Record<string, unknown> = {
     contents,
-    generationConfig: { temperature: 0.7 },
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: deepResearch ? MAX_OUTPUT_TOKENS_DEEP_RESEARCH : MAX_OUTPUT_TOKENS_STANDARD,
+    },
   };
   if (systemInstruction && typeof systemInstruction.content === "string") {
     geminiBody.system_instruction = { parts: [{ text: systemInstruction.content }] };
@@ -163,7 +225,9 @@ function geminiSSEtoOpenAISSE(response: Response): Response {
             if (text) {
               await writer.write(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: text }, index: 0 }] })}\n\n`));
             }
-          } catch { /* skip */ }
+          } catch {
+            /* skip */
+          }
         }
       }
       await writer.write(encoder.encode("data: [DONE]\n\n"));
@@ -175,14 +239,17 @@ function geminiSSEtoOpenAISSE(response: Response): Response {
   return new Response(readable);
 }
 
-async function callGemini(body: Record<string, unknown>, geminiKey: string): Promise<Response | null> {
+async function callGemini(
+  body: Record<string, unknown>,
+  geminiKey: string,
+  maxAttempts = 3
+): Promise<Response | null> {
   const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
   const primary = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.0-flash-lite";
   const modelsToTry = Array.from(new Set([primary, ...GEMINI_FALLBACK_MODELS]));
   const geminiBody = convertToGeminiFormat(body);
 
-  // More retries with longer exponential backoff for free tier
-  for (let attempt = 0; attempt <= 4; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     for (const model of modelsToTry) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${geminiKey}`;
       try {
@@ -194,28 +261,34 @@ async function callGemini(body: Record<string, unknown>, geminiKey: string): Pro
 
         if (resp.status === 429) {
           await resp.text();
-          console.log(`Gemini ${model} rate limited (attempt ${attempt + 1})`);
+          console.log(`Gemini ${model} rate limited (attempt ${attempt + 1}/${maxAttempts})`);
           continue;
         }
+
         if (resp.status === 400 || resp.status === 404 || resp.status === 503) {
-          await resp.text();
+          const err = await resp.text();
+          console.log(`Gemini ${model} unavailable (${resp.status}): ${err.slice(0, 160)}`);
           continue;
         }
+
         if (resp.ok && resp.body) {
           return geminiSSEtoOpenAISSE(resp);
         }
+
         return resp;
       } catch (e) {
         console.log(`Gemini ${model} fetch error: ${e}`);
         continue;
       }
     }
-    if (attempt < 4) {
-      const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000); // 1s, 2s, 4s, 8s
+
+    if (attempt < maxAttempts - 1) {
+      const waitMs = Math.min(1000 * Math.pow(2, attempt), 4000); // 1s, 2s, 4s
       console.log(`All Gemini models limited, retrying in ${waitMs}ms...`);
       await delay(waitMs);
     }
   }
+
   return null;
 }
 
@@ -261,19 +334,27 @@ async function callAI(body: Record<string, unknown>, keys: { gemini?: string; op
     }
   }
 
-  // 3. Try Gemini — try user key first, then server key (separate quotas)
-  const userGeminiKey = keys.gemini;
-  const serverGeminiKey = Deno.env.get("GEMINI_API_KEY");
-  const geminiKeysToTry = Array.from(new Set([userGeminiKey, serverGeminiKey].filter(Boolean))) as string[];
+  // 3. Try Gemini — prioritize user key (full retries), then quick server fallback
+  const userGeminiKey = keys.gemini?.trim();
+  const serverGeminiKey = Deno.env.get("GEMINI_API_KEY")?.trim();
 
-  for (const gk of geminiKeysToTry) {
-    const label = gk === userGeminiKey ? "user" : "server";
-    const resp = await callGemini(body, gk);
+  if (userGeminiKey) {
+    const resp = await callGemini(body, userGeminiKey, 3);
     if (resp) {
       if (resp.ok || (resp.body && resp.status === 200)) return resp;
-      errors.push(`Gemini(${label}): ${resp.status}`);
+      errors.push(`Gemini(user): ${resp.status}`);
     } else {
-      errors.push(`Gemini(${label}): all models rate limited`);
+      errors.push("Gemini(user): all models rate limited");
+    }
+  }
+
+  if (serverGeminiKey && serverGeminiKey !== userGeminiKey) {
+    const resp = await callGemini(body, serverGeminiKey, 1);
+    if (resp) {
+      if (resp.ok || (resp.body && resp.status === 200)) return resp;
+      errors.push(`Gemini(server): ${resp.status}`);
+    } else {
+      errors.push("Gemini(server): all models rate limited");
     }
   }
 
@@ -288,13 +369,17 @@ async function callAI(body: Record<string, unknown>, keys: { gemini?: string; op
       if (resp.status !== 402 && resp.status !== 429) return resp;
       await resp.text();
       errors.push(`Lovable AI fallback: ${resp.status}`);
-    } catch { /* already tried */ }
+    } catch {
+      /* already tried */
+    }
   }
 
-  // All failed
   const detail = errors.join("; ");
   console.error("All AI providers failed:", detail);
-  throw new AIProviderError(429, "All AI providers are temporarily unavailable. Please wait a minute and try again, or check your API keys in Settings.");
+  throw new AIProviderError(
+    429,
+    `All AI providers are temporarily unavailable due to rate limits. Please wait about ${RATE_LIMIT_RETRY_AFTER_SECONDS} seconds and try again, or use a fresh Gemini key in Settings.`
+  );
 }
 
 // ── Edge function handler ──
@@ -303,7 +388,16 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages, persona, deepResearch } = await req.json();
+    const { messages: rawMessages, persona, deepResearch } = await req.json();
+    const isDeepResearch = Boolean(deepResearch);
+    const safeMessages = normalizeMessages(rawMessages, isDeepResearch);
+
+    if (safeMessages.length === 0) {
+      return new Response(JSON.stringify({ error: "Please enter a message first." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Get user's API keys
     let userKeys: { gemini?: string; openai?: string } = {};
@@ -314,7 +408,9 @@ serve(async (req) => {
         const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
         const supabase = createClient(supabaseUrl, supabaseKey);
         const token = authHeader.replace("Bearer ", "");
-        const { data: { user } } = await supabase.auth.getUser(token);
+        const {
+          data: { user },
+        } = await supabase.auth.getUser(token);
         if (user) {
           const { data: settings } = await supabase
             .from("user_settings")
@@ -330,14 +426,15 @@ serve(async (req) => {
     }
 
     let systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
-    if (deepResearch) systemPrompt += DEEP_RESEARCH_SUFFIX;
+    if (isDeepResearch) systemPrompt += DEEP_RESEARCH_SUFFIX;
 
-    const model = deepResearch ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
+    const model = isDeepResearch ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
 
     const response = await callAI(
       {
         model,
-        messages: [{ role: "system", content: systemPrompt }, ...messages],
+        deepResearch: isDeepResearch,
+        messages: [{ role: "system", content: systemPrompt }, ...safeMessages],
         stream: true,
       },
       userKeys
@@ -348,11 +445,18 @@ serve(async (req) => {
       console.error("AI error:", response.status, t);
       const status = response.status;
       const msg =
-        status === 429 ? "Rate limit exceeded. Please wait a minute and try again."
-        : status === 402 ? "AI credits exhausted. Please add credits or use your API keys in Settings."
-        : "AI service temporarily unavailable. Please try again.";
+        status === 429
+          ? `Rate limit exceeded. Please wait about ${RATE_LIMIT_RETRY_AFTER_SECONDS} seconds and try again.`
+          : status === 402
+            ? "AI credits exhausted. Please add credits or use your API keys in Settings."
+            : "AI service temporarily unavailable. Please try again.";
       return new Response(JSON.stringify({ error: msg }), {
-        status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          ...(status === 429 ? { "Retry-After": String(RATE_LIMIT_RETRY_AFTER_SECONDS) } : {}),
+        },
       });
     }
 
@@ -363,11 +467,17 @@ serve(async (req) => {
     console.error("chat error:", e);
     if (e instanceof AIProviderError) {
       return new Response(JSON.stringify({ error: e.message }), {
-        status: e.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: e.status,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+          ...(e.status === 429 ? { "Retry-After": String(RATE_LIMIT_RETRY_AFTER_SECONDS) } : {}),
+        },
       });
     }
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
