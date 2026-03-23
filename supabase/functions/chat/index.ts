@@ -92,7 +92,13 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-2.5-flash": "gemini-2.0-flash",
 };
 
-const GEMINI_FALLBACK_MODELS = ["gemini-2.0-flash-lite", "gemini-2.0-flash", "gemini-2.0-flash-exp"];
+// Each model has its own per-minute quota — more models = more chances
+const GEMINI_FALLBACK_MODELS = [
+  "gemini-2.0-flash-lite",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-1.5-flash-8b",
+];
 
 function convertToGeminiFormat(body: Record<string, unknown>) {
   const messages = body.messages as Array<{ role: string; content: unknown }>;
@@ -175,36 +181,42 @@ async function callGemini(body: Record<string, unknown>, geminiKey: string): Pro
   const modelsToTry = Array.from(new Set([primary, ...GEMINI_FALLBACK_MODELS]));
   const geminiBody = convertToGeminiFormat(body);
 
-  for (let attempt = 0; attempt <= 2; attempt++) {
+  // More retries with longer exponential backoff for free tier
+  for (let attempt = 0; attempt <= 4; attempt++) {
     for (const model of modelsToTry) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${geminiKey}`;
-      const resp = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(geminiBody),
-      });
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(geminiBody),
+        });
 
-      if (resp.status === 429) {
-        await resp.text();
-        console.log(`Gemini ${model} rate limited (attempt ${attempt + 1})`);
+        if (resp.status === 429) {
+          await resp.text();
+          console.log(`Gemini ${model} rate limited (attempt ${attempt + 1})`);
+          continue;
+        }
+        if (resp.status === 400 || resp.status === 404 || resp.status === 503) {
+          await resp.text();
+          continue;
+        }
+        if (resp.ok && resp.body) {
+          return geminiSSEtoOpenAISSE(resp);
+        }
+        return resp;
+      } catch (e) {
+        console.log(`Gemini ${model} fetch error: ${e}`);
         continue;
       }
-      if (resp.status === 400 || resp.status === 404 || resp.status === 503) {
-        await resp.text();
-        continue;
-      }
-      if (resp.ok && resp.body) {
-        return geminiSSEtoOpenAISSE(resp);
-      }
-      // Other error — return as-is
-      return resp;
     }
-    if (attempt < 2) {
-      console.log(`All Gemini models limited, retrying in ${(attempt + 1) * 1000}ms...`);
-      await delay((attempt + 1) * 1000);
+    if (attempt < 4) {
+      const waitMs = Math.min(1000 * Math.pow(2, attempt), 8000); // 1s, 2s, 4s, 8s
+      console.log(`All Gemini models limited, retrying in ${waitMs}ms...`);
+      await delay(waitMs);
     }
   }
-  return null; // All rate limited
+  return null;
 }
 
 // ── Main orchestrator ──
@@ -249,15 +261,19 @@ async function callAI(body: Record<string, unknown>, keys: { gemini?: string; op
     }
   }
 
-  // 3. Try Gemini (user's key) — free tier available
-  const geminiKey = keys.gemini || Deno.env.get("GEMINI_API_KEY");
-  if (geminiKey) {
-    const resp = await callGemini(body, geminiKey);
+  // 3. Try Gemini — try user key first, then server key (separate quotas)
+  const userGeminiKey = keys.gemini;
+  const serverGeminiKey = Deno.env.get("GEMINI_API_KEY");
+  const geminiKeysToTry = Array.from(new Set([userGeminiKey, serverGeminiKey].filter(Boolean))) as string[];
+
+  for (const gk of geminiKeysToTry) {
+    const label = gk === userGeminiKey ? "user" : "server";
+    const resp = await callGemini(body, gk);
     if (resp) {
       if (resp.ok || (resp.body && resp.status === 200)) return resp;
-      errors.push(`Gemini: ${resp.status}`);
+      errors.push(`Gemini(${label}): ${resp.status}`);
     } else {
-      errors.push("Gemini: all models rate limited");
+      errors.push(`Gemini(${label}): all models rate limited`);
     }
   }
 
