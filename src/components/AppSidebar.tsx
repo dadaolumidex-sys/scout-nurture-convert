@@ -81,20 +81,22 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter className="p-3">
-        {!collapsed && user && (
+        {!collapsed && (
           <p className="text-xs text-muted-foreground truncate mb-2 px-1">
-            {user.email}
+            {user?.email ?? "Guest mode"}
           </p>
         )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={signOut}
-          className="w-full justify-start text-muted-foreground hover:text-destructive"
-        >
-          <LogOut className="h-4 w-4 mr-2" />
-          {!collapsed && "Sign Out"}
-        </Button>
+        {user && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={signOut}
+            className="w-full justify-start text-muted-foreground hover:text-destructive"
+          >
+            <LogOut className="h-4 w-4 mr-2" />
+            {!collapsed && "Sign Out"}
+          </Button>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

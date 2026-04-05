@@ -40,6 +40,11 @@ const SettingsPage = () => {
   };
 
   const handleSaveKey = async (type: "gemini" | "openai") => {
+    if (!user) {
+      toast.error("Guest mode already uses the built-in AI setup. Sign in only if you want to save your own API keys.");
+      return;
+    }
+
     const key = type === "gemini" ? geminiKey : openaiKey;
     const setSaving = type === "gemini" ? setSavingGemini : setSavingOpenai;
     const setHasKey = type === "gemini" ? setHasGeminiKey : setHasOpenaiKey;
