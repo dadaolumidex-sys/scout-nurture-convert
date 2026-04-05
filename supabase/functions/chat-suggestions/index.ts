@@ -173,7 +173,7 @@ serve(async (req) => {
 
     const [knowledgeRes, trainingRes] = await Promise.all([
       sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${activePersona},persona.eq.shared`).limit(20),
-      sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").eq("status", "analyzed").limit(10),
+      sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").in("status", ["ready", "analyzed"]).limit(10),
     ]);
 
     const knowledgeEntries = knowledgeRes.data || [];

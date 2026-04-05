@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { guestStorage } from "@/lib/guestStorage";
 
 type Insight = { category: string; insight: string };
 type KnowledgeEntry = {
@@ -34,6 +36,7 @@ const personas = [
 const ANALYZE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-knowledge`;
 
 export function KnowledgeBase() {
+  const { user } = useAuth();
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -47,9 +50,15 @@ export function KnowledgeBase() {
 
   useEffect(() => {
     fetchEntries();
-  }, []);
+  }, [user?.id]);
 
   const fetchEntries = async () => {
+    if (!user) {
+      setEntries(guestStorage.knowledge.list());
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("knowledge_entries")
       .select("*")
@@ -99,15 +108,30 @@ export function KnowledgeBase() {
       console.error("Analysis error:", e);
     }
 
-    const { error } = await supabase.from("knowledge_entries").insert({
-      title,
-      source_type: dialogMode,
-      source_url: dialogMode === "url" ? url : null,
-      content: entryContent,
-      persona,
-      category: "General",
-      insights,
-    });
+    const { error } = user
+      ? await supabase.from("knowledge_entries").insert({
+          title,
+          source_type: dialogMode,
+          source_url: dialogMode === "url" ? url : null,
+          content: entryContent,
+          persona,
+          category: "General",
+          insights,
+          user_id: user.id,
+        })
+      : { error: null as null | Error };
+
+    if (!user) {
+      guestStorage.knowledge.insert({
+        title,
+        source_type: dialogMode,
+        source_url: dialogMode === "url" ? url : null,
+        content: entryContent,
+        persona,
+        category: "General",
+        insights,
+      });
+    }
 
     if (error) {
       toast.error("Failed to save entry");
@@ -123,7 +147,14 @@ export function KnowledgeBase() {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("knowledge_entries").delete().eq("id", id);
+    const { error } = user
+      ? await supabase.from("knowledge_entries").delete().eq("id", id)
+      : { error: null as null | Error };
+
+    if (!user) {
+      guestStorage.knowledge.remove(id);
+    }
+
     if (error) toast.error("Failed to delete");
     else {
       toast.success("Deleted");

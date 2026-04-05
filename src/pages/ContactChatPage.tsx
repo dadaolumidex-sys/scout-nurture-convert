@@ -11,6 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import ReactMarkdown from "react-markdown";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SuggestionCards } from "@/components/chat/SuggestionCards";
+import { useAuth } from "@/hooks/useAuth";
+import { guestStorage, readFileAsDataUrl } from "@/lib/guestStorage";
 
 type Contact = {
   id: string;
@@ -46,6 +48,7 @@ const personaConfig = {
 
 const ContactChatPage = () => {
   const { contactId } = useParams<{ contactId: string }>();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [contact, setContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -66,18 +69,32 @@ const ContactChatPage = () => {
       loadContact();
       loadMessages();
     }
-  }, [contactId]);
+  }, [contactId, user?.id]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const loadContact = async () => {
+    if (!contactId) return;
+
+    if (!user) {
+      setContact(guestStorage.contacts.get(contactId) as Contact | null);
+      return;
+    }
+
     const { data } = await (supabase.from("streamer_contacts" as any).select("*").eq("id", contactId).single() as any);
     if (data) setContact(data);
   };
 
   const loadMessages = async () => {
+    if (!contactId) return;
+
+    if (!user) {
+      setMessages(guestStorage.messages.list(contactId) as ChatMessage[]);
+      return;
+    }
+
     const { data } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
     if (data) setMessages(data);
   };
@@ -87,35 +104,49 @@ const ContactChatPage = () => {
     if (!file) return;
 
     setUploading(true);
-    const ext = file.name.split(".").pop();
-    const path = `${contactId}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("chat-images").upload(path, file);
-    if (error) {
+    try {
+      const imageUrl = await readFileAsDataUrl(file);
+
+      if (user) {
+        await (supabase.from("contact_messages" as any).insert({
+          contact_id: contactId,
+          role: "user",
+          content: "[Screenshot]",
+          image_url: imageUrl,
+          persona,
+          user_id: user.id,
+        }) as any);
+      } else if (contactId) {
+        guestStorage.messages.insert({
+          contact_id: contactId,
+          role: "user",
+          content: "[Screenshot]",
+          image_url: imageUrl,
+          persona,
+          selected: false,
+        });
+      }
+
+      await loadMessages();
+
+      if (contact?.status === "new" || !contact?.status) {
+        if (user) {
+          await (supabase.from("streamer_contacts" as any).update({ status: "in_conversation" }).eq("id", contactId) as any);
+        } else if (contactId) {
+          guestStorage.contacts.update(contactId, { status: "in_conversation" });
+        }
+        setContact((prev) => prev ? { ...prev, status: "in_conversation" } : prev);
+      }
+
+      if (fileInputRef.current) fileInputRef.current.value = "";
+
+      await generateSuggestions(persona);
+    } catch (error) {
+      console.error(error);
       toast.error("Failed to upload image");
+    } finally {
       setUploading(false);
-      return;
     }
-
-    const { data: urlData } = supabase.storage.from("chat-images").getPublicUrl(path);
-    await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId,
-      role: "user",
-      content: "[Screenshot]",
-      image_url: urlData.publicUrl,
-      persona,
-    }) as any);
-
-    await loadMessages();
-
-    if (contact?.status === "new" || !contact?.status) {
-      await (supabase.from("streamer_contacts" as any).update({ status: "in_conversation" }).eq("id", contactId) as any);
-      setContact((prev) => prev ? { ...prev, status: "in_conversation" } : prev);
-    }
-
-    setUploading(false);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-
-    await generateSuggestions(persona);
   };
 
   const handleSend = async () => {
@@ -125,13 +156,28 @@ const ContactChatPage = () => {
     setSuggestions([]);
     setSelectedSuggestion(null);
 
+    if (user) {
       await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId, role: "user", content: messageText, persona: persona,
-    }) as any);
+        contact_id: contactId, role: "user", content: messageText, persona: persona, user_id: user.id,
+      }) as any);
+    } else if (contactId) {
+      guestStorage.messages.insert({
+        contact_id: contactId,
+        role: "user",
+        content: messageText,
+        persona,
+        image_url: null,
+        selected: false,
+      });
+    }
     await loadMessages();
 
     if (contact?.status === "new" || !contact?.status) {
-      await (supabase.from("streamer_contacts" as any).update({ status: "in_conversation" }).eq("id", contactId) as any);
+      if (user) {
+        await (supabase.from("streamer_contacts" as any).update({ status: "in_conversation" }).eq("id", contactId) as any);
+      } else if (contactId) {
+        guestStorage.contacts.update(contactId, { status: "in_conversation" });
+      }
       setContact((prev) => prev ? { ...prev, status: "in_conversation" } : prev);
     }
 
@@ -145,12 +191,13 @@ const ContactChatPage = () => {
     setSelectedSuggestion(null);
     setSuggestionsPersona(targetPersona);
 
-    const { data: currentMessages } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
-    const msgs = (currentMessages || []) as ChatMessage[];
+    const msgs = user
+      ? (((await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any)).data) || []) as ChatMessage[]
+      : ((contactId ? guestStorage.messages.list(contactId) : []) as ChatMessage[]);
 
     const personaMessages = msgs.filter((m) => m.persona === targetPersona);
     const recentMessages = personaMessages.slice(-20).map((m) => ({
-      role: m.role === "user" ? "user" as const : "assistant" as const,
+      role: m.role === "assistant" ? "assistant" as const : "user" as const,
       content: m.content,
       imageUrl: m.image_url,
     }));
@@ -195,28 +242,50 @@ const ContactChatPage = () => {
     if (!suggestion || !suggestionsPersona) return;
 
     // Save selected suggestion as an assistant message marked as selected
-    const { data: saved } = await (supabase.from("contact_messages" as any).insert({
-      contact_id: contactId,
-      role: "assistant",
-      content: suggestion.message,
-      persona: suggestionsPersona,
-      selected: true,
-    }).select().single() as any);
+    const saved = user
+      ? (await (supabase.from("contact_messages" as any).insert({
+          contact_id: contactId,
+          role: "assistant",
+          content: suggestion.message,
+          persona: suggestionsPersona,
+          selected: true,
+          user_id: user.id,
+        }).select().single() as any)).data
+      : contactId
+        ? guestStorage.messages.insert({
+            contact_id: contactId,
+            role: "assistant",
+            content: suggestion.message,
+            persona: suggestionsPersona,
+            image_url: null,
+            selected: true,
+          })
+        : null;
 
     if (saved) {
       await loadMessages();
-      // Update contact last_message
-      await (supabase.from("streamer_contacts" as any).update({
-        last_message: suggestion.message.slice(0, 100),
-        conversation_type: suggestionsPersona === "friend" ? "friend_chat" : "promotion",
-      }).eq("id", contactId) as any);
+      if (user) {
+        await (supabase.from("streamer_contacts" as any).update({
+          last_message: suggestion.message.slice(0, 100),
+          conversation_type: suggestionsPersona === "friend" ? "friend_chat" : "promotion",
+        }).eq("id", contactId) as any);
+      } else if (contactId) {
+        guestStorage.contacts.update(contactId, {
+          last_message: suggestion.message.slice(0, 100),
+          conversation_type: suggestionsPersona === "friend" ? "friend_chat" : "promotion",
+        });
+      }
       toast.success("Reply selected! Copy it and send to the streamer.");
     }
   };
 
   const handleEdit = async (id: string) => {
     if (!editContent.trim()) return;
-    await (supabase.from("contact_messages" as any).update({ content: editContent, updated_at: new Date().toISOString() }).eq("id", id) as any);
+    if (user) {
+      await (supabase.from("contact_messages" as any).update({ content: editContent, updated_at: new Date().toISOString() }).eq("id", id) as any);
+    } else {
+      guestStorage.messages.update(id, { content: editContent, updated_at: new Date().toISOString() });
+    }
     setEditingId(null);
     setEditContent("");
     await loadMessages();
@@ -224,7 +293,11 @@ const ContactChatPage = () => {
   };
 
   const handleDelete = async (id: string) => {
-    await (supabase.from("contact_messages" as any).delete().eq("id", id) as any);
+    if (user) {
+      await (supabase.from("contact_messages" as any).delete().eq("id", id) as any);
+    } else {
+      guestStorage.messages.remove(id);
+    }
     await loadMessages();
     toast.success("Message deleted");
   };
@@ -387,7 +460,11 @@ const ContactChatPage = () => {
             value={contact?.status || "new"}
             onChange={async (e) => {
               const newStatus = e.target.value;
-              await (supabase.from("streamer_contacts" as any).update({ status: newStatus }).eq("id", contactId) as any);
+              if (user) {
+                await (supabase.from("streamer_contacts" as any).update({ status: newStatus }).eq("id", contactId) as any);
+              } else if (contactId) {
+                guestStorage.contacts.update(contactId, { status: newStatus });
+              }
               setContact((prev) => prev ? { ...prev, status: newStatus } : prev);
               toast.success(`Status: ${newStatus.replace(/_/g, " ")}`);
             }}

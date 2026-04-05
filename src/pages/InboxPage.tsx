@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { guestStorage, readFileAsDataUrl } from "@/lib/guestStorage";
 
 type Contact = {
   id: string;
@@ -43,6 +45,7 @@ const conversationTypes: Record<ConversationType, { label: string; description: 
 };
 
 const InboxPage = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState("");
@@ -59,9 +62,15 @@ const InboxPage = () => {
 
   useEffect(() => {
     loadContacts();
-  }, []);
+  }, [user?.id]);
 
   const loadContacts = async () => {
+    if (!user) {
+      setContacts(guestStorage.contacts.list());
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await (supabase.from("streamer_contacts" as any).select("*").order("created_at", { ascending: false }) as any);
     if (error) {
       console.error("Failed to load contacts:", error);
@@ -94,49 +103,81 @@ const InboxPage = () => {
       existing_chat: "in_conversation",
       re_engage: "new",
     };
-    const { data, error } = await (supabase.from("streamer_contacts" as any).insert({
+    const baseContact = {
       username: newName.toLowerCase().replace(/\s+/g, ""),
       display_name: newName,
       platform: newPlatform,
       channel_url: newUrl || (selectedType === "new_prospect" ? `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}` : null),
       conversation_type: selectedType,
       status: statusMap[selectedType || "new_prospect"],
-    }).select().single() as any);
+    };
 
-    if (error) {
-      toast.error("Failed to add contact");
-      console.error(error);
-    } else {
-      // Save pasted chat history as context
-      if (chatHistory.trim() && data?.id) {
-        await (supabase.from("contact_messages" as any).insert({
-          contact_id: data.id,
-          content: `📋 Previous chat history:\n\n${chatHistory}`,
-          role: "context",
-          persona: "nifimas",
-        }) as any);
-      }
-      // Upload chat screenshot images
-      if (chatImages.length > 0 && data?.id) {
-        for (const file of chatImages) {
-          const filePath = `${data.id}/${Date.now()}-${file.name}`;
-          const { data: uploadData } = await supabase.storage.from("chat-images").upload(filePath, file);
-          if (uploadData?.path) {
-            const { data: urlData } = supabase.storage.from("chat-images").getPublicUrl(uploadData.path);
+    try {
+      if (user) {
+        const { data, error } = await (supabase.from("streamer_contacts" as any).insert({
+          ...baseContact,
+          user_id: user.id,
+        }).select().single() as any);
+
+        if (error) throw error;
+
+        if (chatHistory.trim() && data?.id) {
+          await (supabase.from("contact_messages" as any).insert({
+            contact_id: data.id,
+            content: `📋 Previous chat history:\n\n${chatHistory}`,
+            role: "context",
+            persona: "nifimas",
+            user_id: user.id,
+          }) as any);
+        }
+
+        if (chatImages.length > 0 && data?.id) {
+          for (const file of chatImages) {
+            const imageUrl = await readFileAsDataUrl(file);
             await (supabase.from("contact_messages" as any).insert({
               contact_id: data.id,
               content: "📸 Chat screenshot uploaded for context",
               role: "context",
               persona: "nifimas",
-              image_url: urlData.publicUrl,
+              image_url: imageUrl,
+              user_id: user.id,
             }) as any);
           }
         }
+      } else {
+        const contact = guestStorage.contacts.insert(baseContact);
+
+        if (chatHistory.trim()) {
+          guestStorage.messages.insert({
+            contact_id: contact.id,
+            content: `📋 Previous chat history:\n\n${chatHistory}`,
+            role: "context",
+            persona: "nifimas",
+            image_url: null,
+            selected: false,
+          });
+        }
+
+        for (const file of chatImages) {
+          const imageUrl = await readFileAsDataUrl(file);
+          guestStorage.messages.insert({
+            contact_id: contact.id,
+            content: "📸 Chat screenshot uploaded for context",
+            role: "context",
+            persona: "nifimas",
+            image_url: imageUrl,
+            selected: false,
+          });
+        }
       }
-      toast.success("Contact added!");
+
+      toast.success(user ? "Contact added!" : "Contact added in guest mode!");
       resetDialog();
       setDialogOpen(false);
       loadContacts();
+    } catch (error) {
+      toast.error("Failed to add contact");
+      console.error(error);
     }
   };
 

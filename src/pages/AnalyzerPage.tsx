@@ -10,6 +10,8 @@ import { StreamerOverview } from "@/components/analyzer/StreamerOverview";
 import { AnalysisSection } from "@/components/analyzer/AnalysisSection";
 import { PromotionPotential } from "@/components/analyzer/PromotionPotential";
 import { SuggestedMessages } from "@/components/analyzer/SuggestedMessages";
+import { useAuth } from "@/hooks/useAuth";
+import { guestStorage } from "@/lib/guestStorage";
 
 export type AnalysisResult = {
   username: string;
@@ -37,6 +39,7 @@ export type AnalysisResult = {
 };
 
 const AnalyzerPage = () => {
+  const { user } = useAuth();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
@@ -78,36 +81,56 @@ const AnalyzerPage = () => {
       }
 
       setResult(data as AnalysisResult);
-      toast.success("Analysis complete!");
 
-      // Auto-save to contacts
-      await supabase.from("streamer_contacts" as any).upsert(
-        {
-          username: data.username,
-          platform: data.platform,
-          channel_url: platform === "twitch" ? `https://twitch.tv/${data.username}` : `https://kick.com/${data.username}`,
-          display_name: data.displayName,
-          description: data.description,
-          profile_image_url: data.profileImageUrl,
-          broadcaster_type: data.broadcasterType,
-          created_at_twitch: data.createdAt,
-          followers_estimate: data.followersEstimate,
-          avg_viewers: data.avgViewers,
-          streaming_frequency: data.streamingFrequency,
-          growth_stage: data.growthStage,
-          strengths: data.strengths,
-          weaknesses: data.weaknesses,
-          opportunities: data.opportunities,
-          promotion_potential: data.promotionPotential,
-          friend_message: data.friendMessage,
-          promoter_message: data.promoterMessage,
-          is_live: data.isLive,
-          live_title: data.liveTitle,
-          live_game: data.liveGame,
-          live_viewers: data.liveViewers,
-        } as any,
-        { onConflict: "username" as any }
-      );
+      const contactPayload = {
+        username: data.username,
+        platform: data.platform,
+        channel_url: platform === "twitch" ? `https://twitch.tv/${data.username}` : `https://kick.com/${data.username}`,
+        display_name: data.displayName,
+        description: data.description,
+        profile_image_url: data.profileImageUrl,
+        broadcaster_type: data.broadcasterType,
+        created_at_twitch: data.createdAt,
+        followers_estimate: data.followersEstimate,
+        avg_viewers: data.avgViewers,
+        streaming_frequency: data.streamingFrequency,
+        growth_stage: data.growthStage,
+        strengths: data.strengths,
+        weaknesses: data.weaknesses,
+        opportunities: data.opportunities,
+        promotion_potential: data.promotionPotential,
+        friend_message: data.friendMessage,
+        promoter_message: data.promoterMessage,
+        is_live: data.isLive,
+        live_title: data.liveTitle,
+        live_game: data.liveGame,
+        live_viewers: data.liveViewers,
+      };
+
+      if (user) {
+        const { data: existing } = await (supabase
+          .from("streamer_contacts" as any)
+          .select("id")
+          .eq("username", data.username)
+          .eq("platform", data.platform)
+          .eq("user_id", user.id)
+          .limit(1) as any);
+
+        if (existing?.[0]?.id) {
+          await (supabase
+            .from("streamer_contacts" as any)
+            .update({ ...contactPayload, updated_at: new Date().toISOString() })
+            .eq("id", existing[0].id) as any);
+        } else {
+          await (supabase
+            .from("streamer_contacts" as any)
+            .insert({ ...contactPayload, user_id: user.id }) as any);
+        }
+      } else {
+        guestStorage.contacts.upsert(contactPayload);
+      }
+
+      toast.success(user ? "Analysis complete!" : "Analysis complete and saved in guest mode!");
     } catch (err: any) {
       console.error("Analysis failed:", err);
       toast.error(err.message || "Analysis failed. Please try again.");
