@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { guestStorage } from "@/lib/guestStorage";
 
 type TrainingConvo = {
   id: string;
@@ -24,6 +26,7 @@ type TrainingConvo = {
 const ANALYZE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-knowledge`;
 
 export function TrainingMemory() {
+  const { user } = useAuth();
   const [convos, setConvos] = useState<TrainingConvo[]>([]);
   const [loading, setLoading] = useState(true);
   const [personaTab, setPersonaTab] = useState("nifimas");
@@ -33,9 +36,15 @@ export function TrainingMemory() {
 
   useEffect(() => {
     fetchConvos();
-  }, []);
+  }, [user?.id]);
 
   const fetchConvos = async () => {
+    if (!user) {
+      setConvos(guestStorage.training.list());
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("training_conversations")
       .select("*")
@@ -75,14 +84,29 @@ export function TrainingMemory() {
       console.error("Analysis error:", e);
     }
 
-    const { error } = await supabase.from("training_conversations").insert({
-      title,
-      persona: personaTab,
-      source_type: "text",
-      content,
-      style_analysis: styleAnalysis,
-      status: styleAnalysis ? "ready" : "pending",
-    });
+    const nextStatus = styleAnalysis ? "ready" : "pending";
+    const { error } = user
+      ? await supabase.from("training_conversations").insert({
+          title,
+          persona: personaTab,
+          source_type: "text",
+          content,
+          style_analysis: styleAnalysis,
+          status: nextStatus,
+          user_id: user.id,
+        })
+      : { error: null as null | Error };
+
+    if (!user) {
+      guestStorage.training.insert({
+        title,
+        persona: personaTab,
+        source_type: "text",
+        content,
+        style_analysis: styleAnalysis,
+        status: nextStatus,
+      });
+    }
 
     if (error) {
       toast.error("Failed to save training data");
@@ -96,7 +120,14 @@ export function TrainingMemory() {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("training_conversations").delete().eq("id", id);
+    const { error } = user
+      ? await supabase.from("training_conversations").delete().eq("id", id)
+      : { error: null as null | Error };
+
+    if (!user) {
+      guestStorage.training.remove(id);
+    }
+
     if (error) toast.error("Failed to delete");
     else {
       toast.success("Deleted");

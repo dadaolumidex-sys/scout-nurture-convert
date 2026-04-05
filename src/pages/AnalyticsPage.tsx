@@ -10,6 +10,8 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import { useAuth } from "@/hooks/useAuth";
+import { guestStorage } from "@/lib/guestStorage";
 
 type AnalyticsEvent = {
   id: string;
@@ -30,6 +32,7 @@ const COLORS = {
 };
 
 const AnalyticsPage = () => {
+  const { user } = useAuth();
   const [events, setEvents] = useState<AnalyticsEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -43,9 +46,15 @@ const AnalyticsPage = () => {
 
   useEffect(() => {
     fetchEvents();
-  }, []);
+  }, [user?.id]);
 
   const fetchEvents = async () => {
+    if (!user) {
+      setEvents(guestStorage.analytics.list());
+      setLoading(false);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("analytics_events")
       .select("*")
@@ -59,12 +68,28 @@ const AnalyticsPage = () => {
   };
 
   const handleAdd = async () => {
+    if (!user) {
+      guestStorage.analytics.insert({
+        event_type: newEvent.event_type,
+        persona: newEvent.persona,
+        streamer_username: newEvent.streamer_username || null,
+        platform: newEvent.platform,
+        revenue: newEvent.event_type === "converted" ? parseFloat(newEvent.revenue) || 0 : 0,
+      });
+      toast.success("Event logged in guest mode!");
+      setDialogOpen(false);
+      setNewEvent({ event_type: "scouted", persona: "nifimas", streamer_username: "", platform: "twitch", revenue: "" });
+      fetchEvents();
+      return;
+    }
+
     const { error } = await supabase.from("analytics_events").insert({
       event_type: newEvent.event_type,
       persona: newEvent.persona,
       streamer_username: newEvent.streamer_username || null,
       platform: newEvent.platform,
       revenue: newEvent.event_type === "converted" ? parseFloat(newEvent.revenue) || 0 : 0,
+      user_id: user.id,
     });
     if (error) {
       toast.error("Failed to log event");
