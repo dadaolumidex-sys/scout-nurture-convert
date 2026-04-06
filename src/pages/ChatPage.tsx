@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Send, Bot, Plus, ImagePlus, Sparkles, X, Pencil, Trash2, Copy, MoreVertical, Check, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -9,6 +8,7 @@ import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type Message = {
   role: "user" | "assistant";
@@ -23,52 +23,39 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 const personaConfig = {
   friend: {
     name: "Nifimas",
-    label: "Friend Mode",
+    label: "Friend",
     emoji: "🤝",
-    description: "Friendly, casual, supportive — build trust and rapport",
+    description: "Friendly, casual, supportive",
     badgeClass: "border-secondary text-secondary",
   },
   promoter: {
     name: "Brozeen",
-    label: "Promoter Mode",
+    label: "Promoter",
     emoji: "💼",
-    description: "Confident, professional — present and convert",
+    description: "Confident, professional",
     badgeClass: "border-primary text-primary",
   },
 };
 
 async function streamChat({
-  messages,
-  persona,
-  deepResearch,
-  onDelta,
-  onDone,
-  onError,
+  messages, persona, deepResearch, onDelta, onDone, onError,
 }: {
-  messages: Message[];
-  persona: Persona;
-  deepResearch: boolean;
-  onDelta: (text: string) => void;
-  onDone: () => void;
-  onError: (msg: string) => void;
+  messages: Message[]; persona: Persona; deepResearch: boolean;
+  onDelta: (text: string) => void; onDone: () => void; onError: (msg: string) => void;
 }) {
   const apiMessages = messages.map((msg) => {
     if (msg.images && msg.images.length > 0) {
       return {
         role: msg.role,
         content: [
-          { type: "text" as const, text: msg.content || "What do you see in this image?" },
-          ...msg.images.map((img) => ({
-            type: "image_url" as const,
-            image_url: { url: img },
-          })),
+          { type: "text" as const, text: msg.content || "What do you see in this image? If it's a conversation, suggest the perfect next reply." },
+          ...msg.images.map((img) => ({ type: "image_url" as const, image_url: { url: img } })),
         ],
       };
     }
     return { role: msg.role, content: msg.content };
   });
 
-  // Get the user's session token for auth
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -87,11 +74,7 @@ async function streamChat({
     onError(err.error || `Error ${resp.status}`);
     return;
   }
-
-  if (!resp.body) {
-    onError("No response stream");
-    return;
-  }
+  if (!resp.body) { onError("No response stream"); return; }
 
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
@@ -101,7 +84,6 @@ async function streamChat({
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-
     let idx: number;
     while ((idx = buffer.indexOf("\n")) !== -1) {
       let line = buffer.slice(0, idx);
@@ -124,6 +106,7 @@ async function streamChat({
 }
 
 const ChatPage = () => {
+  const isMobile = useIsMobile();
   const [persona, setPersona] = useState<Persona>("friend");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -145,98 +128,54 @@ const ChatPage = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-
     Array.from(files).forEach((file) => {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error("Image must be under 10MB");
-        return;
-      }
+      if (file.size > 10 * 1024 * 1024) { toast.error("Image must be under 10MB"); return; }
       const reader = new FileReader();
-      reader.onload = () => {
-        setPendingImages((prev) => [...prev, reader.result as string]);
-      };
+      reader.onload = () => setPendingImages((prev) => [...prev, reader.result as string]);
       reader.readAsDataURL(file);
     });
-
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const removePendingImage = (index: number) => {
-    setPendingImages((prev) => prev.filter((_, i) => i !== index));
-  };
+  const removePendingImage = (index: number) => setPendingImages((prev) => prev.filter((_, i) => i !== index));
 
-  const handleNewChat = () => {
-    setMessages([]);
-    setInput("");
-    setPendingImages([]);
-    setEditingIndex(null);
-  };
+  const handleNewChat = () => { setMessages([]); setInput(""); setPendingImages([]); setEditingIndex(null); };
 
   const sendMessages = async (msgs: Message[]) => {
     sendLockRef.current = true;
     setLoading(true);
     let assistantSoFar = "";
-
-    const unlock = () => {
-      sendLockRef.current = false;
-      setLoading(false);
-    };
-
+    const unlock = () => { sendLockRef.current = false; setLoading(false); };
     const upsertAssistant = (chunk: string) => {
       assistantSoFar += chunk;
       setMessages((prev) => {
         const last = prev[prev.length - 1];
-        if (last?.role === "assistant") {
-          return prev.map((m, i) =>
-            i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
-          );
-        }
+        if (last?.role === "assistant") return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
         return [...prev, { role: "assistant", content: assistantSoFar }];
       });
     };
-
     try {
-      await streamChat({
-        messages: msgs,
-        persona,
-        deepResearch,
-        onDelta: upsertAssistant,
-        onDone: unlock,
-        onError: (msg) => {
-          toast.error(msg);
-          unlock();
-        },
-      });
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to get AI response");
-      unlock();
-    }
+      await streamChat({ messages: msgs, persona, deepResearch, onDelta: upsertAssistant, onDone: unlock, onError: (msg) => { toast.error(msg); unlock(); } });
+    } catch (e) { console.error(e); toast.error("Failed to get AI response"); unlock(); }
   };
 
   const handleSend = async () => {
     if ((!input.trim() && pendingImages.length === 0) || loading || sendLockRef.current) return;
-
     const userMsg: Message = {
       role: "user",
-      content: input,
+      content: input || (pendingImages.length > 0 ? "Check this conversation and give me the perfect next reply" : ""),
       images: pendingImages.length > 0 ? [...pendingImages] : undefined,
     };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput("");
     setPendingImages([]);
-
     await sendMessages(newMessages);
   };
 
   const handleEditSave = async (index: number) => {
     if (!editContent.trim()) return;
-    // Update the message and remove everything after it, then resend
-    const updated = messages.slice(0, index).concat({
-      ...messages[index],
-      content: editContent,
-    });
+    const updated = messages.slice(0, index).concat({ ...messages[index], content: editContent });
     setMessages(updated);
     setEditingIndex(null);
     setEditContent("");
@@ -244,7 +183,6 @@ const ChatPage = () => {
   };
 
   const handleResend = async (index: number) => {
-    // Resend from this message onwards (remove assistant replies after it)
     const truncated = messages.slice(0, index + 1);
     setMessages(truncated);
     await sendMessages(truncated);
@@ -257,114 +195,74 @@ const ChatPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-8rem)] animate-slide-in">
+      <div className={`mx-auto flex flex-col animate-slide-in ${isMobile ? "h-[calc(100vh-7.5rem)] max-w-full" : "h-[calc(100vh-8rem)] max-w-3xl"}`}>
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">AI Chat Assistant</h1>
-            <p className="text-muted-foreground text-sm">
-              Ask anything — strategy, settings, ideas, or get reply suggestions
-            </p>
+        <div className={`flex items-center justify-between ${isMobile ? "mb-2" : "mb-4"}`}>
+          <div className="min-w-0">
+            <h1 className={`font-bold text-foreground ${isMobile ? "text-lg" : "text-2xl"}`}>AI Chat</h1>
+            {!isMobile && <p className="text-muted-foreground text-sm">Ask anything or upload conversations for reply suggestions</p>}
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleNewChat}
-              className="gap-1.5"
-            >
-              <Plus className="h-4 w-4" />
-              New Chat
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-1 h-8 px-2">
+              <Plus className="h-3.5 w-3.5" />
+              {!isMobile && "New"}
             </Button>
             <Button
-              variant="outline"
-              size="sm"
+              variant="outline" size="sm"
               onClick={() => setPersona(persona === "friend" ? "promoter" : "friend")}
-              className={`${config.badgeClass} hover:opacity-80`}
+              className={`${config.badgeClass} hover:opacity-80 h-8 px-2`}
             >
-              {config.emoji} {config.name}
+              {config.emoji} {isMobile ? "" : config.name}
             </Button>
           </div>
         </div>
 
         {/* Toolbar */}
-        <div className="flex items-center gap-2 mb-4">
+        <div className={`flex items-center gap-2 ${isMobile ? "mb-2" : "mb-4"}`}>
           <Button
-            variant={deepResearch ? "default" : "outline"}
-            size="sm"
+            variant={deepResearch ? "default" : "outline"} size="sm"
             onClick={() => setDeepResearch(!deepResearch)}
-            className={`gap-1.5 ${deepResearch ? "gradient-primary text-primary-foreground" : ""}`}
+            className={`gap-1 h-7 text-xs ${deepResearch ? "gradient-primary text-primary-foreground" : ""}`}
           >
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-3.5 w-3.5" />
             Deep Research
           </Button>
-          {deepResearch && (
-            <Badge variant="outline" className="text-xs border-primary/30 text-primary">
-              Uses advanced model for thorough analysis
-            </Badge>
+          {deepResearch && !isMobile && (
+            <Badge variant="outline" className="text-xs border-primary/30 text-primary">Advanced analysis</Badge>
           )}
         </div>
 
-        {/* Persona Banner */}
-        <Card className="bg-muted border-border mb-4">
-          <CardContent className="p-3 flex items-center gap-3">
-            <span className="text-xl">{config.emoji}</span>
-            <div>
-              <p className="text-sm font-medium text-foreground">
-                {config.label} — {config.name}
-              </p>
-              <p className="text-xs text-muted-foreground">{config.description}</p>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Messages */}
-        <div className="flex-1 overflow-auto space-y-3 mb-4">
+        <div className="flex-1 overflow-auto space-y-2 mb-2">
           {messages.length === 0 && (
             <div className="flex items-center justify-center h-full">
-              <div className="text-center text-muted-foreground">
-                <Bot className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                <p className="text-sm">Ask me anything — strategy, settings, ideas, or paste a conversation for reply suggestions</p>
-                <p className="text-xs mt-1">Upload images, toggle Deep Research, or switch personas</p>
+              <div className="text-center text-muted-foreground px-4">
+                <Bot className={`mx-auto mb-2 opacity-30 ${isMobile ? "h-8 w-8" : "h-12 w-12"}`} />
+                <p className={`${isMobile ? "text-xs" : "text-sm"}`}>Ask anything or upload a conversation screenshot for the perfect reply</p>
               </div>
             </div>
           )}
           {messages.map((msg, i) => (
-            <div
-              key={i}
-              className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-            >
+            <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`group relative max-w-[80%] rounded-xl px-4 py-3 text-sm ${
-                  msg.role === "user"
-                    ? "bg-muted text-foreground"
-                    : "bg-accent text-accent-foreground border border-border"
+                className={`group relative rounded-xl px-3 py-2 text-sm ${isMobile ? "max-w-[90%]" : "max-w-[80%]"} ${
+                  msg.role === "user" ? "bg-muted text-foreground" : "bg-accent text-accent-foreground border border-border"
                 }`}
               >
-                {/* User images */}
                 {msg.images && msg.images.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
+                  <div className="flex flex-wrap gap-1.5 mb-1.5">
                     {msg.images.map((img, idx) => (
-                      <img
-                        key={idx}
-                        src={img}
-                        alt={`Uploaded ${idx + 1}`}
-                        className="rounded-lg max-h-40 object-cover border border-border"
-                      />
+                      <img key={idx} src={img} alt={`Upload ${idx + 1}`} className="rounded-lg max-h-32 object-cover border border-border" />
                     ))}
                   </div>
                 )}
 
                 {editingIndex === i ? (
                   <div className="space-y-2">
-                    <Textarea
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      className="bg-background border-border text-foreground text-sm min-h-[60px]"
-                    />
+                    <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="bg-background border-border text-foreground text-sm min-h-[60px]" />
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" onClick={() => handleEditSave(i)} className="h-6 px-2 text-xs text-primary">
-                        <Check className="h-3 w-3 mr-1" /> Save & Resend
+                        <Check className="h-3 w-3 mr-1" /> Save
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setEditingIndex(null)} className="h-6 px-2 text-xs text-muted-foreground">
                         <X className="h-3 w-3 mr-1" /> Cancel
@@ -383,22 +281,21 @@ const ChatPage = () => {
                   </>
                 )}
 
-                {/* Actions menu */}
                 {editingIndex !== i && (
-                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className={`absolute top-1 right-1 ${isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity`}>
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+                      <DropdownMenuTrigger className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground">
                         <MoreVertical className="h-3 w-3" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="bg-card border-border">
-                        <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.content); toast.success("Copied!"); }} className="text-foreground">
+                        <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.content); toast.success("Copied!"); }}>
                           <Copy className="h-3 w-3 mr-2" /> Copy
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => { setEditingIndex(i); setEditContent(msg.content); }} className="text-foreground">
+                        <DropdownMenuItem onClick={() => { setEditingIndex(i); setEditContent(msg.content); }}>
                           <Pencil className="h-3 w-3 mr-2" /> Edit
                         </DropdownMenuItem>
                         {msg.role === "user" && (
-                          <DropdownMenuItem onClick={() => handleResend(i)} className="text-foreground">
+                          <DropdownMenuItem onClick={() => handleResend(i)}>
                             <RotateCcw className="h-3 w-3 mr-2" /> Resend
                           </DropdownMenuItem>
                         )}
@@ -413,29 +310,22 @@ const ChatPage = () => {
             </div>
           ))}
           {loading && messages[messages.length - 1]?.role !== "assistant" && (
-            <div className="flex gap-3">
-              <div className="bg-accent rounded-xl px-4 py-3 text-sm text-muted-foreground animate-pulse">
-                {config.name} is {deepResearch ? "researching deeply" : "thinking"}...
+            <div className="flex gap-2">
+              <div className="bg-accent rounded-xl px-3 py-2 text-sm text-muted-foreground animate-pulse">
+                {config.name} is {deepResearch ? "researching" : "thinking"}...
               </div>
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Pending image previews */}
+        {/* Pending images */}
         {pendingImages.length > 0 && (
-          <div className="flex gap-2 mb-2 flex-wrap">
+          <div className="flex gap-1.5 mb-1.5 flex-wrap">
             {pendingImages.map((img, idx) => (
               <div key={idx} className="relative group">
-                <img
-                  src={img}
-                  alt={`Pending ${idx + 1}`}
-                  className="h-16 w-16 rounded-lg object-cover border border-border"
-                />
-                <button
-                  onClick={() => removePendingImage(idx)}
-                  className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                >
+                <img src={img} alt={`Pending ${idx + 1}`} className="h-14 w-14 rounded-lg object-cover border border-border" />
+                <button onClick={() => removePendingImage(idx)} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5">
                   <X className="h-3 w-3" />
                 </button>
               </div>
@@ -444,42 +334,31 @@ const ChatPage = () => {
         )}
 
         {/* Input */}
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           <div className="flex-1 relative">
             <Textarea
-              placeholder="Type your message or upload an image..."
+              placeholder={isMobile ? "Message or upload a chat..." : "Type your message or upload a conversation screenshot..."}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[80px] pr-12"
+              className={`bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-10 ${isMobile ? "min-h-[48px] text-sm" : "min-h-[72px]"}`}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
               }}
             />
             <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 bottom-2 h-8 w-8 text-muted-foreground hover:text-foreground"
+              variant="ghost" size="icon"
+              className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground"
               onClick={() => fileInputRef.current?.click()}
               type="button"
             >
               <ImagePlus className="h-4 w-4" />
             </Button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={handleImageUpload}
-            />
+            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
           </div>
           <Button
             onClick={handleSend}
             disabled={loading || (!input.trim() && pendingImages.length === 0)}
-            className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0"
+            className={`gradient-primary text-primary-foreground self-end p-0 ${isMobile ? "h-10 w-10" : "h-10 w-10"}`}
           >
             <Send className="h-4 w-4" />
           </Button>
