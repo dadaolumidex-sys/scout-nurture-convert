@@ -28,14 +28,6 @@ function readLS<T>(key: string): T[] {
 }
 function writeLS<T>(key: string, v: T[]) { localStorage.setItem(key, JSON.stringify(v)); }
 
-// Generate a short title from the first user message
-function generateTitle(messages: ChatMessage[]): string {
-  const first = messages.find(m => m.role === "user");
-  if (!first?.content) return "New Chat";
-  const text = first.content.slice(0, 50);
-  return text.length < first.content.length ? text + "…" : text;
-}
-
 export function useChatHistory() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -43,7 +35,6 @@ export function useChatHistory() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
 
-  // Load conversation list
   const loadConversations = useCallback(async () => {
     setLoadingHistory(true);
     if (user) {
@@ -64,7 +55,6 @@ export function useChatHistory() {
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
-  // Load messages for a conversation
   const loadMessages = useCallback(async (convoId: string) => {
     setActiveId(convoId);
     if (user) {
@@ -87,7 +77,6 @@ export function useChatHistory() {
     }
   }, [user]);
 
-  // Create a new conversation
   const createConversation = useCallback(async (persona: string, deepResearch: boolean): Promise<string> => {
     const now = nowIso();
     if (user) {
@@ -115,19 +104,13 @@ export function useChatHistory() {
     }
   }, [user]);
 
-  // Save a message to the active conversation
   const saveMessage = useCallback(async (convoId: string, msg: ChatMessage) => {
     const now = nowIso();
     if (user) {
       await supabase.from("ai_messages").insert({
-        conversation_id: convoId,
-        role: msg.role,
-        content: msg.content,
-        images: msg.images || [],
-        created_at: now,
-        updated_at: now,
+        conversation_id: convoId, role: msg.role, content: msg.content,
+        images: msg.images || [], created_at: now, updated_at: now,
       });
-      // Update conversation title & timestamp
       const convo = conversations.find(c => c.id === convoId);
       if (convo?.title === "New Chat" && msg.role === "user") {
         const title = msg.content.slice(0, 50) + (msg.content.length > 50 ? "…" : "");
@@ -141,7 +124,6 @@ export function useChatHistory() {
       const allMsgs = readLS<any>(GUEST_MSGS_KEY);
       allMsgs.push({ id: createId(), conversation_id: convoId, role: msg.role, content: msg.content, images: msg.images || [], created_at: now, updated_at: now });
       writeLS(GUEST_MSGS_KEY, allMsgs);
-      // Update title
       const convos = readLS<Conversation>(GUEST_CONVOS_KEY);
       const idx = convos.findIndex(c => c.id === convoId);
       if (idx !== -1) {
@@ -155,19 +137,13 @@ export function useChatHistory() {
     }
   }, [user, conversations]);
 
-  // Replace all messages after an edit (truncate + resend)
   const replaceMessages = useCallback(async (convoId: string, newMessages: ChatMessage[]) => {
     if (user) {
-      // Delete old messages and insert new ones
       await supabase.from("ai_messages").delete().eq("conversation_id", convoId);
       const now = nowIso();
       const inserts = newMessages.map((m, i) => ({
-        conversation_id: convoId,
-        role: m.role,
-        content: m.content,
-        images: m.images || [],
-        created_at: new Date(Date.now() + i).toISOString(),
-        updated_at: now,
+        conversation_id: convoId, role: m.role, content: m.content,
+        images: m.images || [], created_at: new Date(Date.now() + i).toISOString(), updated_at: now,
       }));
       if (inserts.length) await supabase.from("ai_messages").insert(inserts);
     } else {
@@ -180,7 +156,6 @@ export function useChatHistory() {
     }
   }, [user]);
 
-  // Delete a conversation
   const deleteConversation = useCallback(async (convoId: string) => {
     if (user) {
       await supabase.from("ai_messages").delete().eq("conversation_id", convoId);
@@ -193,6 +168,17 @@ export function useChatHistory() {
     if (activeId === convoId) { setActiveId(null); setMessages([]); }
   }, [user, activeId]);
 
+  const renameConversation = useCallback(async (convoId: string, newTitle: string) => {
+    if (user) {
+      await supabase.from("ai_conversations").update({ title: newTitle, updated_at: nowIso() }).eq("id", convoId);
+    } else {
+      const convos = readLS<Conversation>(GUEST_CONVOS_KEY);
+      const idx = convos.findIndex(c => c.id === convoId);
+      if (idx !== -1) { convos[idx].title = newTitle; writeLS(GUEST_CONVOS_KEY, convos); }
+    }
+    setConversations(prev => prev.map(c => c.id === convoId ? { ...c, title: newTitle } : c));
+  }, [user]);
+
   const startNewChat = useCallback(() => {
     setActiveId(null);
     setMessages([]);
@@ -202,5 +188,6 @@ export function useChatHistory() {
     conversations, activeId, messages, setMessages, loadingHistory,
     loadConversations, loadMessages, createConversation, saveMessage,
     replaceMessages, deleteConversation, startNewChat, setActiveId,
+    renameConversation,
   };
 }
