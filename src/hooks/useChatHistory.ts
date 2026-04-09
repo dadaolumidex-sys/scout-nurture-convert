@@ -29,6 +29,7 @@ const GUEST_MSGS_KEY = "streamscout_guest_ai_messages";
 const GUEST_CONVOS_BACKUP_KEY = "streamscout_guest_ai_conversations_backup";
 const GUEST_MSGS_BACKUP_KEY = "streamscout_guest_ai_messages_backup";
 const GUEST_MIGRATION_PREFIX = "streamscout_guest_ai_migrated";
+const ACTIVE_CONVERSATION_KEY = "streamscout_active_ai_conversation";
 
 function nowIso() {
   return new Date().toISOString();
@@ -93,6 +94,25 @@ function getUserConversationCacheKey(userId: string) {
 
 function getUserMessageCacheKey(userId: string, convoId: string) {
   return `streamscout_cached_ai_messages_${userId}_${convoId}`;
+}
+
+function getActiveConversationKey(userId?: string) {
+  return userId ? `${ACTIVE_CONVERSATION_KEY}_${userId}` : `${ACTIVE_CONVERSATION_KEY}_guest`;
+}
+
+function readActiveConversation(userId?: string) {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(getActiveConversationKey(userId));
+}
+
+function writeActiveConversation(userId: string | undefined, convoId: string | null) {
+  if (typeof window === "undefined") return;
+  const key = getActiveConversationKey(userId);
+  if (!convoId) {
+    window.localStorage.removeItem(key);
+    return;
+  }
+  window.localStorage.setItem(key, convoId);
 }
 
 function readGuestConversations() {
@@ -247,8 +267,16 @@ export function useChatHistory() {
     void loadConversations();
   }, [loadConversations]);
 
+  useEffect(() => {
+    if (loadingHistory || activeId || conversations.length === 0) return;
+    const persistedId = readActiveConversation(user?.id);
+    if (!persistedId || !conversations.some((conversation) => conversation.id === persistedId)) return;
+    void loadMessages(persistedId);
+  }, [activeId, conversations, loadMessages, loadingHistory, user]);
+
   const loadMessages = useCallback(async (convoId: string) => {
     setActiveId(convoId);
+    writeActiveConversation(user?.id, convoId);
 
     if (user) {
       const { data, error } = await supabase
@@ -309,6 +337,7 @@ export function useChatHistory() {
       });
       writeCachedMessages(user.id, conversation.id, []);
       setActiveId(conversation.id);
+      writeActiveConversation(user.id, conversation.id);
       setMessages([]);
       return conversation.id;
     }
@@ -327,6 +356,7 @@ export function useChatHistory() {
     writeGuestConversations(nextConversations);
     setConversations(nextConversations);
     setActiveId(id);
+    writeActiveConversation(undefined, id);
     setMessages([]);
     return id;
   }, [user]);
@@ -452,6 +482,7 @@ export function useChatHistory() {
 
     if (activeId === convoId) {
       setActiveId(null);
+      writeActiveConversation(user?.id, null);
       setMessages([]);
     }
   }, [activeId, user]);
@@ -484,8 +515,9 @@ export function useChatHistory() {
 
   const startNewChat = useCallback(() => {
     setActiveId(null);
+    writeActiveConversation(user?.id, null);
     setMessages([]);
-  }, []);
+  }, [user]);
 
   return {
     conversations,
