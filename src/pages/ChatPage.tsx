@@ -227,7 +227,7 @@ const ChatPage = () => {
 
   // Mobile: full-screen list or full-screen chat
   if (isMobile) {
-    if (mobileView === "list" && !activeId) {
+    if (mobileView === "list") {
       return (
         <DashboardLayout>
           <div className="flex flex-col h-[calc(100dvh-8rem)] animate-slide-in">
