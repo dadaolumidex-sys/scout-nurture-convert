@@ -10,14 +10,14 @@ import {
 import { BookOpen, BarChart3, Settings } from "lucide-react";
 
 const mainTabs = [
-  { label: "Home", icon: LayoutDashboard, path: "/" },
-  { label: "AI Chat", icon: Bot, path: "/chat" },
+  { label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { label: "Analyzer", icon: Search, path: "/analyzer" },
   { label: "Inbox", icon: MessageSquare, path: "/inbox" },
+  { label: "AI Chat", icon: Bot, path: "/chat" },
 ];
 
 const moreTabs = [
-  { label: "Knowledge & Training", icon: BookOpen, path: "/knowledge" },
+  { label: "Knowledge", icon: BookOpen, path: "/knowledge" },
   { label: "Analytics", icon: BarChart3, path: "/analytics" },
   { label: "Settings", icon: Settings, path: "/settings" },
 ];
