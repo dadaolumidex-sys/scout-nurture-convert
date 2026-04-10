@@ -227,22 +227,15 @@ const ChatPage = () => {
 
   // Mobile: full-screen list or full-screen chat
   if (isMobile) {
-    if (mobileView === "list" && !activeId) {
+    if (mobileView === "list") {
       return (
         <DashboardLayout>
-          <div className="flex flex-col h-[calc(100vh-7.5rem)] animate-slide-in">
+          <div className="flex flex-col h-[calc(100dvh-8rem)] animate-slide-in">
             <div className="flex items-center justify-between px-1 mb-3">
-              <h1 className="text-xl font-bold text-foreground">AI Chat</h1>
-              <div className="flex items-center gap-1.5">
-                <Button variant="outline" size="sm" onClick={() => setPersona(persona === "friend" ? "promoter" : "friend")} className={`${config.badgeClass} hover:opacity-80 h-8 px-2`}>
-                  {config.emoji} {config.name}
-                </Button>
-              </div>
+              <h1 className="text-xl font-bold text-foreground">General AI Chat</h1>
             </div>
-            <div className="flex items-center gap-2 px-1 mb-3">
-              <Button variant={deepResearch ? "default" : "outline"} size="sm" onClick={() => setDeepResearch(!deepResearch)} className={`gap-1 h-7 text-xs ${deepResearch ? "gradient-primary text-primary-foreground" : ""}`}>
-                <Sparkles className="h-3.5 w-3.5" /> Deep Research
-              </Button>
+            <div className="flex items-center gap-2 px-1 mb-2 text-xs text-muted-foreground">
+              <span>Upload images • Think deeply • Save to knowledge</span>
             </div>
             <ChatHistoryPanel
               conversations={conversations}
@@ -258,92 +251,104 @@ const ChatPage = () => {
       );
     }
 
-    // Mobile chat view - full screen
+    // Mobile chat view - truly full screen
     return (
-      <DashboardLayout>
-        <div className="flex flex-col h-[calc(100vh-7.5rem)] animate-slide-in">
-          {/* Chat header */}
-          <div className="flex items-center gap-2 mb-2">
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleBackToList}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="text-base font-semibold text-foreground truncate flex-1">
-              {activeConvo?.title || "New Chat"}
-            </h1>
-            <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleNewChat}>
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
+      <div className="fixed inset-0 z-40 flex flex-col bg-background">
+        {/* Header */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleBackToList}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <h1 className="text-sm font-semibold text-foreground truncate flex-1">
+            {activeConvo?.title || "New Chat"}
+          </h1>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleNewChat}>
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setPersona(persona === "friend" ? "promoter" : "friend")} className={`${config.badgeClass} hover:opacity-80 h-7 px-2 text-xs`}>
+            {config.emoji} {config.name}
+          </Button>
+        </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-auto space-y-2 mb-2">
-            {messages.length === 0 && (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center text-muted-foreground px-4">
-                  <Bot className="mx-auto mb-2 opacity-30 h-8 w-8" />
-                  <p className="text-xs">Ask anything or upload a conversation for the perfect reply</p>
-                </div>
+        {/* Messages area */}
+        <div className="flex-1 overflow-auto px-3 py-2 space-y-2">
+          {messages.length === 0 && (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center text-muted-foreground px-4">
+                <Bot className="mx-auto mb-3 opacity-30 h-10 w-10" />
+                <p className="text-sm font-medium">StreamScout AI</p>
+                <p className="text-xs mt-1">Ask me anything, upload images, or toggle Think Deeply for powerful answers 🚀</p>
               </div>
-            )}
-            {messages.map((msg, i) => (
-              <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`group relative rounded-xl px-3 py-2 text-sm max-w-[88%] ${msg.role === "user" ? "bg-muted text-foreground" : "bg-accent text-accent-foreground border border-border"}`}>
-                  {msg.images && msg.images.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mb-1.5">
-                      {msg.images.map((img, idx) => <img key={idx} src={img} alt={`Upload ${idx + 1}`} className="rounded-lg max-h-32 object-cover border border-border" />)}
+            </div>
+          )}
+          {messages.map((msg, i) => (
+            <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={`group relative rounded-xl px-3 py-2 text-sm max-w-[88%] ${msg.role === "user" ? "bg-muted text-foreground" : "bg-accent text-accent-foreground border border-border"}`}>
+                {msg.images && msg.images.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-1.5">
+                    {msg.images.map((img, idx) => <img key={idx} src={img} alt={`Upload ${idx + 1}`} className="rounded-lg max-h-32 object-cover border border-border" />)}
+                  </div>
+                )}
+                {editingIndex === i ? (
+                  <div className="space-y-2">
+                    <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="bg-background border-border text-foreground text-sm min-h-[60px]" />
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" onClick={() => handleEditSave(i)} className="h-6 px-2 text-xs text-primary"><Check className="h-3 w-3 mr-1" /> Save</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingIndex(null)} className="h-6 px-2 text-xs text-muted-foreground"><X className="h-3 w-3 mr-1" /> Cancel</Button>
                     </div>
-                  )}
-                  {editingIndex === i ? (
-                    <div className="space-y-2">
-                      <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="bg-background border-border text-foreground text-sm min-h-[60px]" />
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => handleEditSave(i)} className="h-6 px-2 text-xs text-primary"><Check className="h-3 w-3 mr-1" /> Save</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditingIndex(null)} className="h-6 px-2 text-xs text-muted-foreground"><X className="h-3 w-3 mr-1" /> Cancel</Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      {msg.role === "assistant" ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
-                      ) : (
-                        msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>
-                      )}
-                    </>
-                  )}
-                  {editingIndex !== i && (
-                    <div className="absolute top-1 right-1 opacity-100 transition-opacity">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground">
-                          <MoreVertical className="h-3 w-3" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-card border-border">
-                          <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.content); toast.success("Copied!"); }}><Copy className="h-3 w-3 mr-2" /> Copy</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => { setEditingIndex(i); setEditContent(msg.content); }}><Pencil className="h-3 w-3 mr-2" /> Edit</DropdownMenuItem>
-                          {msg.role === "user" && <DropdownMenuItem onClick={() => handleResend(i)}><RotateCcw className="h-3 w-3 mr-2" /> Resend</DropdownMenuItem>}
-                          <DropdownMenuItem onClick={() => handleDelete(i)} className="text-destructive"><Trash2 className="h-3 w-3 mr-2" /> Delete</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <>
+                    {msg.role === "assistant" ? (
+                      <div className="prose prose-sm dark:prose-invert max-w-none"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+                    ) : (
+                      msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>
+                    )}
+                  </>
+                )}
+                {editingIndex !== i && (
+                  <div className="absolute top-1 right-1 opacity-0 group-active:opacity-100 transition-opacity">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground">
+                        <MoreVertical className="h-3 w-3" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-card border-border">
+                        <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.content); toast.success("Copied!"); }}><Copy className="h-3 w-3 mr-2" /> Copy</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => { setEditingIndex(i); setEditContent(msg.content); }}><Pencil className="h-3 w-3 mr-2" /> Edit</DropdownMenuItem>
+                        {msg.role === "user" && <DropdownMenuItem onClick={() => handleResend(i)}><RotateCcw className="h-3 w-3 mr-2" /> Resend</DropdownMenuItem>}
+                        <DropdownMenuItem onClick={() => handleDelete(i)} className="text-destructive"><Trash2 className="h-3 w-3 mr-2" /> Delete</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                )}
               </div>
-            ))}
-            {loading && messages[messages.length - 1]?.role !== "assistant" && (
-              <div className="flex gap-2">
-                <div className="bg-accent rounded-xl px-3 py-2 text-sm text-muted-foreground animate-pulse">
-                  {config.name} is {deepResearch ? "researching" : "thinking"}...
-                </div>
+            </div>
+          ))}
+          {loading && messages[messages.length - 1]?.role !== "assistant" && (
+            <div className="flex gap-2">
+              <div className="bg-accent rounded-xl px-3 py-2 text-sm text-muted-foreground animate-pulse">
+                {config.name} is {deepResearch ? "researching" : "thinking"}...
               </div>
-            )}
-            <div ref={messagesEndRef} />
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Bottom input area - always visible above bottom nav */}
+        <div className="shrink-0 border-t border-border bg-background px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom)+3.5rem)]">
+          {/* Deep Research toggle */}
+          <div className="flex items-center gap-2 mb-2">
+            <Button variant={deepResearch ? "default" : "outline"} size="sm" onClick={() => setDeepResearch(!deepResearch)} className={`gap-1 h-7 text-xs rounded-full ${deepResearch ? "gradient-primary text-primary-foreground" : ""}`}>
+              <Sparkles className="h-3 w-3" /> Think Deeply
+            </Button>
           </div>
 
           {/* Pending images */}
           {pendingImages.length > 0 && (
-            <div className="flex gap-1.5 mb-1.5 flex-wrap">
+            <div className="flex gap-1.5 mb-2 flex-wrap">
               {pendingImages.map((img, idx) => (
                 <div key={idx} className="relative group">
-                  <img src={img} alt={`Pending ${idx + 1}`} className="h-14 w-14 rounded-lg object-cover border border-border" />
+                  <img src={img} alt={`Pending ${idx + 1}`} className="h-12 w-12 rounded-lg object-cover border border-border" />
                   <button onClick={() => removePendingImage(idx)} className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5">
                     <X className="h-3 w-3" />
                   </button>
@@ -352,26 +357,27 @@ const ChatPage = () => {
             </div>
           )}
 
-          {/* Input */}
-          <div className="flex gap-2">
+          {/* Input row */}
+          <div className="flex items-end gap-2">
+            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-muted-foreground" onClick={() => fileInputRef.current?.click()} type="button">
+              <ImagePlus className="h-5 w-5" />
+            </Button>
+            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
             <div className="flex-1 relative">
               <Textarea
-                placeholder="Message or upload a chat..."
+                placeholder="Ask anything, paste text or images..."
                 value={input} onChange={(e) => setInput(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-10 min-h-[48px] text-sm"
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5"
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                rows={1}
               />
-              <Button variant="ghost" size="icon" className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => fileInputRef.current?.click()} type="button">
-                <ImagePlus className="h-4 w-4" />
-              </Button>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
             </div>
-            <Button onClick={handleSend} disabled={loading || (!input.trim() && pendingImages.length === 0)} className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0">
+            <Button onClick={handleSend} disabled={loading || (!input.trim() && pendingImages.length === 0)} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
               <Send className="h-4 w-4" />
             </Button>
           </div>
         </div>
-      </DashboardLayout>
+      </div>
     );
   }
 
