@@ -28,7 +28,7 @@ const AuthPage = () => {
           options: { emailRedirectTo: window.location.origin },
         });
         if (error) throw error;
-        toast.success("Check your email to confirm your account!");
+        toast.success("Account created! Signing you in...");
       }
     } catch (error: any) {
       toast.error(error.message || "Authentication failed");

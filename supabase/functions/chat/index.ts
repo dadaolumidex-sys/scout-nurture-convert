@@ -38,8 +38,8 @@ const DEEP_RESEARCH_SUFFIX = `
 
 IMPORTANT: Deep Research mode is ON. Provide an extremely thorough, detailed answer with multiple perspectives, examples, step-by-step breakdowns, and actionable recommendations.`;
 
-const MAX_CONTEXT_MESSAGES = 20;
-const MAX_MESSAGE_CHARS = 2000;
+const MAX_CONTEXT_MESSAGES = 40;
+const MAX_MESSAGE_CHARS = 50000;
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
