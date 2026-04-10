@@ -263,16 +263,22 @@ export function useChatHistory() {
     setLoadingHistory(false);
   }, [migrateGuestHistory, user]);
 
+  const loadMessagesRef = useRef<((convoId: string) => Promise<void>) | null>(null);
+
   useEffect(() => {
     void loadConversations();
   }, [loadConversations]);
 
   useEffect(() => {
+    loadMessagesRef.current = loadMessages;
+  }, [loadMessages]);
+
+  useEffect(() => {
     if (loadingHistory || activeId || conversations.length === 0) return;
     const persistedId = readActiveConversation(user?.id);
     if (!persistedId || !conversations.some((conversation) => conversation.id === persistedId)) return;
-    void loadMessages(persistedId);
-  }, [activeId, conversations, loadMessages, loadingHistory, user]);
+    void loadMessagesRef.current?.(persistedId);
+  }, [activeId, conversations, loadingHistory, user]);
 
   const loadMessages = useCallback(async (convoId: string) => {
     setActiveId(convoId);
