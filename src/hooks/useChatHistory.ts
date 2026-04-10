@@ -263,17 +263,6 @@ export function useChatHistory() {
     setLoadingHistory(false);
   }, [migrateGuestHistory, user]);
 
-  useEffect(() => {
-    void loadConversations();
-  }, [loadConversations]);
-
-  useEffect(() => {
-    if (loadingHistory || activeId || conversations.length === 0) return;
-    const persistedId = readActiveConversation(user?.id);
-    if (!persistedId || !conversations.some((conversation) => conversation.id === persistedId)) return;
-    void loadMessages(persistedId);
-  }, [activeId, conversations, loadMessages, loadingHistory, user]);
-
   const loadMessages = useCallback(async (convoId: string) => {
     setActiveId(convoId);
     writeActiveConversation(user?.id, convoId);
@@ -309,6 +298,17 @@ export function useChatHistory() {
       setMessages(toChatMessages(guestMessages));
     }
   }, [user]);
+
+  useEffect(() => {
+    void loadConversations();
+  }, [loadConversations]);
+
+  useEffect(() => {
+    if (loadingHistory || activeId || conversations.length === 0) return;
+    const persistedId = readActiveConversation(user?.id);
+    if (!persistedId || !conversations.some((conversation) => conversation.id === persistedId)) return;
+    void loadMessages(persistedId);
+  }, [activeId, conversations, loadMessages, loadingHistory, user]);
 
   const createConversation = useCallback(async (persona: string, deepResearch: boolean): Promise<string> => {
     const now = nowIso();
