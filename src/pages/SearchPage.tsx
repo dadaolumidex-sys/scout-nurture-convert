@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Globe, Search, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
+import { getActiveKeysForRotation, recordFailure, recordSuccess } from "@/lib/apiKeys";
+import { notify } from "@/lib/notifications";
 
 const ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/web-search`;
 
@@ -21,7 +23,9 @@ const SearchPage = () => {
     setLoading(true);
     setResults([]);
     try {
-      const body = mode === "search" ? { mode, query: input.trim() } : { mode, url: input.trim() };
+      const userKeys = await getActiveKeysForRotation("apify").catch(() => []);
+      const body: any = mode === "search" ? { mode, query: input.trim() } : { mode, url: input.trim() };
+      body.userKeys = userKeys.map(k => ({ id: k.id, api_key: k.api_key }));
       const res = await fetch(ENDPOINT, {
         method: "POST",
         headers: {
@@ -32,6 +36,12 @@ const SearchPage = () => {
         body: JSON.stringify(body),
       });
       const json = await res.json();
+      // Record key usage
+      if (Array.isArray(json.failedKeyIds)) {
+        for (const id of json.failedKeyIds) await recordFailure(id, json.error || "failed").catch(() => {});
+        if (json.failedKeyIds.length) await notify("warning", "Apify key issue", `${json.failedKeyIds.length} key(s) failed and were rotated.`).catch(() => {});
+      }
+      if (json.usedKeyId) await recordSuccess(json.usedKeyId).catch(() => {});
       if (!res.ok) throw new Error(json.error || "Search failed");
 
       // Normalize results
