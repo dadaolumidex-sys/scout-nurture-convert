@@ -8,6 +8,7 @@ import {
   Settings,
   Zap,
   LogOut,
+  Globe,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -32,6 +33,7 @@ const navItems = [
   { title: "Conversation Inbox", url: "/inbox", icon: MessageSquare },
   { title: "AI Chat Assistant", url: "/chat", icon: Bot },
   { title: "Knowledge & Training", url: "/knowledge", icon: BookOpen },
+  { title: "Web Search", url: "/search", icon: Globe },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
