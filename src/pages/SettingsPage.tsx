@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Settings, Key, Eye, EyeOff, Save, CheckCircle, Zap, User, Bell, Shield, Palette, Link2, Wrench, Download, LogOut, ChevronRight, ArrowLeft, Wifi, RefreshCw, Trash2, RotateCcw, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { ApiKeysManager } from "@/components/settings/ApiKeysManager";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -175,26 +176,7 @@ const SettingsPage = () => {
             </>
           )}
 
-          {view === "api" && (
-            <>
-              <div>
-                <h1 className="text-2xl font-bold text-foreground">API & Connections</h1>
-                <p className="text-sm text-muted-foreground">See which services are active</p>
-              </div>
-              <Card className="bg-card border-border">
-                <CardContent className="p-4 space-y-2">
-                  <p className="text-sm font-medium text-foreground">🤖 AI Status</p>
-                  <p className="text-xs text-muted-foreground">AI is powered by Lovable AI — no API keys needed. Add your own keys below for extra reliability.</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                    <span className="text-xs text-green-500">AI service active</span>
-                  </div>
-                </CardContent>
-              </Card>
-              <ApiKeyInput title="Google Gemini (Optional)" placeholder="AIzaSy..." apiKey={geminiKey} setApiKey={setGeminiKey} showKey={showGeminiKey} setShowKey={setShowGeminiKey} saving={savingGemini} hasKey={hasGeminiKey} onSave={() => handleSaveKey("gemini")} icon={<Key className="h-4 w-4 text-primary" />} />
-              <ApiKeyInput title="OpenAI (Optional)" placeholder="sk-..." apiKey={openaiKey} setApiKey={setOpenaiKey} showKey={showOpenaiKey} setShowKey={setShowOpenaiKey} saving={savingOpenai} hasKey={hasOpenaiKey} onSave={() => handleSaveKey("openai")} icon={<Zap className="h-4 w-4 text-green-400" />} />
-            </>
-          )}
+          {view === "api" && <ApiKeysManager />}
 
           {view === "profile" && (
             <>
