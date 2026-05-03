@@ -9,19 +9,28 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const APIFY_API_KEY = Deno.env.get("APIFY_API_KEY");
-    if (!APIFY_API_KEY) {
-      return new Response(JSON.stringify({ error: "Apify not configured." }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    const { url, query, mode, userKeys } = await req.json();
+
+    // Build candidate keys: user-provided (in order) + env fallback
+    const candidates: { id: string | null; key: string }[] = [];
+    if (Array.isArray(userKeys)) {
+      for (const k of userKeys) {
+        if (k && typeof k.api_key === "string" && k.api_key.trim()) {
+          candidates.push({ id: k.id ?? null, key: k.api_key.trim() });
+        }
+      }
+    }
+    const envKey = Deno.env.get("APIFY_API_KEY");
+    if (envKey) candidates.push({ id: null, key: envKey });
+
+    if (candidates.length === 0) {
+      return new Response(JSON.stringify({ error: "No Apify API keys configured. Add one in Settings → API & Connections." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { url, query, mode } = await req.json();
-
-    // mode: "scrape" => scrape a specific URL; "search" => google search via apify
     let actorId = "";
     let input: Record<string, unknown> = {};
-
     if (mode === "search") {
       if (!query || typeof query !== "string") {
         return new Response(JSON.stringify({ error: "Missing query" }), {
@@ -37,35 +46,43 @@ serve(async (req) => {
         });
       }
       actorId = "apify~website-content-crawler";
-      input = {
-        startUrls: [{ url }],
-        maxCrawlPages: 1,
-        maxCrawlDepth: 0,
-        crawlerType: "cheerio",
-        saveMarkdown: true,
-      };
+      input = { startUrls: [{ url }], maxCrawlPages: 1, maxCrawlDepth: 0, crawlerType: "cheerio", saveMarkdown: true };
     }
 
-    // Run sync and get dataset items
-    const runUrl = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${APIFY_API_KEY}&timeout=120`;
-    const r = await fetch(runUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-
-    if (!r.ok) {
-      const t = await r.text();
-      console.error("Apify error", r.status, t);
-      return new Response(JSON.stringify({ error: `Apify failed (${r.status})`, detail: t.slice(0, 500) }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const failed: { id: string | null; status: number; detail: string }[] = [];
+    for (const cand of candidates) {
+      const runUrl = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${cand.key}&timeout=120`;
+      try {
+        const r = await fetch(runUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(input),
+        });
+        if (r.ok) {
+          const data = await r.json();
+          return new Response(JSON.stringify({ results: data, usedKeyId: cand.id, failedKeyIds: failed.map(f => f.id).filter(Boolean) }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const t = await r.text();
+        failed.push({ id: cand.id, status: r.status, detail: t.slice(0, 200) });
+        console.error("Apify key failed", cand.id, r.status);
+        // Only rotate on auth/quota/server errors
+        if (![401, 402, 403, 429, 500, 502, 503].includes(r.status)) {
+          return new Response(JSON.stringify({ error: `Apify failed (${r.status})`, detail: t.slice(0, 500), failedKeyIds: failed.map(f => f.id).filter(Boolean) }), {
+            status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } catch (e) {
+        failed.push({ id: cand.id, status: 0, detail: String(e) });
+      }
     }
 
-    const data = await r.json();
-    return new Response(JSON.stringify({ results: data }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({
+      error: "All Apify keys failed. Add a new one in Settings → API & Connections.",
+      failedKeyIds: failed.map(f => f.id).filter(Boolean),
+      failures: failed,
+    }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
