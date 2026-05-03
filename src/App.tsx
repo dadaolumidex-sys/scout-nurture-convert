@@ -11,6 +11,7 @@ import ContactChatPage from "./pages/ContactChatPage";
 import KnowledgePage from "./pages/KnowledgePage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import SettingsPage from "./pages/SettingsPage";
+import SearchPage from "./pages/SearchPage";
 import AuthPage from "./pages/AuthPage";
 import NotFound from "./pages/NotFound";
 
@@ -27,6 +28,7 @@ function AppRoutes() {
       <Route path="/knowledge" element={<KnowledgePage />} />
       <Route path="/analytics" element={<AnalyticsPage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/search" element={<SearchPage />} />
       <Route path="/auth" element={<AuthPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>

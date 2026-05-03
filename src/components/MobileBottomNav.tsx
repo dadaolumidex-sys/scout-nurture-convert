@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Search, MessageSquare, BookOpen, Bot, Settings, BarChart3 } from "lucide-react";
+import { LayoutDashboard, Search, MessageSquare, BookOpen, Bot, Settings, BarChart3, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ const mainTabs = [
 ];
 
 const moreTabs = [
+  { label: "Web Search", icon: Globe, path: "/search" },
   { label: "Analytics", icon: BarChart3, path: "/analytics" },
   { label: "Settings", icon: Settings, path: "/settings" },
 ];
