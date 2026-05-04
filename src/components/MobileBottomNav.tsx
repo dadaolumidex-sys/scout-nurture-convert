@@ -34,22 +34,22 @@ export function MobileBottomNav() {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background md:hidden pb-[env(safe-area-inset-bottom)]">
-      <div className="flex items-center justify-around h-[68px]">
+      <div className="flex items-center justify-around h-[80px] px-1">
         {mainTabs.map((tab) => (
           <button
             key={tab.path}
             onClick={() => navigate(tab.path)}
             className={cn(
-              "relative flex flex-col items-center justify-center gap-1 flex-1 h-full text-[11px] font-medium transition-colors",
+              "relative flex flex-col items-center justify-center gap-1.5 flex-1 h-full text-[13px] font-semibold transition-colors",
               isActive(tab.path)
                 ? "text-primary"
                 : "text-muted-foreground active:text-foreground"
             )}
           >
             {isActive(tab.path) && (
-              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-b-full bg-primary" />
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-[3px] rounded-b-full bg-primary" />
             )}
-            <tab.icon className={cn("h-6 w-6", isActive(tab.path) && "scale-110")} strokeWidth={isActive(tab.path) ? 2.2 : 1.8} />
+            <tab.icon className={cn("h-7 w-7", isActive(tab.path) && "scale-110")} strokeWidth={isActive(tab.path) ? 2.4 : 1.9} />
             <span>{tab.label}</span>
           </button>
         ))}
@@ -58,23 +58,23 @@ export function MobileBottomNav() {
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "relative flex flex-col items-center justify-center gap-1 flex-1 h-full text-[11px] font-medium transition-colors",
+                "relative flex flex-col items-center justify-center gap-1.5 flex-1 h-full text-[13px] font-semibold transition-colors",
                 moreActive ? "text-primary" : "text-muted-foreground active:text-foreground"
               )}
             >
               {moreActive && (
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-10 h-[3px] rounded-b-full bg-primary" />
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-12 h-[3px] rounded-b-full bg-primary" />
               )}
-              <MoreHorizontal className="h-6 w-6" strokeWidth={moreActive ? 2.2 : 1.8} />
+              <MoreHorizontal className="h-7 w-7" strokeWidth={moreActive ? 2.4 : 1.9} />
               <span>More</span>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" side="top" className="mb-2 w-48">
+          <DropdownMenuContent align="end" side="top" className="mb-2 w-56">
             {moreTabs.map((tab) => (
               <DropdownMenuItem
                 key={tab.path}
                 onClick={() => navigate(tab.path)}
-                className={cn("gap-2 py-3", isActive(tab.path) && "text-primary")}
+                className={cn("gap-3 py-3.5 text-base", isActive(tab.path) && "text-primary")}
               >
                 <tab.icon className="h-5 w-5" />
                 {tab.label}
