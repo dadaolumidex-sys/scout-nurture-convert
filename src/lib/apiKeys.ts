@@ -26,10 +26,17 @@ export async function listKeys(provider?: Provider): Promise<ApiKeyRow[]> {
 
 export async function addKey(provider: Provider, label: string, api_key: string) {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Sign in to save keys");
+  if (!user) throw new Error("NEED_SIGN_IN");
   const { error } = await (supabase.from("api_keys" as any) as any)
     .insert({ user_id: user.id, provider, label: label.trim() || "Key", api_key: api_key.trim() });
   if (error) throw error;
+
+  // Also mirror into user_settings so the chat edge function picks it up automatically
+  if (provider === "gemini" || provider === "openai") {
+    const col = provider === "gemini" ? "gemini_api_key" : "openai_api_key";
+    await (supabase.from("user_settings") as any)
+      .upsert({ user_id: user.id, [col]: api_key.trim(), updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  }
 }
 
 export async function bulkAddKeys(provider: Provider, text: string) {

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,13 @@ export function ApiKeysManager() {
   const [tab, setTab] = useState<Provider>("apify");
   const [keys, setKeys] = useState<Record<Provider, ApiKeyRow[]>>({ apify: [], gemini: [], openai: [] });
   const [loading, setLoading] = useState(true);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setSignedIn(!!data.user));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSignedIn(!!s?.user));
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   const refresh = async () => {
     setLoading(true);
@@ -40,6 +48,18 @@ export function ApiKeysManager() {
         <h1 className="text-2xl font-bold text-foreground">API & Connections</h1>
         <p className="text-sm text-muted-foreground">Add multiple keys per provider. The app auto-rotates when one fails or runs out.</p>
       </div>
+
+      {signedIn === false && (
+        <Card className="border-yellow-500/40 bg-yellow-500/5">
+          <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-sm">
+              <p className="font-semibold text-foreground">Sign in to save your API keys</p>
+              <p className="text-muted-foreground text-xs">Keys are stored privately to your account so they sync across devices and stay secure.</p>
+            </div>
+            <Button onClick={() => { window.location.href = "/auth"; }} className="gradient-primary text-primary-foreground">Sign In</Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Provider)}>
         <TabsList className="grid grid-cols-3 w-full">
@@ -134,8 +154,17 @@ function AddKeyDialog({ provider, placeholder, onAdded }: { provider: Provider; 
   const save = async () => {
     if (!key.trim()) { toast.error("Enter a key"); return; }
     setSaving(true);
-    try { await addKey(provider, label || `Key ${Date.now() % 1000}`, key); toast.success("Key added"); setOpen(false); setLabel(""); setKey(""); onAdded(); }
-    catch (e: any) { toast.error(e.message || "Failed"); }
+    try { await addKey(provider, label || `Key ${Date.now() % 1000}`, key); toast.success("Key saved — it will be used automatically"); setOpen(false); setLabel(""); setKey(""); onAdded(); }
+    catch (e: any) {
+      if (e?.message === "NEED_SIGN_IN") {
+        toast.error("Sign in required to save keys", {
+          description: "Keys are stored privately to your account.",
+          action: { label: "Sign In", onClick: () => { window.location.href = "/auth"; } },
+        });
+      } else {
+        toast.error(e.message || "Failed");
+      }
+    }
     setSaving(false);
   };
   return (
