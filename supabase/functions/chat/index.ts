@@ -43,8 +43,8 @@ type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; im
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-3-flash-preview": "gemini-2.0-flash",
-  "google/gemini-2.5-pro": "gemini-2.5-pro",
+  "google/gemini-3-flash-preview": "gemini-1.5-flash",
+  "google/gemini-2.5-pro": "gemini-1.5-pro",
 };
 
 function normalizeMessages(rawMessages: unknown): ChatMessage[] {
@@ -175,13 +175,16 @@ serve(async (req) => {
     }
 
     if (!response) {
-      const msg = lastErr.includes("402")
-        ? "AI credits exhausted. Add your own Gemini or OpenAI key in Settings → API Keys to continue."
+      const hasUserKey = Boolean(userKeys.openai || userKeys.gemini);
+      const msg = !hasUserKey
+        ? "Free AI quota is used up. Open Settings → API Keys and paste your own free Gemini API key (get one at aistudio.google.com/apikey) to keep chatting without limits."
         : lastErr.includes("429")
-        ? "AI is rate-limited. Add your own key in Settings or wait a moment."
-        : "All AI providers failed. Add a Gemini or OpenAI key in Settings → API Keys.";
+        ? "Your AI key is rate-limited. Wait a moment or add another key in Settings → API Keys."
+        : lastErr.includes("401") || lastErr.includes("403")
+        ? "Your saved AI key was rejected. Update it in Settings → API Keys."
+        : `AI providers failed (${lastErr || "unknown"}). Add a working Gemini or OpenAI key in Settings.`;
       return new Response(JSON.stringify({ error: msg }), {
-        status: 500,
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
