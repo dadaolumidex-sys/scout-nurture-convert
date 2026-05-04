@@ -21,6 +21,13 @@ export function ApiKeysManager() {
   const [tab, setTab] = useState<Provider>("apify");
   const [keys, setKeys] = useState<Record<Provider, ApiKeyRow[]>>({ apify: [], gemini: [], openai: [] });
   const [loading, setLoading] = useState(true);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setSignedIn(!!data.user));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSignedIn(!!s?.user));
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   const refresh = async () => {
     setLoading(true);
