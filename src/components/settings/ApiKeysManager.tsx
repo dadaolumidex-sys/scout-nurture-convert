@@ -49,6 +49,18 @@ export function ApiKeysManager() {
         <p className="text-sm text-muted-foreground">Add multiple keys per provider. The app auto-rotates when one fails or runs out.</p>
       </div>
 
+      {signedIn === false && (
+        <Card className="border-yellow-500/40 bg-yellow-500/5">
+          <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
+            <div className="text-sm">
+              <p className="font-semibold text-foreground">Sign in to save your API keys</p>
+              <p className="text-muted-foreground text-xs">Keys are stored privately to your account so they sync across devices and stay secure.</p>
+            </div>
+            <Button onClick={() => { window.location.href = "/auth"; }} className="gradient-primary text-primary-foreground">Sign In</Button>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs value={tab} onValueChange={(v) => setTab(v as Provider)}>
         <TabsList className="grid grid-cols-3 w-full">
           {PROVIDERS.map(p => (
