@@ -16,9 +16,9 @@ You can help with:
 - General questions about anything
 - Marketing, business, and brainstorming
 - Analyzing images, screenshots, and conversations
-- When a user uploads or pastes a conversation/chat screenshot, immediately analyze it and provide the perfect next reply they should send. Be specific and contextual.
+- When a user uploads or pastes a conversation/chat screenshot, immediately analyze it and provide the perfect next reply they should send.
 
-IMPORTANT: When given a conversation to analyze, your #1 job is to suggest the exact next message the user should send. Make it natural, contextual, and effective. Format your response with markdown.`,
+IMPORTANT: When given a conversation to analyze, suggest the exact next message to send. Format with markdown.`,
 
   promoter: `You are Brozeen — a confident, professional growth strategist and AI assistant.
 
@@ -29,26 +29,25 @@ You can help with:
 - Business planning and marketing
 - Writing professional messages, proposals, and pitches
 - Analyzing images, screenshots, and conversations
-- When a user uploads or pastes a conversation/chat screenshot, immediately analyze it and provide the perfect next reply they should send. Be professional, strategic, and conversion-focused.
 
-IMPORTANT: When given a conversation to analyze, your #1 job is to suggest the exact next message the user should send. Make it professional, strategic, and effective. Format your response with markdown.`,
+IMPORTANT: When given a conversation to analyze, suggest the exact next message to send. Format with markdown.`,
 };
 
 const DEEP_RESEARCH_SUFFIX = `
 
 IMPORTANT: Deep Research mode is ON. Provide an extremely thorough, detailed answer with multiple perspectives, examples, step-by-step breakdowns, and actionable recommendations.`;
 
-const MAX_CONTEXT_MESSAGES = 40;
-const MAX_MESSAGE_CHARS = 50000;
+const MAX_CONTEXT_MESSAGES = 60;
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
 
-function trimText(input: string, max = MAX_MESSAGE_CHARS): string {
-  return input.length <= max ? input : `${input.slice(0, max)}…`;
-}
+const GEMINI_MODEL_MAP: Record<string, string> = {
+  "google/gemini-3-flash-preview": "gemini-2.0-flash",
+  "google/gemini-2.5-pro": "gemini-2.5-pro",
+};
 
-function normalizeMessages(rawMessages: unknown, deepResearch: boolean): ChatMessage[] {
+function normalizeMessages(rawMessages: unknown): ChatMessage[] {
   if (!Array.isArray(rawMessages)) return [];
   const normalized = rawMessages
     .map((m) => {
@@ -56,13 +55,11 @@ function normalizeMessages(rawMessages: unknown, deepResearch: boolean): ChatMes
       const role = (m as any).role;
       const content = (m as any).content;
       if (role !== "user" && role !== "assistant") return null;
-      if (typeof content === "string") {
-        return { role, content: trimText(content) } as ChatMessage;
-      }
+      if (typeof content === "string") return { role, content } as ChatMessage;
       if (Array.isArray(content)) {
         const safeParts = content
           .map((part: any) => {
-            if (part?.type === "text") return { type: "text", text: trimText(part.text || "") } as ChatMessagePart;
+            if (part?.type === "text") return { type: "text", text: part.text || "" } as ChatMessagePart;
             if (part?.type === "image_url" && part.image_url?.url) return { type: "image_url", image_url: { url: part.image_url.url } } as ChatMessagePart;
             return null;
           })
@@ -75,13 +72,38 @@ function normalizeMessages(rawMessages: unknown, deepResearch: boolean): ChatMes
   return normalized.slice(-MAX_CONTEXT_MESSAGES);
 }
 
+async function callLovable(body: Record<string, unknown>, key: string) {
+  return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function callOpenAI(body: Record<string, unknown>, key: string, deep: boolean) {
+  return await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, model: deep ? "gpt-4o" : "gpt-4o-mini" }),
+  });
+}
+
+async function callGemini(body: Record<string, unknown>, key: string, model: string) {
+  const geminiModel = GEMINI_MODEL_MAP[model] || "gemini-2.0-flash";
+  return await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, model: geminiModel }),
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { messages: rawMessages, persona, deepResearch } = await req.json();
     const isDeepResearch = Boolean(deepResearch);
-    const safeMessages = normalizeMessages(rawMessages, isDeepResearch);
+    const safeMessages = normalizeMessages(rawMessages);
 
     if (safeMessages.length === 0) {
       return new Response(JSON.stringify({ error: "Please enter a message first." }), {
@@ -93,46 +115,72 @@ serve(async (req) => {
     let systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
     if (isDeepResearch) systemPrompt += DEEP_RESEARCH_SUFFIX;
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      return new Response(JSON.stringify({ error: "AI service not configured." }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Get user's API keys (fallback chain)
+    let userKeys: { gemini?: string; openai?: string } = {};
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const sb = createClient(supabaseUrl, supabaseKey);
+      const authHeader = req.headers.get("authorization");
+      if (authHeader) {
+        const token = authHeader.replace("Bearer ", "");
+        const { data: { user } } = await sb.auth.getUser(token);
+        if (user) {
+          const { data: settings } = await sb.from("user_settings").select("gemini_api_key, openai_api_key").eq("user_id", user.id).single();
+          if (settings?.gemini_api_key) userKeys.gemini = settings.gemini_api_key;
+          if (settings?.openai_api_key) userKeys.openai = settings.openai_api_key;
+        }
+      }
+    } catch (_) { /* ignore */ }
 
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const ENV_GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
     const model = isDeepResearch ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "system", content: systemPrompt }, ...safeMessages],
-        stream: true,
-      }),
-    });
+    const body = {
+      model,
+      messages: [{ role: "system", content: systemPrompt }, ...safeMessages],
+      stream: true,
+    };
 
-    if (!response.ok) {
-      const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
+    let response: Response | null = null;
+    let lastErr = "";
 
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "AI is busy right now. Please wait a few seconds and try again." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "10" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits need to be topped up. Please try again later." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({ error: "AI service temporarily unavailable. Please try again." }), {
+    // 1. Lovable AI
+    if (LOVABLE_API_KEY) {
+      try {
+        const r = await callLovable(body, LOVABLE_API_KEY);
+        if (r.ok) response = r;
+        else { lastErr = `Lovable ${r.status}`; await r.body?.cancel(); console.log("Lovable failed:", r.status); }
+      } catch (e) { console.error("Lovable err:", e); }
+    }
+
+    // 2. OpenAI fallback
+    if (!response && userKeys.openai) {
+      try {
+        const r = await callOpenAI(body, userKeys.openai, isDeepResearch);
+        if (r.ok) response = r;
+        else { lastErr = `OpenAI ${r.status}`; await r.body?.cancel(); }
+      } catch (e) { console.error("OpenAI err:", e); }
+    }
+
+    // 3. Gemini fallback
+    const geminiKey = userKeys.gemini || ENV_GEMINI_KEY;
+    if (!response && geminiKey) {
+      try {
+        const r = await callGemini(body, geminiKey, model);
+        if (r.ok) response = r;
+        else { lastErr = `Gemini ${r.status}`; await r.body?.cancel(); }
+      } catch (e) { console.error("Gemini err:", e); }
+    }
+
+    if (!response) {
+      const msg = lastErr.includes("402")
+        ? "AI credits exhausted. Add your own Gemini or OpenAI key in Settings → API Keys to continue."
+        : lastErr.includes("429")
+        ? "AI is rate-limited. Add your own key in Settings or wait a moment."
+        : "All AI providers failed. Add a Gemini or OpenAI key in Settings → API Keys.";
+      return new Response(JSON.stringify({ error: msg }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
