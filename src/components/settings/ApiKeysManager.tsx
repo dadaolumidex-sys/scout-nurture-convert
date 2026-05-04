@@ -134,8 +134,17 @@ function AddKeyDialog({ provider, placeholder, onAdded }: { provider: Provider; 
   const save = async () => {
     if (!key.trim()) { toast.error("Enter a key"); return; }
     setSaving(true);
-    try { await addKey(provider, label || `Key ${Date.now() % 1000}`, key); toast.success("Key added"); setOpen(false); setLabel(""); setKey(""); onAdded(); }
-    catch (e: any) { toast.error(e.message || "Failed"); }
+    try { await addKey(provider, label || `Key ${Date.now() % 1000}`, key); toast.success("Key saved — it will be used automatically"); setOpen(false); setLabel(""); setKey(""); onAdded(); }
+    catch (e: any) {
+      if (e?.message === "NEED_SIGN_IN") {
+        toast.error("Sign in required to save keys", {
+          description: "Keys are stored privately to your account.",
+          action: { label: "Sign In", onClick: () => { window.location.href = "/auth"; } },
+        });
+      } else {
+        toast.error(e.message || "Failed");
+      }
+    }
     setSaving(false);
   };
   return (
