@@ -6,6 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Zap, Mail, Lock, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 
+async function ensureProfile(email: string) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("profiles" as any).upsert({
+    user_id: user.id,
+    email,
+    display_name: email.split("@")[0],
+    workspace_name: "My Workspace",
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "user_id" });
+}
+
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -26,6 +38,7 @@ const AuthPage = () => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        await ensureProfile(email);
         toast.success("Welcome back!");
         window.location.href = "/";
       } else {
@@ -42,6 +55,7 @@ const AuthPage = () => {
           const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
           if (signInError) throw signInError;
         }
+        await ensureProfile(email);
         toast.success("Account created! Welcome 🎉");
         window.location.href = "/";
       }
