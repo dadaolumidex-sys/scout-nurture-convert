@@ -43,9 +43,10 @@ type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; im
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-3-flash-preview": "gemini-1.5-flash",
-  "google/gemini-2.5-pro": "gemini-1.5-pro",
+  "google/gemini-3-flash-preview": "gemini-2.5-flash",
+  "google/gemini-2.5-pro": "gemini-2.5-pro",
 };
+const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"];
 
 function normalizeMessages(rawMessages: unknown): ChatMessage[] {
   if (!Array.isArray(rawMessages)) return [];
