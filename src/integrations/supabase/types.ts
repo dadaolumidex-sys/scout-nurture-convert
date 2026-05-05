@@ -92,7 +92,7 @@ export type Database = {
           platform: string | null
           revenue: number | null
           streamer_username: string | null
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           created_at?: string
@@ -103,7 +103,7 @@ export type Database = {
           platform?: string | null
           revenue?: number | null
           streamer_username?: string | null
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           created_at?: string
@@ -114,7 +114,7 @@ export type Database = {
           platform?: string | null
           revenue?: number | null
           streamer_username?: string | null
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -201,7 +201,7 @@ export type Database = {
           role: string
           selected: boolean | null
           updated_at: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           contact_id: string
@@ -213,7 +213,7 @@ export type Database = {
           role?: string
           selected?: boolean | null
           updated_at?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           contact_id?: string
@@ -225,7 +225,7 @@ export type Database = {
           role?: string
           selected?: boolean | null
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: [
           {
@@ -249,7 +249,7 @@ export type Database = {
           source_url: string | null
           title: string
           updated_at: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           category?: string
@@ -262,7 +262,7 @@ export type Database = {
           source_url?: string | null
           title: string
           updated_at?: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           category?: string
@@ -275,7 +275,7 @@ export type Database = {
           source_url?: string | null
           title?: string
           updated_at?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -337,7 +337,7 @@ export type Database = {
           streaming_frequency: string | null
           strengths: string[] | null
           updated_at: string | null
-          user_id: string | null
+          user_id: string
           username: string
           weaknesses: string[] | null
         }
@@ -368,7 +368,7 @@ export type Database = {
           streaming_frequency?: string | null
           strengths?: string[] | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id: string
           username: string
           weaknesses?: string[] | null
         }
@@ -399,7 +399,7 @@ export type Database = {
           streaming_frequency?: string | null
           strengths?: string[] | null
           updated_at?: string | null
-          user_id?: string | null
+          user_id?: string
           username?: string
           weaknesses?: string[] | null
         }
@@ -415,7 +415,7 @@ export type Database = {
           status: string
           style_analysis: string | null
           title: string
-          user_id: string | null
+          user_id: string
         }
         Insert: {
           content: string
@@ -426,7 +426,7 @@ export type Database = {
           status?: string
           style_analysis?: string | null
           title: string
-          user_id?: string | null
+          user_id: string
         }
         Update: {
           content?: string
@@ -437,7 +437,7 @@ export type Database = {
           status?: string
           style_analysis?: string | null
           title?: string
-          user_id?: string | null
+          user_id?: string
         }
         Relationships: []
       }
