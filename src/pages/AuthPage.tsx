@@ -1,16 +1,34 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Zap, Mail, Lock, Loader2 } from "lucide-react";
+import { Zap, Mail, Lock, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
+
+async function ensureProfile(email: string) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("profiles" as any).upsert({
+    user_id: user.id,
+    email,
+    display_name: email.split("@")[0],
+    workspace_name: "My Workspace",
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "user_id" });
+}
 
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) window.location.replace("/");
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,18 +38,24 @@ const AuthPage = () => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        await ensureProfile(email);
         toast.success("Welcome back!");
         window.location.href = "/";
       } else {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin },
+          options: {
+            emailRedirectTo: window.location.origin,
+            data: { display_name: email.split("@")[0], workspace_name: "My Workspace" },
+          },
         });
         if (error) throw error;
-        // Auto-confirm is enabled, so sign them in immediately
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) throw signInError;
+        if (!data.session) {
+          const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+          if (signInError) throw signInError;
+        }
+        await ensureProfile(email);
         toast.success("Account created! Welcome 🎉");
         window.location.href = "/";
       }
@@ -43,17 +67,18 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm bg-card border-border">
-        <CardHeader className="text-center space-y-2">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--primary)/0.14),transparent_34%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--sidebar-background)))]" />
+      <Card className="relative w-full max-w-md gradient-card border-border shadow-2xl shadow-primary/10">
+        <CardHeader className="text-center space-y-3 pb-3">
           <div className="flex justify-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl gradient-primary">
+            <div className="flex h-14 w-14 items-center justify-center rounded-xl gradient-primary glow-primary">
               <Zap className="h-6 w-6 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-xl text-foreground">StreamScout AI</CardTitle>
+          <CardTitle className="text-2xl text-foreground">StreamScout AI</CardTitle>
           <p className="text-sm text-muted-foreground">
-            {isLogin ? "Sign in with your email" : "Create your private account"}
+            {isLogin ? "Sign in with Gmail and password" : "Create your private workspace instantly"}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -81,7 +106,7 @@ const AuthPage = () => {
                 required
               />
             </div>
-            <Button type="submit" className="w-full gradient-primary text-primary-foreground" disabled={loading}>
+            <Button type="submit" className="w-full gradient-primary text-primary-foreground h-11 glow-primary" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isLogin ? "Sign In" : "Create Account"}
             </Button>
@@ -97,9 +122,10 @@ const AuthPage = () => {
             </button>
           </p>
 
-          <p className="text-center text-[11px] text-muted-foreground border-t border-border pt-3">
-            Each team member has their own private workspace. Your data is never visible to other users.
-          </p>
+          <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-[11px] text-muted-foreground">
+            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            <p>Each team member has a private workspace. API keys, chats, searches, contacts, and training data stay isolated per account.</p>
+          </div>
         </CardContent>
       </Card>
     </div>

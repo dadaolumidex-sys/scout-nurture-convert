@@ -6,8 +6,9 @@ const corsHeaders = {
 };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-3-flash-preview": "gemini-2.0-flash-lite",
+  "google/gemini-3-flash-preview": "gemini-2.5-flash",
 };
+const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"];
 
 async function callAI(body: Record<string, unknown>): Promise<Response> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -35,20 +36,23 @@ async function callAI(body: Record<string, unknown>): Promise<Response> {
   }
 
   const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
-  const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.5-flash-preview-05-20";
-  const geminiBody = { ...body, model: geminiModel };
-
-  return await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-    {
+  const models = [GEMINI_MODEL_MAP[lovableModel] || "gemini-2.5-flash", ...GEMINI_FALLBACK_MODELS];
+  const tried = new Set<string>();
+  let lastResponse: Response | null = null;
+  for (const geminiModel of models) {
+    if (tried.has(geminiModel)) continue;
+    tried.add(geminiModel);
+    lastResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${GEMINI_API_KEY}`,
       },
-      body: JSON.stringify(geminiBody),
-    }
-  );
+      body: JSON.stringify({ ...body, model: geminiModel }),
+    });
+    if (lastResponse.ok) return lastResponse;
+  }
+  return lastResponse!;
 }
 
 serve(async (req) => {

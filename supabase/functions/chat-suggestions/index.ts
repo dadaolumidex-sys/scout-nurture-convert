@@ -31,8 +31,9 @@ Your personality:
 };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-3-flash-preview": "gemini-2.0-flash-lite",
+  "google/gemini-3-flash-preview": "gemini-2.5-flash",
 };
+const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"];
 
 async function callOpenAISuggestions(body: Record<string, unknown>, openaiKey: string): Promise<Response> {
   return await fetch("https://api.openai.com/v1/chat/completions", {
@@ -75,12 +76,20 @@ async function callAI(body: Record<string, unknown>, keys: { gemini?: string; op
   const geminiKey = keys.gemini || Deno.env.get("GEMINI_API_KEY");
   if (geminiKey) {
     const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
-    const geminiModel = GEMINI_MODEL_MAP[lovableModel] || "gemini-2.0-flash-lite";
-    return await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${geminiKey}` },
-      body: JSON.stringify({ ...body, model: geminiModel }),
-    });
+    const models = [GEMINI_MODEL_MAP[lovableModel] || "gemini-2.5-flash", ...GEMINI_FALLBACK_MODELS];
+    const tried = new Set<string>();
+    let lastResponse: Response | null = null;
+    for (const geminiModel of models) {
+      if (tried.has(geminiModel)) continue;
+      tried.add(geminiModel);
+      lastResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${geminiKey}` },
+        body: JSON.stringify({ ...body, model: geminiModel }),
+      });
+      if (lastResponse.ok) return lastResponse;
+    }
+    if (lastResponse) return lastResponse;
   }
 
   // 4. Last resort Lovable
@@ -158,12 +167,14 @@ serve(async (req) => {
 
     // Get user's API keys
     let userKeys: { gemini?: string; openai?: string } = {};
+    let userId: string | null = null;
     const authHeader = req.headers.get("authorization");
     if (authHeader) {
       try {
         const token = authHeader.replace("Bearer ", "");
         const { data: { user } } = await sb.auth.getUser(token);
         if (user) {
+          userId = user.id;
           const { data: settings } = await sb.from("user_settings").select("gemini_api_key, openai_api_key").eq("user_id", user.id).single();
           if (settings?.gemini_api_key) userKeys.gemini = settings.gemini_api_key;
           if (settings?.openai_api_key) userKeys.openai = settings.openai_api_key;
@@ -171,10 +182,16 @@ serve(async (req) => {
       } catch (_) { /* ignore */ }
     }
 
-    const [knowledgeRes, trainingRes] = await Promise.all([
-      sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${activePersona},persona.eq.shared`).limit(20),
-      sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").in("status", ["ready", "analyzed"]).limit(10),
-    ]);
+    const knowledgeQuery = sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${activePersona === "friend" ? "nifimas" : "brozeen"},persona.eq.shared`).limit(20);
+    const trainingQuery = sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").in("status", ["ready", "analyzed"]).limit(10);
+    if (userId) {
+      knowledgeQuery.eq("user_id", userId);
+      trainingQuery.eq("user_id", userId);
+    } else {
+      knowledgeQuery.is("user_id", null);
+      trainingQuery.is("user_id", null);
+    }
+    const [knowledgeRes, trainingRes] = await Promise.all([knowledgeQuery, trainingQuery]);
 
     const knowledgeEntries = knowledgeRes.data || [];
     const trainingConvos = trainingRes.data || [];

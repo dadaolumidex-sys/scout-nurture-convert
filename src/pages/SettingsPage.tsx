@@ -66,8 +66,10 @@ const SettingsPage = () => {
     setDiagRunning(true);
     setDiagResult(null);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       const chatUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
-      const res = await fetch(chatUrl, { method: "POST", headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}` }, body: JSON.stringify({ messages: [{ role: "user", content: "test" }], persona: "friend" }) });
+      const res = await fetch(chatUrl, { method: "POST", headers: { "Content-Type": "application/json", apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${token}` }, body: JSON.stringify({ messages: [{ role: "user", content: "test" }], persona: "friend" }) });
       if (res.ok) setDiagResult("✅ All systems operational. AI is responding correctly.");
       else setDiagResult(`⚠️ AI returned status ${res.status}. Try again in a moment.`);
     } catch {
