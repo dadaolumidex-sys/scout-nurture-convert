@@ -88,7 +88,6 @@ async function callAI(body: Record<string, unknown>, keys: { gemini?: string; op
         body: JSON.stringify({ ...body, model: geminiModel }),
       });
       if (lastResponse.ok) return lastResponse;
-      await lastResponse.body?.cancel();
     }
     if (lastResponse) return lastResponse;
   }
