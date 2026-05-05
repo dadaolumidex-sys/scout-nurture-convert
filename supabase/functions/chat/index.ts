@@ -190,8 +190,7 @@ serve(async (req) => {
     // 3. Gemini fallback (with model fallback chain)
     const geminiKey = userKeys.gemini || ENV_GEMINI_KEY;
     if (!response && geminiKey) {
-      const nonStreamBody = { ...body, stream: false };
-      const result = await tryGeminiWithFallbacks(nonStreamBody, geminiKey, model);
+      const result = await tryGeminiWithFallbacks(body, geminiKey, model);
       if (result.ok) response = result.response;
       else lastErr = `Gemini ${result.error}`;
     }
