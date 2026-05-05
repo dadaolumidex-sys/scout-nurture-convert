@@ -43,9 +43,10 @@ type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; im
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-3-flash-preview": "gemini-1.5-flash",
-  "google/gemini-2.5-pro": "gemini-1.5-pro",
+  "google/gemini-3-flash-preview": "gemini-2.5-flash",
+  "google/gemini-2.5-pro": "gemini-2.5-pro",
 };
+const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"];
 
 function normalizeMessages(rawMessages: unknown): ChatMessage[] {
   if (!Array.isArray(rawMessages)) return [];
@@ -89,12 +90,34 @@ async function callOpenAI(body: Record<string, unknown>, key: string, deep: bool
 }
 
 async function callGemini(body: Record<string, unknown>, key: string, model: string) {
-  const geminiModel = GEMINI_MODEL_MAP[model] || "gemini-2.0-flash";
+  const geminiModel = GEMINI_MODEL_MAP[model] || "gemini-2.5-flash";
   return await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ ...body, model: geminiModel }),
   });
+}
+
+async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string) {
+  const models = [GEMINI_MODEL_MAP[primaryModel] || "gemini-2.5-flash", ...GEMINI_FALLBACK_MODELS];
+  const tried = new Set<string>();
+  let lastErr = "";
+  for (const m of models) {
+    if (tried.has(m)) continue;
+    tried.add(m);
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, model: m }),
+      });
+      if (r.ok) return { ok: true as const, response: r };
+      lastErr = `${m}:${r.status}`;
+      await r.body?.cancel();
+      console.log("Gemini model failed:", lastErr);
+    } catch (e) { console.error("Gemini err:", m, e); lastErr = `${m}:err`; }
+  }
+  return { ok: false as const, error: lastErr };
 }
 
 serve(async (req) => {
@@ -164,14 +187,12 @@ serve(async (req) => {
       } catch (e) { console.error("OpenAI err:", e); }
     }
 
-    // 3. Gemini fallback
+    // 3. Gemini fallback (with model fallback chain)
     const geminiKey = userKeys.gemini || ENV_GEMINI_KEY;
     if (!response && geminiKey) {
-      try {
-        const r = await callGemini(body, geminiKey, model);
-        if (r.ok) response = r;
-        else { lastErr = `Gemini ${r.status}`; await r.body?.cancel(); }
-      } catch (e) { console.error("Gemini err:", e); }
+      const result = await tryGeminiWithFallbacks(body, geminiKey, model);
+      if (result.ok) response = result.response;
+      else lastErr = `Gemini ${result.error}`;
     }
 
     if (!response) {
