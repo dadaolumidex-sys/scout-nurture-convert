@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Trash2, CheckCircle2, XCircle, Power, Sparkles, Layers, Eye, EyeOff } from "lucide-react";
+import { Plus, Trash2, Power, Layers, Eye, EyeOff, ShieldCheck, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { ApiKeyRow, Provider, addKey, bulkAddKeys, deleteKey, listKeys, testApifyKey, toggleKey } from "@/lib/apiKeys";
 
@@ -44,17 +44,27 @@ export function ApiKeysManager() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">API & Connections</h1>
-        <p className="text-sm text-muted-foreground">Add multiple keys per provider. The app auto-rotates when one fails or runs out.</p>
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg gradient-primary glow-primary">
+            <KeyRound className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">API & Connections</h1>
+            <p className="text-sm text-muted-foreground">Save Apify for realistic deep web search. Gemini/OpenAI keys are private AI fallbacks for your workspace.</p>
+          </div>
+        </div>
       </div>
 
       {signedIn === false && (
-        <Card className="border-yellow-500/40 bg-yellow-500/5">
+        <Card className="border-warning/40 bg-warning/5">
           <CardContent className="p-4 flex items-center justify-between gap-3 flex-wrap">
-            <div className="text-sm">
+            <div className="text-sm flex items-start gap-2">
+              <ShieldCheck className="mt-0.5 h-4 w-4 text-warning" />
+              <div>
               <p className="font-semibold text-foreground">Sign in to save your API keys</p>
-              <p className="text-muted-foreground text-xs">Keys are stored privately to your account so they sync across devices and stay secure.</p>
+              <p className="text-muted-foreground text-xs">Create an account with Gmail + password. No code is required, and each user gets a private workspace.</p>
+              </div>
             </div>
             <Button onClick={() => { window.location.href = "/auth"; }} className="gradient-primary text-primary-foreground">Sign In</Button>
           </CardContent>
@@ -156,14 +166,11 @@ function AddKeyDialog({ provider, placeholder, onAdded }: { provider: Provider; 
     setSaving(true);
     try { await addKey(provider, label || `Key ${Date.now() % 1000}`, key); toast.success("Key saved — it will be used automatically"); setOpen(false); setLabel(""); setKey(""); onAdded(); }
     catch (e: any) {
-      if (e?.message === "NEED_SIGN_IN") {
-        toast.error("Sign in required to save keys", {
-          description: "Keys are stored privately to your account.",
-          action: { label: "Sign In", onClick: () => { window.location.href = "/auth"; } },
-        });
-      } else {
-        toast.error(e.message || "Failed");
-      }
+      toast.error(e.message || "Failed to save key", {
+        action: e?.message?.toLowerCase?.().includes("sign in")
+          ? { label: "Sign In", onClick: () => { window.location.href = "/auth"; } }
+          : undefined,
+      });
     }
     setSaving(false);
   };
@@ -192,7 +199,13 @@ function BulkAddDialog({ provider, onAdded }: { provider: Provider; onAdded: () 
     if (!text.trim()) { toast.error("Paste some keys"); return; }
     setSaving(true);
     try { const n = await bulkAddKeys(provider, text); toast.success(`Added ${n} keys`); setOpen(false); setText(""); onAdded(); }
-    catch (e: any) { toast.error(e.message || "Failed"); }
+    catch (e: any) {
+      toast.error(e.message || "Failed to add keys", {
+        action: e?.message?.toLowerCase?.().includes("sign in")
+          ? { label: "Sign In", onClick: () => { window.location.href = "/auth"; } }
+          : undefined,
+      });
+    }
     setSaving(false);
   };
   return (
