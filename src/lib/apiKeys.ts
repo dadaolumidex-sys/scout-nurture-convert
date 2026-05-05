@@ -17,6 +17,8 @@ export interface ApiKeyRow {
 }
 
 export async function listKeys(provider?: Provider): Promise<ApiKeyRow[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
   let q = (supabase.from("api_keys" as any) as any).select("*").order("created_at", { ascending: true });
   if (provider) q = q.eq("provider", provider);
   const { data, error } = await q;
@@ -26,7 +28,7 @@ export async function listKeys(provider?: Provider): Promise<ApiKeyRow[]> {
 
 export async function addKey(provider: Provider, label: string, api_key: string) {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("NEED_SIGN_IN");
+  if (!user) throw new Error("Please sign in first so this key can be saved privately to your workspace.");
   const { error } = await (supabase.from("api_keys" as any) as any)
     .insert({ user_id: user.id, provider, label: label.trim() || "Key", api_key: api_key.trim() });
   if (error) throw error;
@@ -40,6 +42,8 @@ export async function addKey(provider: Provider, label: string, api_key: string)
 }
 
 export async function bulkAddKeys(provider: Provider, text: string) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Please sign in first so these keys can be saved privately to your workspace.");
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
   let count = 0;
   for (let i = 0; i < lines.length; i++) {
