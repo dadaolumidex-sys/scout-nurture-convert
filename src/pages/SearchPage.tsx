@@ -3,10 +3,11 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Globe, Search, Loader2, ExternalLink } from "lucide-react";
+import { Globe, Search, Loader2, ExternalLink, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { getActiveKeysForRotation, recordFailure, recordSuccess } from "@/lib/apiKeys";
+import { recordFailure, recordSuccess } from "@/lib/apiKeys";
 import { notify } from "@/lib/notifications";
+import { supabase } from "@/integrations/supabase/client";
 
 const ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/web-search`;
 
@@ -23,15 +24,19 @@ const SearchPage = () => {
     setLoading(true);
     setResults([]);
     try {
-      const userKeys = await getActiveKeysForRotation("apify").catch(() => []);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error("Sign in first, then add your Apify key for deep web search.");
+        window.location.href = "/auth";
+        return;
+      }
       const body: any = mode === "search" ? { mode, query: input.trim() } : { mode, url: input.trim() };
-      body.userKeys = userKeys.map(k => ({ id: k.id, api_key: k.api_key }));
       const res = await fetch(ENDPOINT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify(body),
       });
@@ -64,11 +69,11 @@ const SearchPage = () => {
   return (
     <DashboardLayout>
       <div className="max-w-3xl mx-auto space-y-4 animate-slide-in">
-        <div>
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Globe className="h-6 w-6 text-primary" /> Web Search Agent
+            <Globe className="h-6 w-6 text-primary" /> Deep Web Search
           </h1>
-          <p className="text-sm text-muted-foreground">Real-time web results powered by Apify.</p>
+          <p className="text-sm text-muted-foreground">Use your private Apify key to research social media, streamers, brands, websites, and competitor content.</p>
         </div>
 
         <div className="flex gap-2">
@@ -91,7 +96,7 @@ const SearchPage = () => {
         <Card className="bg-card border-border">
           <CardContent className="p-4 space-y-3">
             <Input
-              placeholder={mode === "search" ? "What do you want to find?" : "https://example.com"}
+              placeholder={mode === "search" ? "Find realistic social media ideas, streamer data, brand research..." : "https://example.com"}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && run()}
@@ -99,10 +104,19 @@ const SearchPage = () => {
             />
             <Button onClick={run} disabled={loading} className="w-full gradient-primary text-primary-foreground gap-2 h-11">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              {loading ? "Searching..." : "Run"}
+              {loading ? "Researching..." : "Run Deep Search"}
             </Button>
           </CardContent>
         </Card>
+
+        {results.length === 0 && !loading && (
+          <Card className="bg-card border-border border-dashed">
+            <CardContent className="p-5 text-sm text-muted-foreground flex gap-3">
+              <Sparkles className="h-5 w-5 shrink-0 text-primary" />
+              <p>Try searches like “viral Kick streamer outreach ideas”, “Twitch sponsors for small streamers”, or scrape a creator’s page for realistic outreach insights.</p>
+            </CardContent>
+          </Card>
+        )}
 
         <div className="space-y-3">
           {results.map((r, i) => {
