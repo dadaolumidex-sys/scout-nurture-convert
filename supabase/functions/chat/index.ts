@@ -187,14 +187,13 @@ serve(async (req) => {
       } catch (e) { console.error("OpenAI err:", e); }
     }
 
-    // 3. Gemini fallback
+    // 3. Gemini fallback (with model fallback chain)
     const geminiKey = userKeys.gemini || ENV_GEMINI_KEY;
     if (!response && geminiKey) {
-      try {
-        const r = await callGemini(body, geminiKey, model);
-        if (r.ok) response = r;
-        else { lastErr = `Gemini ${r.status}`; await r.body?.cancel(); }
-      } catch (e) { console.error("Gemini err:", e); }
+      const nonStreamBody = { ...body, stream: false };
+      const result = await tryGeminiWithFallbacks(nonStreamBody, geminiKey, model);
+      if (result.ok) response = result.response;
+      else lastErr = `Gemini ${result.error}`;
     }
 
     if (!response) {
