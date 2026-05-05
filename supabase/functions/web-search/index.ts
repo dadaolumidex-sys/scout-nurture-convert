@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,22 +10,38 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { url, query, mode, userKeys } = await req.json();
+    const { url, query, mode } = await req.json();
 
-    // Build candidate keys: user-provided (in order) + env fallback
+    // Build candidate keys: signed-in user's saved Apify keys + env fallback
     const candidates: { id: string | null; key: string }[] = [];
-    if (Array.isArray(userKeys)) {
-      for (const k of userKeys) {
-        if (k && typeof k.api_key === "string" && k.api_key.trim()) {
-          candidates.push({ id: k.id ?? null, key: k.api_key.trim() });
+    try {
+      const authHeader = req.headers.get("authorization");
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      if (authHeader && supabaseUrl && serviceKey) {
+        const sb = createClient(supabaseUrl, serviceKey);
+        const token = authHeader.replace("Bearer ", "");
+        const { data: { user } } = await sb.auth.getUser(token);
+        if (user) {
+          const { data: rows } = await sb
+            .from("api_keys")
+            .select("id, api_key")
+            .eq("user_id", user.id)
+            .eq("provider", "apify")
+            .eq("is_active", true)
+            .order("failure_count", { ascending: true })
+            .order("last_used_at", { ascending: true, nullsFirst: true });
+          for (const k of rows || []) {
+            if (k.api_key?.trim()) candidates.push({ id: k.id, key: k.api_key.trim() });
+          }
         }
       }
-    }
+    } catch (e) { console.error("Could not load user Apify keys", e); }
     const envKey = Deno.env.get("APIFY_API_KEY");
     if (envKey) candidates.push({ id: null, key: envKey });
 
     if (candidates.length === 0) {
-      return new Response(JSON.stringify({ error: "No Apify API keys configured. Add one in Settings → API & Connections." }), {
+      return new Response(JSON.stringify({ error: "No Apify key found. Sign in, then add your Apify key in Settings → API & Connections." }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
