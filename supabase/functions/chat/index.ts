@@ -90,12 +90,34 @@ async function callOpenAI(body: Record<string, unknown>, key: string, deep: bool
 }
 
 async function callGemini(body: Record<string, unknown>, key: string, model: string) {
-  const geminiModel = GEMINI_MODEL_MAP[model] || "gemini-2.0-flash";
+  const geminiModel = GEMINI_MODEL_MAP[model] || "gemini-2.5-flash";
   return await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ ...body, model: geminiModel }),
   });
+}
+
+async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string) {
+  const models = [GEMINI_MODEL_MAP[primaryModel] || "gemini-2.5-flash", ...GEMINI_FALLBACK_MODELS];
+  const tried = new Set<string>();
+  let lastErr = "";
+  for (const m of models) {
+    if (tried.has(m)) continue;
+    tried.add(m);
+    try {
+      const r = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, model: m }),
+      });
+      if (r.ok) return { ok: true as const, response: r };
+      lastErr = `${m}:${r.status}`;
+      await r.body?.cancel();
+      console.log("Gemini model failed:", lastErr);
+    } catch (e) { console.error("Gemini err:", m, e); lastErr = `${m}:err`; }
+  }
+  return { ok: false as const, error: lastErr };
 }
 
 serve(async (req) => {
