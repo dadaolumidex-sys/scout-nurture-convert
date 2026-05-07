@@ -25,6 +25,7 @@ interface ModeConfig {
   needs: "query" | "url";
   placeholder: string;
   desc: string;
+  examples: string[];
 }
 
 const MODES: ModeConfig[] = [
