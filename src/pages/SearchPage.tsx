@@ -3,7 +3,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Globe, Search, Loader2, ExternalLink, Sparkles, MapPin, Mail, Youtube, Music2, Instagram, Twitter, MessageSquare, ShoppingBag, Camera, Tv, Network, FileText } from "lucide-react";
+import { Globe, Search, Loader2, ExternalLink, Sparkles, MapPin, Mail, Youtube, Music2, Instagram, Twitter, MessageSquare, ShoppingBag, Camera, Tv, Network, FileText, Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 import { recordFailure, recordSuccess } from "@/lib/apiKeys";
 import { notify } from "@/lib/notifications";
@@ -25,25 +25,39 @@ interface ModeConfig {
   needs: "query" | "url";
   placeholder: string;
   desc: string;
+  examples: string[];
 }
 
 const MODES: ModeConfig[] = [
-  { id: "search", label: "Google Search", icon: Search, group: "Web", needs: "query", placeholder: "e.g. 'top kick streamers 2025'", desc: "Full Google SERP results." },
-  { id: "scrape", label: "Scrape Page", icon: FileText, group: "Web", needs: "url", placeholder: "https://example.com", desc: "Extract clean content from one page." },
-  { id: "crawl", label: "Crawl Site", icon: Network, group: "Web", needs: "url", placeholder: "https://example.com", desc: "Crawl multiple pages of a website." },
-  { id: "screenshot", label: "Screenshot", icon: Camera, group: "Web", needs: "url", placeholder: "https://example.com", desc: "Capture a full-page screenshot." },
+  { id: "search", label: "Google Search", icon: Search, group: "Web", needs: "query", placeholder: "e.g. 'top kick streamers 2025'", desc: "Full Google SERP results — best for general research.",
+    examples: ["best twitch promoters 2025", "kick streamer sponsorship deals", "social media marketing trends Nigeria"] },
+  { id: "scrape", label: "Scrape Page", icon: FileText, group: "Web", needs: "url", placeholder: "https://example.com", desc: "Extract clean text/markdown from one URL.",
+    examples: ["https://twitch.tv/about", "https://kick.com/community-guidelines"] },
+  { id: "crawl", label: "Crawl Site", icon: Network, group: "Web", needs: "url", placeholder: "https://example.com", desc: "Crawl multiple pages of a website (up to 15).",
+    examples: ["https://streamerinfo.com", "https://yourcompetitor.com/blog"] },
+  { id: "screenshot", label: "Screenshot", icon: Camera, group: "Web", needs: "url", placeholder: "https://example.com", desc: "Capture a full-page screenshot.",
+    examples: ["https://kick.com/westcol", "https://twitch.tv/xqc"] },
 
-  { id: "youtube", label: "YouTube", icon: Youtube, group: "Social", needs: "query", placeholder: "e.g. 'fortnite highlights'", desc: "Find channels & videos." },
-  { id: "tiktok", label: "TikTok", icon: Music2, group: "Social", needs: "query", placeholder: "e.g. 'gaming setup tour'", desc: "Search videos & creators." },
-  { id: "instagram", label: "Instagram", icon: Instagram, group: "Social", needs: "query", placeholder: "hashtag, e.g. 'gamer'", desc: "Search hashtags & posts." },
-  { id: "twitter", label: "Twitter/X", icon: Twitter, group: "Social", needs: "query", placeholder: "e.g. 'twitch sponsorships'", desc: "Latest tweets matching query." },
-  { id: "reddit", label: "Reddit", icon: MessageSquare, group: "Social", needs: "query", placeholder: "e.g. 'streamer marketing'", desc: "Search posts across Reddit." },
-  { id: "twitch", label: "Twitch Channel", icon: Tv, group: "Social", needs: "url", placeholder: "https://twitch.tv/username", desc: "Pull a Twitch channel's data." },
+  { id: "youtube", label: "YouTube", icon: Youtube, group: "Social", needs: "query", placeholder: "e.g. 'fortnite highlights'", desc: "Find channels & videos by keyword.",
+    examples: ["gaming setup tour 2025", "small streamer growth tips", "fortnite highlights"] },
+  { id: "tiktok", label: "TikTok", icon: Music2, group: "Social", needs: "query", placeholder: "e.g. 'gaming setup'", desc: "Search videos & creators.",
+    examples: ["streamer life", "gaming setup tour", "kick streamer clips"] },
+  { id: "instagram", label: "Instagram", icon: Instagram, group: "Social", needs: "query", placeholder: "hashtag, e.g. 'gamer'", desc: "Search Instagram by hashtag.",
+    examples: ["streamer", "gamergirl", "twitchstreamer"] },
+  { id: "twitter", label: "Twitter/X", icon: Twitter, group: "Social", needs: "query", placeholder: "e.g. 'twitch sponsorships'", desc: "Latest tweets matching a query.",
+    examples: ["twitch sponsorships", "kick streamer deal", "looking for streamer to promote"] },
+  { id: "reddit", label: "Reddit", icon: MessageSquare, group: "Social", needs: "query", placeholder: "e.g. 'streamer marketing'", desc: "Search posts across all subreddits.",
+    examples: ["streamer marketing", "how to grow on kick", "best stream overlays"] },
+  { id: "twitch", label: "Twitch Channel", icon: Tv, group: "Social", needs: "url", placeholder: "https://twitch.tv/username", desc: "Pull a specific Twitch channel's data.",
+    examples: ["https://twitch.tv/xqc", "https://twitch.tv/pokimane"] },
 
-  { id: "google_maps", label: "Google Maps", icon: MapPin, group: "Leads", needs: "query", placeholder: "e.g. 'gaming cafes Lagos'", desc: "Find local businesses + contact info." },
-  { id: "emails", label: "Email Finder", icon: Mail, group: "Leads", needs: "url", placeholder: "https://creatorsite.com", desc: "Extract emails & contacts from a site." },
+  { id: "google_maps", label: "Google Maps", icon: MapPin, group: "Leads", needs: "query", placeholder: "e.g. 'gaming cafes Lagos'", desc: "Find local businesses with phone, address & website.",
+    examples: ["gaming cafes Lagos", "marketing agencies New York", "esports bars Berlin"] },
+  { id: "emails", label: "Email Finder", icon: Mail, group: "Leads", needs: "url", placeholder: "https://creatorsite.com", desc: "Extract emails & contacts from any website.",
+    examples: ["https://creatorsite.com", "https://agencywebsite.com/contact"] },
 
-  { id: "amazon", label: "Amazon", icon: ShoppingBag, group: "Commerce", needs: "query", placeholder: "e.g. 'gaming chair'", desc: "Search products with prices & reviews." },
+  { id: "amazon", label: "Amazon", icon: ShoppingBag, group: "Commerce", needs: "query", placeholder: "e.g. 'gaming chair'", desc: "Search products with prices & reviews.",
+    examples: ["gaming chair", "ring light streaming", "shure sm7b microphone"] },
 ];
 
 const GROUPS: Array<"Web" | "Social" | "Leads" | "Commerce"> = ["Web", "Social", "Leads", "Commerce"];
@@ -152,6 +166,18 @@ const SearchPage = () => {
               onKeyDown={(e) => e.key === "Enter" && run()}
               className="bg-muted border-border text-foreground h-11"
             />
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1"><Lightbulb className="h-3 w-3" /> Try:</span>
+              {cfg.examples.map(ex => (
+                <button
+                  key={ex}
+                  onClick={() => setInput(ex)}
+                  className="text-[11px] rounded-full border border-border bg-muted/50 hover:border-primary hover:bg-primary/10 hover:text-primary text-muted-foreground px-2.5 py-1 transition"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
             <Button onClick={run} disabled={loading} className="w-full gradient-primary text-primary-foreground gap-2 h-11">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               {loading ? "Researching..." : `Run ${cfg.label}`}
