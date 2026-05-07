@@ -6,13 +6,101 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Preset Apify actors keyed by mode. Each builds the input payload from { query, url, limit }.
+type PresetCtx = { query?: string; url?: string; limit?: number };
+const PRESETS: Record<string, { actor: string; build: (c: PresetCtx) => Record<string, unknown> }> = {
+  // Generic search & scraping
+  search: {
+    actor: "apify~google-search-scraper",
+    build: ({ query, limit }) => ({ queries: query, maxPagesPerQuery: 1, resultsPerPage: limit ?? 10, mobileResults: false }),
+  },
+  scrape: {
+    actor: "apify~website-content-crawler",
+    build: ({ url }) => ({ startUrls: [{ url }], maxCrawlPages: 1, maxCrawlDepth: 0, crawlerType: "cheerio", saveMarkdown: true }),
+  },
+  crawl: {
+    actor: "apify~website-content-crawler",
+    build: ({ url, limit }) => ({ startUrls: [{ url }], maxCrawlPages: limit ?? 15, maxCrawlDepth: 2, crawlerType: "cheerio", saveMarkdown: true }),
+  },
+  screenshot: {
+    actor: "apify~screenshot-url",
+    build: ({ url }) => ({ urls: [{ url }], waitUntil: "networkidle2" }),
+  },
+
+  // Local / business research
+  google_maps: {
+    actor: "compass~crawler-google-places",
+    build: ({ query, limit }) => ({ searchStringsArray: [query], maxCrawledPlacesPerSearch: limit ?? 20, language: "en" }),
+  },
+
+  // Contact / lead extraction
+  emails: {
+    actor: "lukaskrivka~email-and-contacts-scraper",
+    build: ({ url, limit }) => ({ startUrls: [{ url }], maxRequestsPerStartUrl: limit ?? 20, maxDepth: 2 }),
+  },
+
+  // Social platforms
+  youtube: {
+    actor: "streamers~youtube-scraper",
+    build: ({ query, limit }) => ({ searchKeywords: query, maxResults: limit ?? 25, maxResultsShorts: 0, maxResultStreams: 0 }),
+  },
+  tiktok: {
+    actor: "clockworks~tiktok-scraper",
+    build: ({ query, limit }) => ({ searchQueries: [query], resultsPerPage: limit ?? 20, shouldDownloadVideos: false }),
+  },
+  instagram: {
+    actor: "apify~instagram-search-scraper",
+    build: ({ query, limit }) => ({ search: query, searchType: "hashtag", searchLimit: limit ?? 20 }),
+  },
+  twitter: {
+    actor: "apidojo~tweet-scraper",
+    build: ({ query, limit }) => ({ searchTerms: [query], maxItems: limit ?? 25, sort: "Latest" }),
+  },
+  reddit: {
+    actor: "trudax~reddit-scraper-lite",
+    build: ({ query, limit }) => ({ searches: [query], maxItems: limit ?? 25, type: "posts", sort: "relevance" }),
+  },
+
+  // Streamer-specific
+  twitch: {
+    actor: "shu8hvrXbJbY3Eb9W", // Twitch streamer/channel scraper
+    build: ({ url }) => ({ startUrls: [{ url }], maxItems: 1 }),
+  },
+
+  // Commerce
+  amazon: {
+    actor: "junglee~amazon-crawler",
+    build: ({ query, limit }) => ({ keywords: [query], maxItemsPerKeyword: limit ?? 20, country: "US" }),
+  },
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { url, query, mode } = await req.json();
+    const { url, query, mode, limit } = await req.json();
+    const preset = PRESETS[mode];
+    if (!preset) {
+      return new Response(JSON.stringify({ error: `Unsupported mode: ${mode}` }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
-    // Build candidate keys: signed-in user's saved Apify keys + env fallback
+    // Validate inputs based on what the preset needs
+    const needsQuery = ["search", "google_maps", "youtube", "tiktok", "instagram", "twitter", "reddit", "amazon"].includes(mode);
+    const needsUrl = ["scrape", "crawl", "screenshot", "emails", "twitch"].includes(mode);
+    if (needsQuery && !query?.trim()) {
+      return new Response(JSON.stringify({ error: "Enter a search query." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (needsUrl && !url?.trim()) {
+      return new Response(JSON.stringify({ error: "Enter a valid URL." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Load user's saved Apify keys + env fallback
     const candidates: { id: string | null; key: string }[] = [];
     try {
       const authHeader = req.headers.get("authorization");
@@ -46,29 +134,12 @@ serve(async (req) => {
       });
     }
 
-    let actorId = "";
-    let input: Record<string, unknown> = {};
-    if (mode === "search") {
-      if (!query || typeof query !== "string") {
-        return new Response(JSON.stringify({ error: "Missing query" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      actorId = "apify~google-search-scraper";
-      input = { queries: query, maxPagesPerQuery: 1, resultsPerPage: 10, mobileResults: false };
-    } else {
-      if (!url || typeof url !== "string") {
-        return new Response(JSON.stringify({ error: "Missing url" }), {
-          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      actorId = "apify~website-content-crawler";
-      input = { startUrls: [{ url }], maxCrawlPages: 1, maxCrawlDepth: 0, crawlerType: "cheerio", saveMarkdown: true };
-    }
+    const input = preset.build({ query, url, limit });
+    const actorId = preset.actor;
 
     const failed: { id: string | null; status: number; detail: string }[] = [];
     for (const cand of candidates) {
-      const runUrl = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${cand.key}&timeout=120`;
+      const runUrl = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${cand.key}&timeout=180`;
       try {
         const r = await fetch(runUrl, {
           method: "POST",
@@ -77,14 +148,13 @@ serve(async (req) => {
         });
         if (r.ok) {
           const data = await r.json();
-          return new Response(JSON.stringify({ results: data, usedKeyId: cand.id, failedKeyIds: failed.map(f => f.id).filter(Boolean) }), {
+          return new Response(JSON.stringify({ results: data, mode, usedKeyId: cand.id, failedKeyIds: failed.map(f => f.id).filter(Boolean) }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           });
         }
         const t = await r.text();
         failed.push({ id: cand.id, status: r.status, detail: t.slice(0, 200) });
-        console.error("Apify key failed", cand.id, r.status);
-        // Only rotate on auth/quota/server errors
+        console.error("Apify failed", actorId, cand.id, r.status);
         if (![401, 402, 403, 429, 500, 502, 503].includes(r.status)) {
           return new Response(JSON.stringify({ error: `Apify failed (${r.status})`, detail: t.slice(0, 500), failedKeyIds: failed.map(f => f.id).filter(Boolean) }), {
             status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
