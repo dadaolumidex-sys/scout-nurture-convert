@@ -166,6 +166,18 @@ const SearchPage = () => {
               onKeyDown={(e) => e.key === "Enter" && run()}
               className="bg-muted border-border text-foreground h-11"
             />
+            <div className="flex flex-wrap gap-1.5">
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1"><Lightbulb className="h-3 w-3" /> Try:</span>
+              {cfg.examples.map(ex => (
+                <button
+                  key={ex}
+                  onClick={() => setInput(ex)}
+                  className="text-[11px] rounded-full border border-border bg-muted/50 hover:border-primary hover:bg-primary/10 hover:text-primary text-muted-foreground px-2.5 py-1 transition"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
             <Button onClick={run} disabled={loading} className="w-full gradient-primary text-primary-foreground gap-2 h-11">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               {loading ? "Researching..." : `Run ${cfg.label}`}
