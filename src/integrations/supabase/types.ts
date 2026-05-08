@@ -319,6 +319,7 @@ export type Database = {
           notes: string | null
           query: string | null
           snippet: string | null
+          tags: string[]
           title: string
           updated_at: string
           url: string | null
@@ -333,6 +334,7 @@ export type Database = {
           notes?: string | null
           query?: string | null
           snippet?: string | null
+          tags?: string[]
           title: string
           updated_at?: string
           url?: string | null
@@ -347,6 +349,7 @@ export type Database = {
           notes?: string | null
           query?: string | null
           snippet?: string | null
+          tags?: string[]
           title?: string
           updated_at?: string
           url?: string | null
