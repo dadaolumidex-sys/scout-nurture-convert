@@ -306,13 +306,97 @@ const SearchPage = () => {
         </div>
 
         <div className="flex gap-2">
-          <button onClick={() => setTab("search")} className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${tab === "search" ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
-            <Search className="h-4 w-4" /> Search
+          <button onClick={() => setTab("discover")} className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition ${tab === "discover" ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
+            <Wand2 className="h-3.5 w-3.5" /> Auto-Discover
           </button>
-          <button onClick={() => setTab("saved")} className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${tab === "saved" ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
-            <Bookmark className="h-4 w-4" /> Saved {saved.length > 0 && <span className="ml-1 rounded-full bg-primary/20 text-primary text-[10px] px-1.5">{saved.length}</span>}
+          <button onClick={() => setTab("search")} className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition ${tab === "search" ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
+            <Search className="h-3.5 w-3.5" /> Search
+          </button>
+          <button onClick={() => setTab("saved")} className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-2 py-2 text-xs font-medium transition ${tab === "saved" ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
+            <Bookmark className="h-3.5 w-3.5" /> Saved {saved.length > 0 && <span className="ml-1 rounded-full bg-primary/20 text-primary text-[10px] px-1.5">{saved.length}</span>}
           </button>
         </div>
+
+        {tab === "discover" && (
+          <>
+            <Card className="bg-card border-border">
+              <CardContent className="p-4 space-y-3">
+                <div className="flex items-start gap-2">
+                  <Wand2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Auto-Discover Streamers</p>
+                    <p className="text-xs text-muted-foreground">Enter a game, niche, or keyword. We scan multiple platforms in parallel and rank creators by reach.</p>
+                  </div>
+                </div>
+                <Input
+                  placeholder="e.g. 'fortnite small streamer', 'kick gaming spanish', 'crypto trading'"
+                  value={discoverInput}
+                  onChange={(e) => setDiscoverInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && runDiscover()}
+                  className="bg-muted border-border text-foreground h-11"
+                />
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Platforms</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { id: "youtube", label: "YouTube", icon: Youtube },
+                      { id: "tiktok", label: "TikTok", icon: Music2 },
+                      { id: "twitter", label: "Twitter/X", icon: Twitter },
+                      { id: "instagram", label: "Instagram", icon: Instagram },
+                      { id: "reddit", label: "Reddit", icon: MessageSquare },
+                    ].map(p => {
+                      const Icon = p.icon;
+                      const on = discoverPlatforms.includes(p.id);
+                      return (
+                        <button key={p.id}
+                          onClick={() => setDiscoverPlatforms(on ? discoverPlatforms.filter(x => x !== p.id) : [...discoverPlatforms, p.id])}
+                          className={`flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] transition ${on ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/50 text-muted-foreground hover:border-primary/50"}`}>
+                          <Icon className="h-3 w-3" /> {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <Button onClick={runDiscover} disabled={discoverLoading} className="w-full gradient-primary text-primary-foreground gap-2 h-11">
+                  {discoverLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                  {discoverLoading ? "Scanning platforms..." : "Discover Streamers"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-3">
+              {discoverResults.map((r, i) => (
+                <Card key={i} className="bg-card border-border">
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-start gap-3">
+                      {r.image && <img src={r.image} alt="" className="h-14 w-14 rounded-lg object-cover shrink-0 border border-border" />}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-[10px] font-bold rounded-md bg-primary/10 text-primary px-1.5 py-0.5 uppercase shrink-0">{r.platform}</span>
+                            <p className="text-sm font-semibold text-foreground line-clamp-2">{r.title}</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-[10px] font-bold rounded-md bg-yellow-500/10 text-yellow-500 px-1.5 py-0.5 flex items-center gap-0.5"><Star className="h-2.5 w-2.5" />{r.score}</span>
+                            <button onClick={() => saveResult(r.raw, r.platform)} className={isSaved(r.raw, r.platform) ? "text-primary p-1" : "text-muted-foreground hover:text-primary p-1"}>
+                              {isSaved(r.raw, r.platform) ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+                            </button>
+                            {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-primary p-1"><ExternalLink className="h-4 w-4" /></a>}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {r.followers != null && <span className="text-[10px] font-semibold rounded-md bg-primary/10 text-primary px-1.5 py-0.5">Followers: {fmt(r.followers)}</span>}
+                          {r.views != null && <span className="text-[10px] font-semibold rounded-md bg-primary/10 text-primary px-1.5 py-0.5">Views: {fmt(r.views)}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    {r.description && <p className="text-xs text-muted-foreground line-clamp-3">{r.description}</p>}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
+        )}
 
         {tab === "search" && (
           <>
@@ -326,7 +410,7 @@ const SearchPage = () => {
                     return (
                       <button
                         key={m.id}
-                        onClick={() => { setMode(m.id); setResults([]); setInput(""); }}
+                        onClick={() => { setMode(m.id); setResults([]); setInput(""); setSummary(null); }}
                         className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
                           active
                             ? "border-primary bg-primary/10 glow-primary"
@@ -374,6 +458,44 @@ const SearchPage = () => {
               </CardContent>
             </Card>
 
+            {results.length > 0 && (
+              <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-transparent border-primary/30">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2">
+                      <Sparkles className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">AI Insights</p>
+                        <p className="text-xs text-muted-foreground">Top picks + ready-to-send opener for each lead.</p>
+                      </div>
+                    </div>
+                    <Button size="sm" onClick={summarizeResults} disabled={summarizing} variant="outline" className="border-primary/40 text-primary gap-1.5">
+                      {summarizing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                      {summary ? "Re-run" : "Analyze"}
+                    </Button>
+                  </div>
+                  {summary && (
+                    <>
+                      <p className="text-xs text-foreground whitespace-pre-wrap">{summary.summary}</p>
+                      <div className="space-y-2">
+                        {summary.top_picks?.map((p, idx) => (
+                          <div key={idx} className="rounded-lg border border-primary/20 bg-card p-3 space-y-1.5">
+                            <p className="text-xs font-semibold text-foreground flex items-center gap-1.5"><Star className="h-3 w-3 text-yellow-500" />{p.title}</p>
+                            <p className="text-[11px] text-muted-foreground">{p.why}</p>
+                            <div className="rounded-md bg-muted p-2">
+                              <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">Suggested opener</p>
+                              <p className="text-xs text-foreground italic">"{p.opener}"</p>
+                              <button onClick={() => { navigator.clipboard.writeText(p.opener); toast.success("Opener copied"); }} className="text-[10px] text-primary mt-1 hover:underline">Copy</button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <div className="space-y-3">
               {results.map((r, i) => <ResultCard key={i} mode={mode} r={r} i={i} onSave={() => saveResult(r)} saved={isSaved(r)} />)}
             </div>
@@ -392,7 +514,17 @@ const SearchPage = () => {
                 </CardContent>
               </Card>
             )}
-            {saved.map((s) => (
+            {allTags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-1">
+                <button onClick={() => setTagFilter(null)} className={`text-[11px] rounded-full px-2.5 py-1 border transition ${!tagFilter ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/50 text-muted-foreground"}`}>All</button>
+                {allTags.map(t => (
+                  <button key={t} onClick={() => setTagFilter(t === tagFilter ? null : t)} className={`text-[11px] rounded-full px-2.5 py-1 border transition flex items-center gap-1 ${t === tagFilter ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/50 text-muted-foreground"}`}>
+                    <Tag className="h-2.5 w-2.5" />{t}
+                  </button>
+                ))}
+              </div>
+            )}
+            {filteredSaved.map((s) => (
               <Card key={s.id} className="bg-card border-border">
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-start gap-3">
@@ -413,7 +545,25 @@ const SearchPage = () => {
                     </div>
                   </div>
                   {s.snippet && <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">{s.snippet}</p>}
-                  <p className="text-[10px] text-muted-foreground">Saved {new Date(s.created_at).toLocaleDateString()}</p>
+                  {(s.tags || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {(s.tags || []).map((t: string) => (
+                        <span key={t} className="text-[10px] rounded-full bg-primary/10 text-primary px-2 py-0.5 flex items-center gap-1">
+                          {t}
+                          <button onClick={() => removeTag(s, t)} className="hover:text-destructive"><X className="h-2.5 w-2.5" /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-1">
+                    <p className="text-[10px] text-muted-foreground">Saved {new Date(s.created_at).toLocaleDateString()}</p>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => addTag(s)} className="text-[11px] text-muted-foreground hover:text-primary flex items-center gap-1"><Tag className="h-3 w-3" />Tag</button>
+                      <button onClick={() => sendToInbox(s)} className="text-[11px] text-primary font-medium flex items-center gap-1 rounded-md border border-primary/30 bg-primary/5 px-2 py-1 hover:bg-primary/10">
+                        <Inbox className="h-3 w-3" /> Send to Inbox
+                      </button>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             ))}
