@@ -332,11 +332,16 @@ function ResultCard({ mode, r, i, onSave, saved }: { mode: Mode; r: any; i: numb
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-semibold text-foreground line-clamp-2">{title}</p>
-              {url && (
-                <a href={url} target="_blank" rel="noreferrer" className="text-primary shrink-0">
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              )}
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={onSave} className={saved ? "text-primary p-1" : "text-muted-foreground hover:text-primary p-1"} title={saved ? "Saved" : "Save"}>
+                  {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+                </button>
+                {url && (
+                  <a href={url} target="_blank" rel="noreferrer" className="text-primary p-1">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
             </div>
             {url && <p className="text-xs text-primary/80 truncate">{url}</p>}
           </div>
