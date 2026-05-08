@@ -1,15 +1,18 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Globe, Search, Loader2, ExternalLink, Sparkles, MapPin, Mail, Youtube, Music2, Instagram, Twitter, MessageSquare, ShoppingBag, Camera, Tv, Network, FileText, Lightbulb, Bookmark, BookmarkCheck, Trash2, History } from "lucide-react";
+import { Globe, Search, Loader2, ExternalLink, Sparkles, MapPin, Mail, Youtube, Music2, Instagram, Twitter, MessageSquare, ShoppingBag, Camera, Tv, Network, FileText, Lightbulb, Bookmark, BookmarkCheck, Trash2, History, Wand2, Send, Tag, X, Inbox, Star } from "lucide-react";
 import { toast } from "sonner";
 import { recordFailure, recordSuccess } from "@/lib/apiKeys";
 import { notify } from "@/lib/notifications";
 import { supabase } from "@/integrations/supabase/client";
 
 const ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/web-search`;
+const SUMMARIZE_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/summarize-results`;
+const DISCOVER_ENDPOINT = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/auto-discover`;
 
 type Mode =
   | "search" | "scrape" | "crawl" | "screenshot"
