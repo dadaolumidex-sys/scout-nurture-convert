@@ -297,7 +297,7 @@ const SearchPage = () => {
   );
 };
 
-function ResultCard({ mode, r, i }: { mode: Mode; r: any; i: number }) {
+function ResultCard({ mode, r, i, onSave, saved }: { mode: Mode; r: any; i: number; onSave: () => void; saved: boolean }) {
   // Universal field extraction
   const title =
     r.title || r.name || r.displayName || r.username || r.channelName || r.text?.slice(0, 80) ||
