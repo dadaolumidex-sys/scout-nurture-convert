@@ -65,10 +65,11 @@ const MODES: ModeConfig[] = [
 
 const GROUPS: Array<"Web" | "Social" | "Leads" | "Commerce"> = ["Web", "Social", "Leads", "Commerce"];
 
-type Tab = "search" | "saved";
+type Tab = "discover" | "search" | "saved";
 
 const SearchPage = () => {
-  const [tab, setTab] = useState<Tab>("search");
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<Tab>("discover");
   const [mode, setMode] = useState<Mode>("search");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -77,7 +78,31 @@ const SearchPage = () => {
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loadingSaved, setLoadingSaved] = useState(false);
 
+  // AI summary state
+  const [summary, setSummary] = useState<{ summary: string; top_picks: { index: number; title: string; why: string; opener: string }[] } | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
+
+  // Auto-discover state
+  const [discoverInput, setDiscoverInput] = useState("");
+  const [discoverPlatforms, setDiscoverPlatforms] = useState<string[]>(["youtube", "tiktok", "twitter"]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverResults, setDiscoverResults] = useState<any[]>([]);
+
+  // Saved filters
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
+
   const cfg = MODES.find(m => m.id === mode)!;
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of saved) for (const t of (s.tags || [])) set.add(t);
+    return Array.from(set);
+  }, [saved]);
+
+  const filteredSaved = useMemo(
+    () => tagFilter ? saved.filter(s => (s.tags || []).includes(tagFilter)) : saved,
+    [saved, tagFilter]
+  );
 
   const loadSaved = async () => {
     setLoadingSaved(true);
@@ -92,17 +117,18 @@ const SearchPage = () => {
 
   useEffect(() => { loadSaved(); }, []);
 
-  const saveResult = async (r: any) => {
+  const saveResult = async (r: any, modeOverride?: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { toast.error("Sign in to save results."); return; }
+    const m = modeOverride || mode;
     const title = r.title || r.name || r.displayName || r.username || r.text?.slice(0, 80) || r.url || "Saved item";
     const url = r.url || r.link || r.webUrl || r.permalink || r.profileUrl || null;
     const snippet = r.description || r.snippet || r.text || r.caption || r.bio || r.address || null;
     const image = r.thumbnailUrl || r.image || r.imageUrl || r.profilePicUrl || r.screenshotUrl || null;
-    const key = `${mode}::${url || title}`;
+    const key = `${m}::${url || title}`;
     if (savedIds.has(key)) { toast.message("Already saved"); return; }
     const { error } = await (supabase.from("saved_searches" as any).insert({
-      user_id: session.user.id, mode, query: input, title: String(title).slice(0, 300),
+      user_id: session.user.id, mode: m, query: modeOverride ? discoverInput : input, title: String(title).slice(0, 300),
       url, snippet: snippet ? String(snippet).slice(0, 1000) : null, image, data: r,
     }) as any);
     if (error) { toast.error("Could not save"); return; }
@@ -118,10 +144,108 @@ const SearchPage = () => {
     loadSaved();
   };
 
+  const addTag = async (item: any) => {
+    const tag = window.prompt("Tag (e.g. hot lead, follow up, competitor):", "")?.trim();
+    if (!tag) return;
+    const tags = Array.from(new Set([...(item.tags || []), tag]));
+    const { error } = await (supabase.from("saved_searches" as any).update({ tags }).eq("id", item.id) as any);
+    if (error) toast.error("Could not tag"); else { toast.success("Tagged"); loadSaved(); }
+  };
+
+  const removeTag = async (item: any, tag: string) => {
+    const tags = (item.tags || []).filter((t: string) => t !== tag);
+    await (supabase.from("saved_searches" as any).update({ tags }).eq("id", item.id) as any);
+    loadSaved();
+  };
+
+  const sendToInbox = async (item: any) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { toast.error("Sign in first"); return; }
+    // Try to detect twitch/kick/youtube username from URL
+    let platform = "twitch";
+    let username = item.title || "lead";
+    if (item.url) {
+      try {
+        const u = new URL(item.url);
+        if (u.hostname.includes("kick.com")) { platform = "kick"; username = u.pathname.split("/").filter(Boolean)[0] || username; }
+        else if (u.hostname.includes("twitch.tv")) { platform = "twitch"; username = u.pathname.split("/").filter(Boolean)[0] || username; }
+        else if (u.hostname.includes("youtube.com") || u.hostname.includes("youtu.be")) { platform = "youtube"; username = u.pathname.split("/").filter(Boolean)[0] || username; }
+        else if (u.hostname.includes("tiktok.com")) { platform = "tiktok"; username = u.pathname.split("/").filter(Boolean)[0]?.replace("@", "") || username; }
+        else if (u.hostname.includes("instagram.com")) { platform = "instagram"; username = u.pathname.split("/").filter(Boolean)[0] || username; }
+        else if (u.hostname.includes("twitter.com") || u.hostname.includes("x.com")) { platform = "twitter"; username = u.pathname.split("/").filter(Boolean)[0] || username; }
+      } catch {/**/}
+    }
+    username = String(username).slice(0, 80);
+    const { error } = await (supabase.from("streamer_contacts" as any).insert({
+      user_id: session.user.id, platform, username,
+      display_name: item.title?.slice(0, 120),
+      channel_url: item.url, profile_image_url: item.image,
+      description: item.snippet?.slice(0, 500),
+      status: "active", conversation_type: "new",
+    }) as any);
+    if (error) { toast.error("Could not add to Inbox"); return; }
+    toast.success(`Added ${username} to Inbox`);
+    notify("info", "New contact", `${username} added from saved research`).catch(() => {});
+  };
+
+  const summarizeResults = async () => {
+    if (!results.length) { toast.error("Run a search first"); return; }
+    setSummarizing(true);
+    setSummary(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(SUMMARIZE_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${session?.access_token || ""}`,
+        },
+        body: JSON.stringify({ mode, query: input, results }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setSummary(json);
+    } catch (e: any) {
+      toast.error(e.message || "AI summary failed");
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
+  const runDiscover = async () => {
+    if (!discoverInput.trim()) { toast.error("Enter a game, niche, or keyword"); return; }
+    if (discoverPlatforms.length === 0) { toast.error("Pick at least one platform"); return; }
+    setDiscoverLoading(true);
+    setDiscoverResults([]);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { toast.error("Sign in first"); navigate("/auth"); return; }
+      const res = await fetch(DISCOVER_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ query: discoverInput.trim(), platforms: discoverPlatforms, limit: 10 }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Discover failed");
+      setDiscoverResults(json.results || []);
+      if ((json.results || []).length === 0) toast.message("No leads found — try a broader keyword");
+    } catch (e: any) {
+      toast.error(e.message || "Failed");
+    } finally {
+      setDiscoverLoading(false);
+    }
+  };
+
   const run = async () => {
     if (!input.trim()) { toast.error(`Enter a ${cfg.needs === "url" ? "URL" : "query"}`); return; }
     setLoading(true);
     setResults([]);
+    setSummary(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -165,10 +289,10 @@ const SearchPage = () => {
     }
   };
 
-  const isSaved = (r: any) => {
+  const isSaved = (r: any, m?: string) => {
     const url = r.url || r.link || r.webUrl || r.permalink || r.profileUrl;
     const title = r.title || r.name || r.displayName || r.username || r.text?.slice(0, 80) || url;
-    return savedIds.has(`${mode}::${url || title}`);
+    return savedIds.has(`${m || mode}::${url || title}`);
   };
 
   return (
