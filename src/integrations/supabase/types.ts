@@ -309,6 +309,51 @@ export type Database = {
         }
         Relationships: []
       }
+      saved_searches: {
+        Row: {
+          created_at: string
+          data: Json
+          id: string
+          image: string | null
+          mode: string
+          notes: string | null
+          query: string | null
+          snippet: string | null
+          title: string
+          updated_at: string
+          url: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          data?: Json
+          id?: string
+          image?: string | null
+          mode: string
+          notes?: string | null
+          query?: string | null
+          snippet?: string | null
+          title: string
+          updated_at?: string
+          url?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          data?: Json
+          id?: string
+          image?: string | null
+          mode?: string
+          notes?: string | null
+          query?: string | null
+          snippet?: string | null
+          title?: string
+          updated_at?: string
+          url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       streamer_contacts: {
         Row: {
           avg_viewers: string | null

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Globe, Search, Loader2, ExternalLink, Sparkles, MapPin, Mail, Youtube, Music2, Instagram, Twitter, MessageSquare, ShoppingBag, Camera, Tv, Network, FileText, Lightbulb } from "lucide-react";
+import { Globe, Search, Loader2, ExternalLink, Sparkles, MapPin, Mail, Youtube, Music2, Instagram, Twitter, MessageSquare, ShoppingBag, Camera, Tv, Network, FileText, Lightbulb, Bookmark, BookmarkCheck, Trash2, History } from "lucide-react";
 import { toast } from "sonner";
 import { recordFailure, recordSuccess } from "@/lib/apiKeys";
 import { notify } from "@/lib/notifications";
@@ -62,13 +62,58 @@ const MODES: ModeConfig[] = [
 
 const GROUPS: Array<"Web" | "Social" | "Leads" | "Commerce"> = ["Web", "Social", "Leads", "Commerce"];
 
+type Tab = "search" | "saved";
+
 const SearchPage = () => {
+  const [tab, setTab] = useState<Tab>("search");
   const [mode, setMode] = useState<Mode>("search");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any[]>([]);
+  const [saved, setSaved] = useState<any[]>([]);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [loadingSaved, setLoadingSaved] = useState(false);
 
   const cfg = MODES.find(m => m.id === mode)!;
+
+  const loadSaved = async () => {
+    setLoadingSaved(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setLoadingSaved(false); return; }
+    const { data } = await (supabase.from("saved_searches" as any).select("*").order("created_at", { ascending: false }) as any);
+    setSaved(data || []);
+    const keys = new Set<string>((data || []).map((s: any) => `${s.mode}::${s.url || s.title}`));
+    setSavedIds(keys);
+    setLoadingSaved(false);
+  };
+
+  useEffect(() => { loadSaved(); }, []);
+
+  const saveResult = async (r: any) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { toast.error("Sign in to save results."); return; }
+    const title = r.title || r.name || r.displayName || r.username || r.text?.slice(0, 80) || r.url || "Saved item";
+    const url = r.url || r.link || r.webUrl || r.permalink || r.profileUrl || null;
+    const snippet = r.description || r.snippet || r.text || r.caption || r.bio || r.address || null;
+    const image = r.thumbnailUrl || r.image || r.imageUrl || r.profilePicUrl || r.screenshotUrl || null;
+    const key = `${mode}::${url || title}`;
+    if (savedIds.has(key)) { toast.message("Already saved"); return; }
+    const { error } = await (supabase.from("saved_searches" as any).insert({
+      user_id: session.user.id, mode, query: input, title: String(title).slice(0, 300),
+      url, snippet: snippet ? String(snippet).slice(0, 1000) : null, image, data: r,
+    }) as any);
+    if (error) { toast.error("Could not save"); return; }
+    toast.success("Saved");
+    setSavedIds(new Set([...savedIds, key]));
+    loadSaved();
+  };
+
+  const deleteSaved = async (id: string) => {
+    const { error } = await (supabase.from("saved_searches" as any).delete().eq("id", id) as any);
+    if (error) { toast.error("Could not remove"); return; }
+    toast.success("Removed");
+    loadSaved();
+  };
 
   const run = async () => {
     if (!input.trim()) { toast.error(`Enter a ${cfg.needs === "url" ? "URL" : "query"}`); return; }
@@ -117,6 +162,12 @@ const SearchPage = () => {
     }
   };
 
+  const isSaved = (r: any) => {
+    const url = r.url || r.link || r.webUrl || r.permalink || r.profileUrl;
+    const title = r.title || r.name || r.displayName || r.username || r.text?.slice(0, 80) || url;
+    return savedIds.has(`${mode}::${url || title}`);
+  };
+
   return (
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-4 animate-slide-in">
@@ -127,73 +178,126 @@ const SearchPage = () => {
           <p className="text-sm text-muted-foreground">Powered by your Apify key — search Google, social platforms, maps, emails, and more.</p>
         </div>
 
-        {GROUPS.map(group => (
-          <div key={group} className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">{group}</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-              {MODES.filter(m => m.group === group).map(m => {
-                const Icon = m.icon;
-                const active = mode === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => { setMode(m.id); setResults([]); setInput(""); }}
-                    className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
-                      active
-                        ? "border-primary bg-primary/10 glow-primary"
-                        : "border-border bg-card hover:border-primary/50"
-                    }`}
-                  >
-                    <Icon className={`h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
-                    <span className={`text-xs font-semibold ${active ? "text-primary" : "text-foreground"}`}>{m.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-
-        <Card className="bg-card border-border">
-          <CardContent className="p-4 space-y-3">
-            <p className="text-xs text-muted-foreground flex items-start gap-2">
-              <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
-              <span><b className="text-foreground">{cfg.label}:</b> {cfg.desc}</span>
-            </p>
-            <Input
-              placeholder={cfg.placeholder}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && run()}
-              className="bg-muted border-border text-foreground h-11"
-            />
-            <div className="flex flex-wrap gap-1.5">
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1"><Lightbulb className="h-3 w-3" /> Try:</span>
-              {cfg.examples.map(ex => (
-                <button
-                  key={ex}
-                  onClick={() => setInput(ex)}
-                  className="text-[11px] rounded-full border border-border bg-muted/50 hover:border-primary hover:bg-primary/10 hover:text-primary text-muted-foreground px-2.5 py-1 transition"
-                >
-                  {ex}
-                </button>
-              ))}
-            </div>
-            <Button onClick={run} disabled={loading} className="w-full gradient-primary text-primary-foreground gap-2 h-11">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              {loading ? "Researching..." : `Run ${cfg.label}`}
-            </Button>
-          </CardContent>
-        </Card>
-
-        <div className="space-y-3">
-          {results.map((r, i) => <ResultCard key={i} mode={mode} r={r} i={i} />)}
+        <div className="flex gap-2">
+          <button onClick={() => setTab("search")} className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${tab === "search" ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
+            <Search className="h-4 w-4" /> Search
+          </button>
+          <button onClick={() => setTab("saved")} className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition ${tab === "saved" ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:text-foreground"}`}>
+            <Bookmark className="h-4 w-4" /> Saved {saved.length > 0 && <span className="ml-1 rounded-full bg-primary/20 text-primary text-[10px] px-1.5">{saved.length}</span>}
+          </button>
         </div>
+
+        {tab === "search" && (
+          <>
+            {GROUPS.map(group => (
+              <div key={group} className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1">{group}</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {MODES.filter(m => m.group === group).map(m => {
+                    const Icon = m.icon;
+                    const active = mode === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={() => { setMode(m.id); setResults([]); setInput(""); }}
+                        className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
+                          active
+                            ? "border-primary bg-primary/10 glow-primary"
+                            : "border-border bg-card hover:border-primary/50"
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
+                        <span className={`text-xs font-semibold ${active ? "text-primary" : "text-foreground"}`}>{m.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            <Card className="bg-card border-border">
+              <CardContent className="p-4 space-y-3">
+                <p className="text-xs text-muted-foreground flex items-start gap-2">
+                  <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+                  <span><b className="text-foreground">{cfg.label}:</b> {cfg.desc}</span>
+                </p>
+                <Input
+                  placeholder={cfg.placeholder}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && run()}
+                  className="bg-muted border-border text-foreground h-11"
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground flex items-center gap-1"><Lightbulb className="h-3 w-3" /> Try:</span>
+                  {cfg.examples.map(ex => (
+                    <button
+                      key={ex}
+                      onClick={() => setInput(ex)}
+                      className="text-[11px] rounded-full border border-border bg-muted/50 hover:border-primary hover:bg-primary/10 hover:text-primary text-muted-foreground px-2.5 py-1 transition"
+                    >
+                      {ex}
+                    </button>
+                  ))}
+                </div>
+                <Button onClick={run} disabled={loading} className="w-full gradient-primary text-primary-foreground gap-2 h-11">
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  {loading ? "Researching..." : `Run ${cfg.label}`}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-3">
+              {results.map((r, i) => <ResultCard key={i} mode={mode} r={r} i={i} onSave={() => saveResult(r)} saved={isSaved(r)} />)}
+            </div>
+          </>
+        )}
+
+        {tab === "saved" && (
+          <div className="space-y-3">
+            {loadingSaved && <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>}
+            {!loadingSaved && saved.length === 0 && (
+              <Card className="bg-card border-border">
+                <CardContent className="p-8 text-center space-y-2">
+                  <History className="h-8 w-8 text-muted-foreground mx-auto" />
+                  <p className="text-sm font-medium text-foreground">No saved results yet</p>
+                  <p className="text-xs text-muted-foreground">Tap the bookmark icon on any search result to save it for later.</p>
+                </CardContent>
+              </Card>
+            )}
+            {saved.map((s) => (
+              <Card key={s.id} className="bg-card border-border">
+                <CardContent className="p-4 space-y-2">
+                  <div className="flex items-start gap-3">
+                    {s.image && <img src={s.image} alt="" className="h-14 w-14 rounded-lg object-cover shrink-0 border border-border" />}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-foreground line-clamp-2">{s.title}</p>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {s.url && <a href={s.url} target="_blank" rel="noreferrer" className="text-primary p-1"><ExternalLink className="h-4 w-4" /></a>}
+                          <button onClick={() => deleteSaved(s.id)} className="text-destructive p-1"><Trash2 className="h-4 w-4" /></button>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] font-semibold rounded-md bg-primary/10 text-primary px-1.5 py-0.5 uppercase">{s.mode}</span>
+                        {s.query && <span className="text-[10px] text-muted-foreground truncate">"{s.query}"</span>}
+                      </div>
+                      {s.url && <p className="text-xs text-primary/80 truncate mt-0.5">{s.url}</p>}
+                    </div>
+                  </div>
+                  {s.snippet && <p className="text-xs text-muted-foreground line-clamp-3 whitespace-pre-wrap">{s.snippet}</p>}
+                  <p className="text-[10px] text-muted-foreground">Saved {new Date(s.created_at).toLocaleDateString()}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
 };
 
-function ResultCard({ mode, r, i }: { mode: Mode; r: any; i: number }) {
+function ResultCard({ mode, r, i, onSave, saved }: { mode: Mode; r: any; i: number; onSave: () => void; saved: boolean }) {
   // Universal field extraction
   const title =
     r.title || r.name || r.displayName || r.username || r.channelName || r.text?.slice(0, 80) ||
@@ -228,11 +332,16 @@ function ResultCard({ mode, r, i }: { mode: Mode; r: any; i: number }) {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-semibold text-foreground line-clamp-2">{title}</p>
-              {url && (
-                <a href={url} target="_blank" rel="noreferrer" className="text-primary shrink-0">
-                  <ExternalLink className="h-4 w-4" />
-                </a>
-              )}
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={onSave} className={saved ? "text-primary p-1" : "text-muted-foreground hover:text-primary p-1"} title={saved ? "Saved" : "Save"}>
+                  {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
+                </button>
+                {url && (
+                  <a href={url} target="_blank" rel="noreferrer" className="text-primary p-1">
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
             </div>
             {url && <p className="text-xs text-primary/80 truncate">{url}</p>}
           </div>
