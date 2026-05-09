@@ -507,7 +507,7 @@ const SearchPage = () => {
             )}
 
             <div className="space-y-3">
-              {results.map((r, i) => <ResultCard key={i} mode={mode} r={r} i={i} onSave={() => saveResult(r)} saved={isSaved(r)} />)}
+              {results.map((r, i) => <ResultCard key={i} mode={mode} r={r} i={i} onSave={() => saveResult(r)} saved={isSaved(r)} onSendToInbox={() => sendToInbox({ title: r.title || r.name || r.username, url: r.url || r.link || r.profileUrl, image: r.thumbnailUrl || r.image || r.profilePicUrl, snippet: r.description || r.snippet || r.bio })} />)}
             </div>
           </>
         )}
