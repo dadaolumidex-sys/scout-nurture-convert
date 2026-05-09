@@ -161,9 +161,8 @@ const SearchPage = () => {
   const sendToInbox = async (item: any) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { toast.error("Sign in first"); return; }
-    // Try to detect twitch/kick/youtube username from URL
     let platform = "twitch";
-    let username = item.title || "lead";
+    let username = item.title || item.name || item.username || "lead";
     if (item.url) {
       try {
         const u = new URL(item.url);
@@ -175,17 +174,28 @@ const SearchPage = () => {
         else if (u.hostname.includes("twitter.com") || u.hostname.includes("x.com")) { platform = "twitter"; username = u.pathname.split("/").filter(Boolean)[0] || username; }
       } catch {/**/}
     }
-    username = String(username).slice(0, 80);
-    const { error } = await (supabase.from("streamer_contacts" as any).insert({
+    username = String(username).slice(0, 80).toLowerCase().replace(/\s+/g, "");
+    // Duplicate detection
+    const { data: existing } = await (supabase.from("streamer_contacts" as any)
+      .select("id, username").eq("user_id", session.user.id).eq("platform", platform).eq("username", username).maybeSingle() as any);
+    if (existing?.id) {
+      toast.info(`${username} is already in your Inbox`, {
+        action: { label: "Open", onClick: () => navigate(`/inbox/${existing.id}`) },
+      });
+      return;
+    }
+    const { data, error } = await (supabase.from("streamer_contacts" as any).insert({
       user_id: session.user.id, platform, username,
-      display_name: item.title?.slice(0, 120),
-      channel_url: item.url, profile_image_url: item.image,
-      description: item.snippet?.slice(0, 500),
-      status: "active", conversation_type: "new",
-    }) as any);
+      display_name: item.title?.slice(0, 120) || username,
+      channel_url: item.url, profile_image_url: item.image || item.thumbnailUrl || item.profilePicUrl,
+      description: (item.snippet || item.description || item.bio)?.slice(0, 500),
+      status: "new", conversation_type: "new",
+    }).select("id").single() as any);
     if (error) { toast.error("Could not add to Inbox"); return; }
-    toast.success(`Added ${username} to Inbox`);
-    notify("info", "New contact", `${username} added from saved research`).catch(() => {});
+    toast.success(`Added ${username} to Inbox`, {
+      action: { label: "Open", onClick: () => navigate(`/inbox/${data.id}`) },
+    });
+    notify("info", "New contact", `${username} added from research`).catch(() => {});
   };
 
   const summarizeResults = async () => {
