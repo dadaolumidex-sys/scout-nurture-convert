@@ -584,7 +584,7 @@ const SearchPage = () => {
   );
 };
 
-function ResultCard({ mode, r, i, onSave, saved }: { mode: Mode; r: any; i: number; onSave: () => void; saved: boolean }) {
+function ResultCard({ mode, r, i, onSave, saved, onSendToInbox }: { mode: Mode; r: any; i: number; onSave: () => void; saved: boolean; onSendToInbox?: () => void }) {
   // Universal field extraction
   const title =
     r.title || r.name || r.displayName || r.username || r.channelName || r.text?.slice(0, 80) ||
@@ -611,6 +611,9 @@ function ResultCard({ mode, r, i, onSave, saved }: { mode: Mode; r: any; i: numb
   const emails: string[] = r.emails || r.contactDetails?.emails || [];
   const phones: string[] = r.phones || r.phoneUnformatted ? [r.phoneUnformatted] : [];
 
+  // Show inbox button if it looks like a streamer/creator
+  const isCreator = ["youtube","tiktok","instagram","twitter","reddit","twitch"].includes(mode) || /twitch\.tv|kick\.com|youtube\.com|tiktok\.com|instagram\.com/.test(url || "");
+
   return (
     <Card className="bg-card border-border overflow-hidden">
       <CardContent className="p-4 space-y-2">
@@ -620,6 +623,11 @@ function ResultCard({ mode, r, i, onSave, saved }: { mode: Mode; r: any; i: numb
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-semibold text-foreground line-clamp-2">{title}</p>
               <div className="flex items-center gap-1 shrink-0">
+                {onSendToInbox && isCreator && (
+                  <button onClick={onSendToInbox} className="text-muted-foreground hover:text-primary p-1" title="Add to Inbox">
+                    <Inbox className="h-4 w-4" />
+                  </button>
+                )}
                 <button onClick={onSave} className={saved ? "text-primary p-1" : "text-muted-foreground hover:text-primary p-1"} title={saved ? "Saved" : "Save"}>
                   {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
                 </button>
