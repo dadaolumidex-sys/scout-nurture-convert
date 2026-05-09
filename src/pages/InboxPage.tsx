@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, ImagePlus, X } from "lucide-react";
+import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, ImagePlus, X, List, LayoutGrid } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { RemindersPanel } from "@/components/inbox/RemindersPanel";
+import { PipelineBoard } from "@/components/inbox/PipelineBoard";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
