@@ -423,6 +423,7 @@ const InboxPage = () => {
             ))
           )}
         </div>
+        )}
       </div>
     </DashboardLayout>
   );
