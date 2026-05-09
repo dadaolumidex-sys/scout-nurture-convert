@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, ImagePlus, X } from "lucide-react";
+import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, ImagePlus, X, List, LayoutGrid } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { RemindersPanel } from "@/components/inbox/RemindersPanel";
+import { PipelineBoard } from "@/components/inbox/PipelineBoard";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -49,6 +51,7 @@ const InboxPage = () => {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"list" | "pipeline">("list");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogStep, setDialogStep] = useState<"type" | "details">("type");
   const [selectedType, setSelectedType] = useState<ConversationType | null>(null);
@@ -342,13 +345,32 @@ const InboxPage = () => {
           </Dialog>
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search contacts..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 bg-muted border-border text-foreground placeholder:text-muted-foreground" />
+        {/* Reminders */}
+        <RemindersPanel contacts={contacts.map(c => ({ id: c.id, username: c.username, display_name: c.display_name }))} />
+
+        {/* Search + view toggle */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search contacts..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 bg-muted border-border text-foreground placeholder:text-muted-foreground" />
+          </div>
+          <div className="flex items-center rounded-md border border-border bg-muted p-0.5 shrink-0">
+            <button onClick={() => setView("list")} className={`p-1.5 rounded ${view === "list" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`} title="List">
+              <List className="h-4 w-4" />
+            </button>
+            <button onClick={() => setView("pipeline")} className={`p-1.5 rounded ${view === "pipeline" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`} title="Pipeline">
+              <LayoutGrid className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
-        {/* Contacts list */}
+        {/* Pipeline view */}
+        {view === "pipeline" && !loading && (
+          <PipelineBoard contacts={filteredContacts as any} onRefresh={loadContacts} />
+        )}
+
+        {/* List view */}
+        {view === "list" && (
         <div className="space-y-2 sm:space-y-3">
           {loading ? (
             <Card className="bg-card border-border">
@@ -401,6 +423,7 @@ const InboxPage = () => {
             ))
           )}
         </div>
+        )}
       </div>
     </DashboardLayout>
   );

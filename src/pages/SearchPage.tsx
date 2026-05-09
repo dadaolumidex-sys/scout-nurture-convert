@@ -161,9 +161,8 @@ const SearchPage = () => {
   const sendToInbox = async (item: any) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { toast.error("Sign in first"); return; }
-    // Try to detect twitch/kick/youtube username from URL
     let platform = "twitch";
-    let username = item.title || "lead";
+    let username = item.title || item.name || item.username || "lead";
     if (item.url) {
       try {
         const u = new URL(item.url);
@@ -175,17 +174,28 @@ const SearchPage = () => {
         else if (u.hostname.includes("twitter.com") || u.hostname.includes("x.com")) { platform = "twitter"; username = u.pathname.split("/").filter(Boolean)[0] || username; }
       } catch {/**/}
     }
-    username = String(username).slice(0, 80);
-    const { error } = await (supabase.from("streamer_contacts" as any).insert({
+    username = String(username).slice(0, 80).toLowerCase().replace(/\s+/g, "");
+    // Duplicate detection
+    const { data: existing } = await (supabase.from("streamer_contacts" as any)
+      .select("id, username").eq("user_id", session.user.id).eq("platform", platform).eq("username", username).maybeSingle() as any);
+    if (existing?.id) {
+      toast.info(`${username} is already in your Inbox`, {
+        action: { label: "Open", onClick: () => navigate(`/inbox/${existing.id}`) },
+      });
+      return;
+    }
+    const { data, error } = await (supabase.from("streamer_contacts" as any).insert({
       user_id: session.user.id, platform, username,
-      display_name: item.title?.slice(0, 120),
-      channel_url: item.url, profile_image_url: item.image,
-      description: item.snippet?.slice(0, 500),
-      status: "active", conversation_type: "new",
-    }) as any);
+      display_name: item.title?.slice(0, 120) || username,
+      channel_url: item.url, profile_image_url: item.image || item.thumbnailUrl || item.profilePicUrl,
+      description: (item.snippet || item.description || item.bio)?.slice(0, 500),
+      status: "new", conversation_type: "new",
+    }).select("id").single() as any);
     if (error) { toast.error("Could not add to Inbox"); return; }
-    toast.success(`Added ${username} to Inbox`);
-    notify("info", "New contact", `${username} added from saved research`).catch(() => {});
+    toast.success(`Added ${username} to Inbox`, {
+      action: { label: "Open", onClick: () => navigate(`/inbox/${data.id}`) },
+    });
+    notify("info", "New contact", `${username} added from research`).catch(() => {});
   };
 
   const summarizeResults = async () => {
@@ -497,7 +507,7 @@ const SearchPage = () => {
             )}
 
             <div className="space-y-3">
-              {results.map((r, i) => <ResultCard key={i} mode={mode} r={r} i={i} onSave={() => saveResult(r)} saved={isSaved(r)} />)}
+              {results.map((r, i) => <ResultCard key={i} mode={mode} r={r} i={i} onSave={() => saveResult(r)} saved={isSaved(r)} onSendToInbox={() => sendToInbox({ title: r.title || r.name || r.username, url: r.url || r.link || r.profileUrl, image: r.thumbnailUrl || r.image || r.profilePicUrl, snippet: r.description || r.snippet || r.bio })} />)}
             </div>
           </>
         )}
@@ -574,7 +584,7 @@ const SearchPage = () => {
   );
 };
 
-function ResultCard({ mode, r, i, onSave, saved }: { mode: Mode; r: any; i: number; onSave: () => void; saved: boolean }) {
+function ResultCard({ mode, r, i, onSave, saved, onSendToInbox }: { mode: Mode; r: any; i: number; onSave: () => void; saved: boolean; onSendToInbox?: () => void }) {
   // Universal field extraction
   const title =
     r.title || r.name || r.displayName || r.username || r.channelName || r.text?.slice(0, 80) ||
@@ -601,6 +611,9 @@ function ResultCard({ mode, r, i, onSave, saved }: { mode: Mode; r: any; i: numb
   const emails: string[] = r.emails || r.contactDetails?.emails || [];
   const phones: string[] = r.phones || r.phoneUnformatted ? [r.phoneUnformatted] : [];
 
+  // Show inbox button if it looks like a streamer/creator
+  const isCreator = ["youtube","tiktok","instagram","twitter","reddit","twitch"].includes(mode) || /twitch\.tv|kick\.com|youtube\.com|tiktok\.com|instagram\.com/.test(url || "");
+
   return (
     <Card className="bg-card border-border overflow-hidden">
       <CardContent className="p-4 space-y-2">
@@ -610,6 +623,11 @@ function ResultCard({ mode, r, i, onSave, saved }: { mode: Mode; r: any; i: numb
             <div className="flex items-start justify-between gap-2">
               <p className="text-sm font-semibold text-foreground line-clamp-2">{title}</p>
               <div className="flex items-center gap-1 shrink-0">
+                {onSendToInbox && isCreator && (
+                  <button onClick={onSendToInbox} className="text-muted-foreground hover:text-primary p-1" title="Add to Inbox">
+                    <Inbox className="h-4 w-4" />
+                  </button>
+                )}
                 <button onClick={onSave} className={saved ? "text-primary p-1" : "text-muted-foreground hover:text-primary p-1"} title={saved ? "Saved" : "Save"}>
                   {saved ? <BookmarkCheck className="h-4 w-4" /> : <Bookmark className="h-4 w-4" />}
                 </button>
