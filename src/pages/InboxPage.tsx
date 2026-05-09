@@ -51,6 +51,7 @@ const InboxPage = () => {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<"list" | "pipeline">("list");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogStep, setDialogStep] = useState<"type" | "details">("type");
   const [selectedType, setSelectedType] = useState<ConversationType | null>(null);
