@@ -142,30 +142,30 @@ export function RemindersPanel({ contacts }: { contacts: Contact[] }) {
         {items.length === 0 ? (
           <p className="text-xs text-muted-foreground text-center py-3">No follow-ups scheduled. Stay on top of your leads.</p>
         ) : (
-          <div className="space-y-1.5 max-h-60 overflow-auto">
+          <ul className="space-y-1.5 max-h-60 overflow-auto list-none m-0 p-0">
             {items.slice(0, 8).map(r => {
               const { text, overdue } = fmtDue(r.due_at);
               const c = contacts.find(x => x.id === r.contact_id);
               return (
-                <div key={r.id} className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2">
-                  <button onClick={() => complete(r.id)} className="h-5 w-5 rounded-full border border-border hover:border-primary hover:bg-primary/10 flex items-center justify-center shrink-0">
+                <li key={r.id} className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 p-2">
+                  <button onClick={() => complete(r.id)} aria-label={`Mark "${r.title}" as done`} className="h-5 w-5 rounded-full border border-border hover:border-primary hover:bg-primary/10 flex items-center justify-center shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     <Check className="h-3 w-3 text-muted-foreground" />
                   </button>
-                  <button onClick={() => c && navigate(`/inbox/${c.id}`)} className="flex-1 min-w-0 text-left">
+                  <button onClick={() => c && navigate(`/inbox/${c.id}`)} aria-label={c ? `Open chat with ${c.display_name || c.username}` : r.title} className="flex-1 min-w-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">
                     <p className="text-xs font-medium text-foreground truncate">{r.title}</p>
                     <div className="flex items-center gap-1.5 mt-0.5">
-                      <Clock className={`h-2.5 w-2.5 ${overdue ? "text-destructive" : "text-muted-foreground"}`} />
+                      <Clock className={`h-2.5 w-2.5 ${overdue ? "text-destructive" : "text-muted-foreground"}`} aria-hidden="true" />
                       <span className={`text-[10px] ${overdue ? "text-destructive font-semibold" : "text-muted-foreground"}`}>{text}</span>
                       {c && <span className="text-[10px] text-primary truncate">· {c.display_name || c.username}</span>}
                     </div>
                   </button>
-                  <button onClick={() => remove(r.id)} className="text-muted-foreground hover:text-destructive shrink-0 p-1">
+                  <button onClick={() => remove(r.id)} aria-label={`Delete reminder "${r.title}"`} className="text-muted-foreground hover:text-destructive shrink-0 p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md">
                     <Trash2 className="h-3 w-3" />
                   </button>
-                </div>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
       </CardContent>
     </Card>
