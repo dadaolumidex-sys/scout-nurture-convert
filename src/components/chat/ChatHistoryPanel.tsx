@@ -50,51 +50,59 @@ export function ChatHistoryPanel({ conversations, activeId, onSelect, onNew, onD
         </Button>
       </div>
       <ScrollArea className="flex-1">
-        <div className={cn("space-y-0.5", isMobile ? "py-1" : "p-1")}>
+        <ul className="space-y-0.5 list-none m-0 p-0" aria-label="Conversations">
           {conversations.length === 0 && (
-            <p className="text-xs text-muted-foreground text-center py-8">No conversations yet</p>
+            <li className="text-xs text-muted-foreground text-center py-8">No conversations yet</li>
           )}
           {conversations.map((c) => (
-            <div
+            <li
               key={c.id}
               className={cn(
                 "group flex items-center gap-2 rounded-lg px-3 py-2.5 cursor-pointer text-sm transition-colors",
                 activeId === c.id ? "bg-accent text-accent-foreground" : "hover:bg-muted text-foreground"
               )}
-              onClick={() => onSelect(c.id)}
             >
-              <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <MessageSquare className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               {renamingId === c.id ? (
                 <div className="flex-1 flex items-center gap-1" onClick={e => e.stopPropagation()}>
                   <Input
                     value={renameValue}
                     onChange={e => setRenameValue(e.target.value)}
                     className="h-6 text-xs bg-background border-border px-1.5"
+                    aria-label="Rename conversation"
                     autoFocus
                     onKeyDown={e => { if (e.key === "Enter") confirmRename(e as any); if (e.key === "Escape") cancelRename(e as any); }}
                   />
-                  <button onClick={confirmRename} className="text-primary hover:text-primary/80"><Check className="h-3.5 w-3.5" /></button>
-                  <button onClick={cancelRename} className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+                  <button onClick={confirmRename} aria-label="Save name" className="text-primary hover:text-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"><Check className="h-3.5 w-3.5" /></button>
+                  <button onClick={cancelRename} aria-label="Cancel rename" className="text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"><X className="h-3.5 w-3.5" /></button>
                 </div>
               ) : (
                 <>
-                  <span className="truncate flex-1 text-xs">{c.title}</span>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(c.id)}
+                    aria-current={activeId === c.id ? "true" : undefined}
+                    aria-label={`Open conversation: ${c.title}`}
+                    className="truncate flex-1 text-xs text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+                  >
+                    {c.title}
+                  </button>
                   <div className={cn(
                     "flex items-center gap-0.5 transition-opacity",
-                    isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"
                   )}>
-                    <button onClick={(e) => startRename(c, e)} className="text-muted-foreground hover:text-foreground p-0.5">
+                    <button onClick={(e) => startRename(c, e)} aria-label={`Rename "${c.title}"`} className="text-muted-foreground hover:text-foreground p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
                       <Pencil className="h-3 w-3" />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} className="text-muted-foreground hover:text-destructive p-0.5">
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} aria-label={`Delete "${c.title}"`} className="text-muted-foreground hover:text-destructive p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </div>
                 </>
               )}
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
       </ScrollArea>
     </div>
   );
