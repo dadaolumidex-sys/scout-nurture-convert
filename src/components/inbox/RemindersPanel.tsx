@@ -106,8 +106,8 @@ export function RemindersPanel({ contacts }: { contacts: Contact[] }) {
               <DialogHeader><DialogTitle>New reminder</DialogTitle></DialogHeader>
               <div className="space-y-3">
                 <div>
-                  <Label className="text-xs">Title</Label>
-                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Follow up with xQc" className="bg-muted border-border mt-1" />
+                  <Label htmlFor="reminder-title" className="text-xs">Title</Label>
+                  <Input id="reminder-title" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") create(); }} placeholder="e.g. Follow up with xQc" className="bg-muted border-border mt-1" />
                 </div>
                 <div>
                   <Label className="text-xs">Contact (optional)</Label>
