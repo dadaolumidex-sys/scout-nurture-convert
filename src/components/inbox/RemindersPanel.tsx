@@ -122,11 +122,12 @@ export function RemindersPanel({ contacts }: { contacts: Contact[] }) {
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Remind me</Label>
-                  <div className="grid grid-cols-2 gap-1.5 mt-1">
+                  <Label className="text-xs" id="remind-me-label">Remind me</Label>
+                  <div className="grid grid-cols-2 gap-1.5 mt-1" role="radiogroup" aria-labelledby="remind-me-label">
                     {QUICK_PRESETS.map(p => (
-                      <button key={p.label} onClick={() => setHours(p.hours)}
-                        className={`text-xs rounded-md border px-2 py-1.5 transition ${hours === p.hours ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/50 text-muted-foreground"}`}>
+                      <button key={p.label} type="button" onClick={() => setHours(p.hours)}
+                        role="radio" aria-checked={hours === p.hours} aria-label={p.label}
+                        className={`text-xs rounded-md border px-2 py-1.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${hours === p.hours ? "border-primary bg-primary/10 text-primary" : "border-border bg-muted/50 text-muted-foreground"}`}>
                         {p.label}
                       </button>
                     ))}
