@@ -273,7 +273,7 @@ const ChatPage = () => {
             </div>
           )}
           <div className="flex flex-col gap-0.5">
-            <div className={`group relative rounded-2xl px-3 py-2.5 text-sm ${maxWidth} ${
+            <div className={`group relative rounded-2xl px-3.5 py-3 text-[15px] leading-relaxed ${maxWidth} ${
               msg.role === "user"
                 ? "bg-primary/15 text-foreground rounded-tr-sm"
                 : "bg-muted text-foreground border border-border rounded-tl-sm"
@@ -294,7 +294,7 @@ const ChatPage = () => {
               ) : (
                 <>
                   {msg.role === "assistant" ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-[15px] leading-relaxed prose-p:text-foreground prose-p:my-2 prose-headings:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-li:marker:text-primary prose-a:text-primary prose-code:text-foreground prose-headings:mt-3 prose-headings:mb-1.5"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
                   ) : (
                     msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>
                   )}
