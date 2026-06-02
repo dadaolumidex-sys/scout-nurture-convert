@@ -338,7 +338,7 @@ const ContactChatPage = () => {
           )}
           {messages.filter((msg) => msg.persona === persona).map((msg) => (
             <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`group relative max-w-[80%] rounded-xl px-4 py-3 text-sm ${
+              <div className={`group relative max-w-[80%] rounded-xl px-4 py-3 text-[15px] leading-relaxed ${
                 msg.role === "user"
                   ? "bg-primary/15 text-foreground"
                   : "bg-muted text-foreground border border-border"
@@ -387,7 +387,7 @@ const ContactChatPage = () => {
                 ) : (
                   <>
                     {msg.role === "assistant" ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none">
+                      <div className="prose prose-sm dark:prose-invert max-w-none text-[15px] leading-relaxed prose-p:text-foreground prose-p:my-2 prose-headings:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-li:marker:text-primary prose-a:text-primary prose-code:text-foreground prose-headings:mt-3 prose-headings:mb-1.5">
                         <ReactMarkdown>{msg.content}</ReactMarkdown>
                       </div>
                     ) : (
