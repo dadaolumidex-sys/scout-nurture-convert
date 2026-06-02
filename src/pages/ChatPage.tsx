@@ -276,7 +276,7 @@ const ChatPage = () => {
             <div className={`group relative rounded-2xl px-3 py-2.5 text-sm ${maxWidth} ${
               msg.role === "user"
                 ? "bg-primary/15 text-foreground rounded-tr-sm"
-                : "bg-accent text-accent-foreground border border-border rounded-tl-sm"
+                : "bg-muted text-foreground border border-border rounded-tl-sm"
             }`}>
               {msg.images && msg.images.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-1.5">
@@ -342,10 +342,10 @@ const ChatPage = () => {
         <div className="h-16 w-16 mx-auto mb-4 rounded-2xl bg-accent flex items-center justify-center">
           <Bot className="h-8 w-8 text-primary opacity-60" />
         </div>
-        <p className="text-base font-semibold text-foreground mb-1">StreamScout AI</p>
-        <p className="text-xs mb-4">Ask anything, upload images, or toggle Deep Research for powerful answers 🚀</p>
+        <p className="text-base font-semibold text-foreground mb-1">AI Assistant</p>
+        <p className="text-xs mb-4">Ask me anything — writing, coding, research, business, study help, or analyze a screenshot. Toggle Deep Research for in-depth answers 🚀</p>
         <div className="flex flex-wrap justify-center gap-2">
-          {["Help me reach a streamer", "Analyze my conversation", "Growth strategies"].map(s => (
+          {["Explain a topic simply", "Help me write something", "Analyze my screenshot"].map(s => (
             <button key={s} onClick={() => { setInput(s); }} className="text-xs px-3 py-1.5 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
               {s}
             </button>
