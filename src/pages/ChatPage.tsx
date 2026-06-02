@@ -276,7 +276,7 @@ const ChatPage = () => {
             <div className={`group relative rounded-2xl px-3 py-2.5 text-sm ${maxWidth} ${
               msg.role === "user"
                 ? "bg-primary/15 text-foreground rounded-tr-sm"
-                : "bg-accent text-accent-foreground border border-border rounded-tl-sm"
+                : "bg-muted text-foreground border border-border rounded-tl-sm"
             }`}>
               {msg.images && msg.images.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-1.5">
