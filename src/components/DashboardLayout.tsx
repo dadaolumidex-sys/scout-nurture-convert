@@ -3,6 +3,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { CommandPalette } from "@/components/CommandPalette";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { MiniMusicPlayer } from "@/components/MiniMusicPlayer";
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -20,10 +21,11 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </div>
             <NotificationsBell />
           </header>
-          <main className="flex-1 overflow-auto p-3 sm:p-6 pb-24 md:pb-6">
+          <main className="flex-1 overflow-auto p-3 sm:p-6 pb-40 md:pb-20">
             {children}
           </main>
         </div>
+        <MiniMusicPlayer />
         <MobileBottomNav />
       </div>
     </SidebarProvider>
