@@ -16,7 +16,12 @@ const MusicContext = createContext<MusicContextValue | null>(null);
 export function MusicProvider({ children }: { children: React.ReactNode }) {
   const [, force] = useState(0);
 
-  useEffect(() => musicEngine.subscribe(() => force((n) => n + 1)), []);
+  useEffect(() => {
+    const unsub = musicEngine.subscribe(() => force((n) => n + 1));
+    return () => {
+      unsub();
+    };
+  }, []);
 
   const toggle = useCallback(() => {
     void musicEngine.toggle();
