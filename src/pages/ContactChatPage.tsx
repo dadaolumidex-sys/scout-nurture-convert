@@ -8,7 +8,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import ReactMarkdown from "react-markdown";
+import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SuggestionCards } from "@/components/chat/SuggestionCards";
 import { useAuth } from "@/hooks/useAuth";
@@ -387,9 +387,7 @@ const ContactChatPage = () => {
                 ) : (
                   <>
                     {msg.role === "assistant" ? (
-                      <div className="prose prose-sm dark:prose-invert max-w-none text-[15px] leading-relaxed prose-p:text-foreground prose-p:my-2 prose-headings:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-li:marker:text-primary prose-a:text-primary prose-code:text-foreground prose-headings:mt-3 prose-headings:mb-1.5">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                      </div>
+                      <MarkdownMessage content={msg.content} />
                     ) : (
                       <p className="whitespace-pre-wrap">{msg.content}</p>
                     )}
