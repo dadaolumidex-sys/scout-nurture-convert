@@ -8,7 +8,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import ReactMarkdown from "react-markdown";
+import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SuggestionCards } from "@/components/chat/SuggestionCards";
 import { useAuth } from "@/hooks/useAuth";
