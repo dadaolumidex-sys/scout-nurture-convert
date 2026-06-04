@@ -16,33 +16,42 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
   return (
     <div
       className={cn(
-        "prose prose-sm dark:prose-invert max-w-none text-[15px] leading-relaxed",
-        // paragraphs & general text
-        "prose-p:text-foreground prose-p:my-2 prose-p:leading-relaxed",
-        // headings
-        "prose-headings:text-foreground prose-headings:font-semibold prose-headings:mt-4 prose-headings:mb-2 prose-headings:leading-snug",
-        "prose-h1:text-lg prose-h2:text-base prose-h3:text-[15px]",
-        "first:prose-headings:mt-0",
-        // emphasis
-        "prose-strong:text-foreground prose-strong:font-semibold prose-em:text-foreground",
-        // lists
-        "prose-ul:my-2 prose-ul:pl-5 prose-ol:my-2 prose-ol:pl-5",
-        "prose-li:text-foreground prose-li:my-1 prose-li:marker:text-primary marker:font-semibold",
-        // links
-        "prose-a:text-primary prose-a:font-medium prose-a:underline-offset-2 hover:prose-a:underline",
-        // inline code & code blocks
-        "prose-code:text-foreground prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-[13px] prose-code:before:content-[''] prose-code:after:content-['']",
-        "prose-pre:bg-card prose-pre:border prose-pre:border-border prose-pre:rounded-xl prose-pre:text-[13px] prose-pre:my-3 prose-pre:overflow-x-auto",
-        // blockquotes
-        "prose-blockquote:border-l-2 prose-blockquote:border-primary/50 prose-blockquote:text-muted-foreground prose-blockquote:not-italic prose-blockquote:my-2",
-        // tables
-        "prose-table:my-3 prose-table:text-[13px] prose-th:text-foreground prose-th:border-border prose-td:border-border prose-td:text-foreground",
-        // horizontal rule
-        "prose-hr:border-border prose-hr:my-4",
+        "ai-readable-message max-w-none break-words text-base leading-7 text-foreground [overflow-wrap:anywhere]",
         className
       )}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h1: ({ children }) => <h1 className="mb-3 mt-4 text-xl font-bold leading-snug text-foreground first:mt-0">{children}</h1>,
+          h2: ({ children }) => <h2 className="mb-2.5 mt-4 text-lg font-bold leading-snug text-foreground first:mt-0">{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-2 mt-3.5 text-base font-semibold leading-snug text-foreground first:mt-0">{children}</h3>,
+          p: ({ children }) => <p className="my-2 text-base leading-7 text-foreground first:mt-0 last:mb-0">{children}</p>,
+          strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
+          em: ({ children }) => <em className="text-foreground">{children}</em>,
+          ul: ({ children }) => <ul className="my-3 list-disc space-y-1.5 pl-6 text-foreground marker:text-primary">{children}</ul>,
+          ol: ({ children }) => <ol className="my-3 list-decimal space-y-1.5 pl-6 text-foreground marker:text-primary marker:font-semibold">{children}</ol>,
+          li: ({ children }) => <li className="pl-1 text-base leading-7 text-foreground">{children}</li>,
+          a: ({ href, children }) => (
+            <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-primary underline underline-offset-4">
+              {children}
+            </a>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="my-3 border-l-4 border-primary bg-muted/60 py-2 pl-4 pr-3 text-foreground">
+              {children}
+            </blockquote>
+          ),
+          code: ({ children }) => <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground">{children}</code>,
+          pre: ({ children }) => <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-background p-3 text-sm text-foreground">{children}</pre>,
+          table: ({ children }) => <table className="my-3 w-full border-collapse text-sm text-foreground">{children}</table>,
+          th: ({ children }) => <th className="border border-border bg-muted px-2 py-2 text-left font-semibold text-foreground">{children}</th>,
+          td: ({ children }) => <td className="border border-border px-2 py-2 text-foreground">{children}</td>,
+          hr: () => <hr className="my-4 border-border" />,
+        }}
+      >
+        {content}
+      </ReactMarkdown>
     </div>
   );
 }
