@@ -16,7 +16,7 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
   return (
     <div
       className={cn(
-        "ai-readable-message max-w-none break-words text-base leading-7 text-foreground [overflow-wrap:anywhere]",
+        "ai-readable-message max-w-none break-words text-base font-medium leading-7 text-foreground [overflow-wrap:anywhere]",
         className
       )}
     >
@@ -25,20 +25,20 @@ export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
         components={{
           h1: ({ children }) => <h1 className="mb-3 mt-4 text-xl font-bold leading-snug text-foreground first:mt-0">{children}</h1>,
           h2: ({ children }) => <h2 className="mb-2.5 mt-4 text-lg font-bold leading-snug text-foreground first:mt-0">{children}</h2>,
-          h3: ({ children }) => <h3 className="mb-2 mt-3.5 text-base font-semibold leading-snug text-foreground first:mt-0">{children}</h3>,
-          p: ({ children }) => <p className="my-2 text-base leading-7 text-foreground first:mt-0 last:mb-0">{children}</p>,
+          h3: ({ children }) => <h3 className="mb-2 mt-3.5 text-base font-bold leading-snug text-foreground first:mt-0">{children}</h3>,
+          p: ({ children }) => <p className="my-2 text-base font-medium leading-7 text-foreground first:mt-0 last:mb-0">{children}</p>,
           strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
           em: ({ children }) => <em className="text-foreground">{children}</em>,
-          ul: ({ children }) => <ul className="my-3 list-disc space-y-1.5 pl-6 text-foreground marker:text-primary">{children}</ul>,
-          ol: ({ children }) => <ol className="my-3 list-decimal space-y-1.5 pl-6 text-foreground marker:text-primary marker:font-semibold">{children}</ol>,
-          li: ({ children }) => <li className="pl-1 text-base leading-7 text-foreground">{children}</li>,
+          ul: ({ children }) => <ul className="my-3 list-disc space-y-1.5 pl-6 text-foreground marker:text-secondary">{children}</ul>,
+          ol: ({ children }) => <ol className="my-3 list-decimal space-y-1.5 pl-6 text-foreground marker:text-secondary marker:font-semibold">{children}</ol>,
+          li: ({ children }) => <li className="pl-1 text-base font-medium leading-7 text-foreground">{children}</li>,
           a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-primary underline underline-offset-4">
+            <a href={href} target="_blank" rel="noreferrer" className="font-bold text-secondary underline underline-offset-4">
               {children}
             </a>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="my-3 border-l-4 border-primary bg-muted/60 py-2 pl-4 pr-3 text-foreground">
+            <blockquote className="my-3 border-l-4 border-secondary bg-muted/60 py-2 pl-4 pr-3 text-foreground">
               {children}
             </blockquote>
           ),

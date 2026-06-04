@@ -338,9 +338,9 @@ const ContactChatPage = () => {
           )}
           {messages.filter((msg) => msg.persona === persona).map((msg) => (
             <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`group relative max-w-[calc(100%-1rem)] sm:max-w-[82%] rounded-xl px-4 py-3 text-base leading-7 text-foreground shadow-sm ${
+              <div className={`group relative max-w-[calc(100%-1rem)] sm:max-w-[82%] rounded-xl px-4 py-3 text-base font-medium leading-7 text-foreground shadow-sm ${
                 msg.role === "user"
-                  ? "bg-primary/15"
+                  ? "bg-card border border-border"
                   : "bg-card border border-border"
               }`}>
                 {/* Persona badge + selected indicator */}
@@ -352,7 +352,7 @@ const ContactChatPage = () => {
                       </Badge>
                     )}
                     {msg.selected && (
-                      <div className="flex items-center gap-0.5 text-[10px] font-medium text-primary">
+                      <div className="flex items-center gap-0.5 text-[10px] font-medium text-secondary">
                         <Check className="h-3 w-3" /> Used
                       </div>
                     )}
@@ -361,7 +361,7 @@ const ContactChatPage = () => {
 
                 {/* Selected blue bar indicator */}
                 {msg.role === "assistant" && msg.selected && (
-                  <div className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-primary" />
+                  <div className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-secondary" />
                 )}
 
                 {msg.image_url && (
@@ -389,7 +389,7 @@ const ContactChatPage = () => {
                     {msg.role === "assistant" ? (
                       <MarkdownMessage content={msg.content} />
                     ) : (
-                      <p className="whitespace-pre-wrap text-base leading-7 text-foreground">{msg.content}</p>
+                      <p className="whitespace-pre-wrap text-base font-medium leading-7 text-foreground">{msg.content}</p>
                     )}
                   </>
                 )}

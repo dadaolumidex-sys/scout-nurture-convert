@@ -92,10 +92,10 @@ function formatTime(date?: Date) {
 function TypingIndicator({ name }: { name: string }) {
   return (
     <div className="flex items-start gap-2">
-      <div className="h-7 w-7 rounded-full bg-accent flex items-center justify-center shrink-0">
-        <Bot className="h-3.5 w-3.5 text-primary" />
+      <div className="h-7 w-7 rounded-full bg-card flex items-center justify-center shrink-0 border border-border">
+        <Bot className="h-3.5 w-3.5 text-secondary" />
       </div>
-      <div className="bg-accent rounded-2xl rounded-tl-sm px-3 py-2.5">
+      <div className="bg-card border border-border rounded-2xl rounded-tl-sm px-3 py-2.5">
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-muted-foreground">{name}</span>
           <div className="flex gap-0.5">
@@ -269,13 +269,13 @@ const ChatPage = () => {
         <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
           {msg.role === "assistant" && (
             <div className="h-7 w-7 rounded-full bg-card flex items-center justify-center shrink-0 mt-0.5 border border-border">
-              <Bot className="h-3.5 w-3.5 text-primary" />
+              <Bot className="h-3.5 w-3.5 text-secondary" />
             </div>
           )}
           <div className="flex min-w-0 flex-col gap-0.5">
-            <div className={`group relative rounded-2xl px-4 py-3 text-base leading-7 text-foreground shadow-sm ${maxWidth} ${
+            <div className={`group relative rounded-2xl px-4 py-3 text-base font-medium leading-7 text-foreground shadow-sm ${maxWidth} ${
               msg.role === "user"
-                ? "bg-primary/15 rounded-tr-sm"
+                ? "bg-card border border-border rounded-tr-sm"
                 : "bg-card border border-border rounded-tl-sm"
             }`}>
               {msg.images && msg.images.length > 0 && (
@@ -296,7 +296,7 @@ const ChatPage = () => {
                   {msg.role === "assistant" ? (
                     <MarkdownMessage content={msg.content} />
                   ) : (
-                    msg.content && <p className="whitespace-pre-wrap text-base leading-7 text-foreground">{msg.content}</p>
+                    msg.content && <p className="whitespace-pre-wrap text-base font-medium leading-7 text-foreground">{msg.content}</p>
                   )}
                 </>
               )}
@@ -323,8 +323,8 @@ const ChatPage = () => {
             )}
           </div>
           {msg.role === "user" && (
-            <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-xs font-bold text-primary">Y</span>
+            <div className="h-7 w-7 rounded-full bg-card border border-border flex items-center justify-center shrink-0 mt-0.5">
+              <span className="text-xs font-bold text-foreground">Y</span>
             </div>
           )}
         </div>

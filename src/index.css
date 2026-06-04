@@ -113,13 +113,15 @@
   .ai-readable-message td,
   .ai-readable-message th {
     color: hsl(var(--foreground)) !important;
+    font-weight: 500;
   }
 
   .ai-readable-message a {
-    color: hsl(var(--primary)) !important;
+    color: hsl(var(--secondary)) !important;
+    font-weight: 700;
   }
 
   .ai-readable-message ::marker {
-    color: hsl(var(--primary)) !important;
+    color: hsl(var(--secondary)) !important;
   }
 }
