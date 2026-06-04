@@ -268,15 +268,15 @@ const ChatPage = () => {
       {messages.map((msg, i) => (
         <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
           {msg.role === "assistant" && (
-            <div className="h-7 w-7 rounded-full bg-accent flex items-center justify-center shrink-0 mt-0.5">
+            <div className="h-7 w-7 rounded-full bg-card flex items-center justify-center shrink-0 mt-0.5 border border-border">
               <Bot className="h-3.5 w-3.5 text-primary" />
             </div>
           )}
-          <div className="flex flex-col gap-0.5">
-            <div className={`group relative rounded-2xl px-3.5 py-3 text-[15px] leading-relaxed ${maxWidth} ${
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <div className={`group relative rounded-2xl px-4 py-3 text-base leading-7 text-foreground shadow-sm ${maxWidth} ${
               msg.role === "user"
-                ? "bg-primary/15 text-foreground rounded-tr-sm"
-                : "bg-muted text-foreground border border-border rounded-tl-sm"
+                ? "bg-primary/15 rounded-tr-sm"
+                : "bg-card border border-border rounded-tl-sm"
             }`}>
               {msg.images && msg.images.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-1.5">
@@ -296,7 +296,7 @@ const ChatPage = () => {
                   {msg.role === "assistant" ? (
                     <MarkdownMessage content={msg.content} />
                   ) : (
-                    msg.content && <p className="whitespace-pre-wrap">{msg.content}</p>
+                    msg.content && <p className="whitespace-pre-wrap text-base leading-7 text-foreground">{msg.content}</p>
                   )}
                 </>
               )}
@@ -447,8 +447,8 @@ const ChatPage = () => {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-auto px-3 py-3 space-y-3">
-          {messages.length === 0 ? emptyState : renderMessages("max-w-[85%]")}
+          <div className="flex-1 overflow-auto px-3 py-3 space-y-3">
+            {messages.length === 0 ? emptyState : renderMessages("max-w-[calc(100%-2.25rem)]")}
         </div>
 
         {/* Input */}
@@ -498,7 +498,7 @@ const ChatPage = () => {
           </div>
 
           <div className="flex-1 overflow-auto space-y-3 mb-2">
-            {messages.length === 0 ? emptyState : renderMessages("max-w-[80%]")}
+            {messages.length === 0 ? emptyState : renderMessages("max-w-[82%]")}
           </div>
 
           {pendingImages.length > 0 && (
