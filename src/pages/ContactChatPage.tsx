@@ -338,10 +338,10 @@ const ContactChatPage = () => {
           )}
           {messages.filter((msg) => msg.persona === persona).map((msg) => (
             <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`group relative max-w-[80%] rounded-xl px-4 py-3 text-[15px] leading-relaxed ${
+              <div className={`group relative max-w-[calc(100%-1rem)] sm:max-w-[82%] rounded-xl px-4 py-3 text-base leading-7 text-foreground shadow-sm ${
                 msg.role === "user"
-                  ? "bg-primary/15 text-foreground"
-                  : "bg-muted text-foreground border border-border"
+                  ? "bg-primary/15"
+                  : "bg-card border border-border"
               }`}>
                 {/* Persona badge + selected indicator */}
                 {msg.role === "assistant" && (
@@ -389,7 +389,7 @@ const ContactChatPage = () => {
                     {msg.role === "assistant" ? (
                       <MarkdownMessage content={msg.content} />
                     ) : (
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <p className="whitespace-pre-wrap text-base leading-7 text-foreground">{msg.content}</p>
                     )}
                   </>
                 )}
