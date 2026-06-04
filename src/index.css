@@ -96,3 +96,30 @@
     background-clip: text;
   }
 }
+
+@layer components {
+  .ai-readable-message,
+  .ai-readable-message p,
+  .ai-readable-message li,
+  .ai-readable-message h1,
+  .ai-readable-message h2,
+  .ai-readable-message h3,
+  .ai-readable-message h4,
+  .ai-readable-message h5,
+  .ai-readable-message h6,
+  .ai-readable-message strong,
+  .ai-readable-message em,
+  .ai-readable-message blockquote,
+  .ai-readable-message td,
+  .ai-readable-message th {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .ai-readable-message a {
+    color: hsl(var(--primary)) !important;
+  }
+
+  .ai-readable-message ::marker {
+    color: hsl(var(--primary)) !important;
+  }
+}
