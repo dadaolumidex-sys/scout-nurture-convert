@@ -7,7 +7,7 @@
 @layer base {
   :root {
     --background: 230 25% 9%;
-    --foreground: 220 20% 93%;
+    --foreground: 220 25% 98%;
 
     --card: 230 22% 12%;
     --card-foreground: 220 20% 93%;
@@ -110,10 +110,18 @@
   .ai-readable-message strong,
   .ai-readable-message em,
   .ai-readable-message blockquote,
-  .ai-readable-message td,
-  .ai-readable-message th {
+    .ai-readable-message td,
+    .ai-readable-message th {
     color: hsl(var(--foreground)) !important;
-    font-weight: 500;
+    font-weight: 600;
+  }
+
+  .ai-readable-message h1,
+  .ai-readable-message h2,
+  .ai-readable-message h3,
+  .ai-readable-message h4,
+  .ai-readable-message strong {
+    font-weight: 800 !important;
   }
 
   .ai-readable-message a {
