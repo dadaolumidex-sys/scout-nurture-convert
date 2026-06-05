@@ -15,48 +15,48 @@
     --popover: 230 22% 12%;
     --popover-foreground: 220 20% 93%;
 
-    --primary: 45 100% 58%;
-    --primary-foreground: 230 25% 9%;
+    --primary: 160 84% 40%;
+    --primary-foreground: 150 40% 97%;
 
-    --secondary: 200 70% 50%;
-    --secondary-foreground: 220 20% 95%;
+    --secondary: 168 60% 45%;
+    --secondary-foreground: 150 40% 97%;
 
     --muted: 230 20% 16%;
     --muted-foreground: 225 15% 55%;
 
-    --accent: 45 40% 18%;
-    --accent-foreground: 45 100% 70%;
+    --accent: 160 40% 16%;
+    --accent-foreground: 156 72% 70%;
 
     --destructive: 0 72% 55%;
     --destructive-foreground: 210 40% 98%;
 
     --border: 230 18% 18%;
     --input: 230 18% 18%;
-    --ring: 45 100% 58%;
+    --ring: 160 84% 40%;
 
     --radius: 0.75rem;
 
     --sidebar-background: 230 28% 7%;
     --sidebar-foreground: 225 15% 60%;
-    --sidebar-primary: 45 100% 58%;
-    --sidebar-primary-foreground: 230 25% 9%;
+    --sidebar-primary: 160 84% 40%;
+    --sidebar-primary-foreground: 150 40% 97%;
     --sidebar-accent: 230 20% 14%;
     --sidebar-accent-foreground: 220 20% 93%;
     --sidebar-border: 230 18% 14%;
-    --sidebar-ring: 45 100% 58%;
+    --sidebar-ring: 160 84% 40%;
 
     --success: 145 65% 45%;
     --success-foreground: 230 25% 9%;
     --warning: 25 95% 55%;
     --warning-foreground: 230 25% 9%;
-    --info: 200 70% 50%;
+    --info: 168 60% 45%;
     --info-foreground: 230 25% 9%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(45 100% 58%), hsl(35 95% 50%));
-    --gradient-secondary: linear-gradient(135deg, hsl(200 70% 50%), hsl(220 70% 55%));
+    --gradient-primary: linear-gradient(135deg, hsl(160 84% 40%), hsl(168 75% 32%));
+    --gradient-secondary: linear-gradient(135deg, hsl(168 60% 45%), hsl(180 65% 40%));
     --gradient-card: linear-gradient(180deg, hsl(230 22% 14%), hsl(230 22% 10%));
-    --glow-primary: 0 0 20px hsl(45 100% 58% / 0.25);
-    --glow-secondary: 0 0 20px hsl(200 70% 50% / 0.25);
+    --glow-primary: 0 0 20px hsl(160 84% 40% / 0.3);
+    --glow-secondary: 0 0 20px hsl(168 60% 45% / 0.25);
   }
 }
 
