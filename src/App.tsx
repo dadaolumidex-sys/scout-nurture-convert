@@ -4,7 +4,6 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppUpdateRefresher } from "@/components/AppUpdateRefresher";
-import { MusicProvider } from "@/contexts/MusicContext";
 import Index from "./pages/Index";
 import AnalyzerPage from "./pages/AnalyzerPage";
 import ChatPage from "./pages/ChatPage";
@@ -40,14 +39,12 @@ function AppRoutes() {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <MusicProvider>
-        <AppUpdateRefresher />
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </MusicProvider>
+      <AppUpdateRefresher />
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );
