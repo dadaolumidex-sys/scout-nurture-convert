@@ -3,7 +3,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { CommandPalette } from "@/components/CommandPalette";
 import { NotificationsBell } from "@/components/NotificationsBell";
-import { MiniMusicPlayer } from "@/components/MiniMusicPlayer";
+
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -25,7 +25,6 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             {children}
           </main>
         </div>
-        <MiniMusicPlayer />
         <MobileBottomNav />
       </div>
     </SidebarProvider>
