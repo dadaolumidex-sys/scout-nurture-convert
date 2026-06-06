@@ -194,7 +194,49 @@ const SettingsPage = () => {
             </>
           )}
 
-          {(view === "appearance" || view === "notifications" || view === "security" || view === "install") && (
+          {view === "appearance" && (
+            <>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">Appearance</h1>
+                <p className="text-sm text-muted-foreground">Pick a color theme. It changes the whole app — buttons, links, chat highlights and the sidebar — instantly.</p>
+              </div>
+              <Card className="bg-card border-border">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <Palette className="h-4 w-4 text-primary" /> Theme color
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    {THEME_PRESETS.map((preset) => {
+                      const selected = preset.id === activeTheme;
+                      return (
+                        <button
+                          key={preset.id}
+                          onClick={() => {
+                            applyTheme(preset.id);
+                            setActiveTheme(preset.id);
+                            toast.success(`${preset.name} theme applied`);
+                          }}
+                          className={`flex items-center gap-2.5 rounded-lg border p-3 text-left transition-colors ${
+                            selected ? "border-primary bg-muted" : "border-border hover:bg-muted/50"
+                          }`}
+                        >
+                          <span
+                            className="h-7 w-7 shrink-0 rounded-full border border-border"
+                            style={{ backgroundColor: `hsl(${preset.swatch})` }}
+                          />
+                          <span className="flex-1 text-sm font-medium text-foreground">{preset.name}</span>
+                          {selected && <CheckCircle className="h-4 w-4 text-primary shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Your choice is saved on this device and stays after you close the app.</p>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {(view === "notifications" || view === "security" || view === "install") && (
             <>
               <h1 className="text-2xl font-bold text-foreground capitalize">{view === "install" ? "Install App" : view}</h1>
               <Card className="bg-card border-border">
