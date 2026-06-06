@@ -29,6 +29,7 @@ const SettingsPage = () => {
   const [hasGeminiKey, setHasGeminiKey] = useState(false);
   const [hasOpenaiKey, setHasOpenaiKey] = useState(false);
   const [issueText, setIssueText] = useState("");
+  const [activeTheme, setActiveTheme] = useState<string>(getStoredTheme());
   const [diagRunning, setDiagRunning] = useState(false);
   const [diagResult, setDiagResult] = useState<string | null>(null);
 
