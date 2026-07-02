@@ -185,6 +185,7 @@ const ChatPage = () => {
   const sendMessagesStream = async (convoId: string, msgs: ChatMessage[]) => {
     sendLockRef.current = true;
     setLoading(true);
+    setAiError(null);
     let assistantSoFar = "";
     const unlock = () => { sendLockRef.current = false; setLoading(false); };
 
