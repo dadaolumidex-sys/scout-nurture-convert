@@ -77,6 +77,8 @@ const SearchPage = () => {
   const [saved, setSaved] = useState<any[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loadingSaved, setLoadingSaved] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkSending, setBulkSending] = useState(false);
 
   // AI summary state
   const [summary, setSummary] = useState<{ summary: string; top_picks: { index: number; title: string; why: string; opener: string }[] } | null>(null);
