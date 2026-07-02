@@ -338,6 +338,30 @@ const ChatPage = () => {
       {loading && messages[messages.length - 1]?.role !== "assistant" && (
         <TypingIndicator name={config.name} />
       )}
+      {aiError && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-3.5 space-y-2.5">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">Couldn't get a reply</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{aiError.msg}</p>
+            </div>
+            <button onClick={() => setAiError(null)} className="ml-auto shrink-0 text-muted-foreground hover:text-foreground" aria-label="Dismiss">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2 pl-6">
+            {(aiError.code === "add_key" || aiError.code === "bad_key") && (
+              <Button size="sm" onClick={() => navigate("/settings")} className="gradient-primary text-primary-foreground gap-1.5 h-8 text-xs">
+                <KeyRound className="h-3.5 w-3.5" /> Add / fix API key
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => { setAiError(null); handleRetryLast(); }} className="gap-1.5 h-8 text-xs">
+              <RotateCcw className="h-3.5 w-3.5" /> Try again
+            </Button>
+          </div>
+        </div>
+      )}
       <div ref={messagesEndRef} />
     </>
   );
