@@ -708,9 +708,12 @@ function ResultCard({ mode, r, i, onSave, saved, onSendToInbox, selected, onTogg
   const isCreator = ["youtube","tiktok","instagram","twitter","reddit","twitch"].includes(mode) || /twitch\.tv|kick\.com|youtube\.com|tiktok\.com|instagram\.com/.test(url || "");
 
   return (
-    <Card className="bg-card border-border overflow-hidden">
+    <Card className={`bg-card overflow-hidden transition ${selected ? "border-primary ring-1 ring-primary/40" : "border-border"}`}>
       <CardContent className="p-4 space-y-2">
         <div className="flex items-start gap-3">
+          {onToggleSelect && (
+            <Checkbox checked={!!selected} onCheckedChange={onToggleSelect} className="mt-1 shrink-0" aria-label="Select result" />
+          )}
           {image && <img src={image} alt="" className="h-14 w-14 rounded-lg object-cover shrink-0 border border-border" />}
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
