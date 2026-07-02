@@ -563,9 +563,44 @@ const SearchPage = () => {
               </Card>
             )}
 
+            {results.length > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+                <button
+                  onClick={() => setSelected(selected.size === results.length ? new Set() : new Set(results.map((_, i) => i)))}
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground flex items-center gap-1.5"
+                >
+                  <Checkbox checked={selected.size === results.length && results.length > 0} className="h-4 w-4 pointer-events-none" />
+                  {selected.size === results.length ? "Clear all" : "Select all"}
+                </button>
+                <span className="text-[11px] text-muted-foreground">{selected.size} selected</span>
+              </div>
+            )}
+
             <div className="space-y-3">
-              {results.map((r, i) => <ResultCard key={i} mode={mode} r={r} i={i} onSave={() => saveResult(r)} saved={isSaved(r)} onSendToInbox={() => sendToInbox({ title: r.title || r.name || r.username, url: r.url || r.link || r.profileUrl, image: r.thumbnailUrl || r.image || r.profilePicUrl, snippet: r.description || r.snippet || r.bio })} />)}
+              {results.map((r, i) => (
+                <ResultCard
+                  key={i} mode={mode} r={r} i={i}
+                  onSave={() => saveResult(r)} saved={isSaved(r)}
+                  selected={selected.has(i)} onToggleSelect={() => toggleSelect(i)}
+                  onSendToInbox={() => sendToInbox(normalizeForInbox(r))}
+                />
+              ))}
             </div>
+
+            {selected.size > 0 && (
+              <div className="sticky bottom-20 md:bottom-4 z-30 flex justify-center px-2">
+                <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-card/95 backdrop-blur px-3 py-2 shadow-lg">
+                  <span className="text-xs font-medium text-foreground pl-1">{selected.size} selected</span>
+                  <Button size="sm" onClick={bulkSendToInbox} disabled={bulkSending} className="gradient-primary text-primary-foreground gap-1.5 h-8 rounded-full text-xs">
+                    {bulkSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Inbox className="h-3.5 w-3.5" />}
+                    Send to Inbox
+                  </Button>
+                  <button onClick={() => setSelected(new Set())} className="text-muted-foreground hover:text-foreground p-1" aria-label="Clear selection">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
 
