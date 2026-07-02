@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Globe, Search, Loader2, ExternalLink, Sparkles, MapPin, Mail, Youtube, Music2, Instagram, Twitter, MessageSquare, ShoppingBag, Camera, Tv, Network, FileText, Lightbulb, Bookmark, BookmarkCheck, Trash2, History, Wand2, Send, Tag, X, Inbox, Star } from "lucide-react";
 import { toast } from "sonner";
 import { recordFailure, recordSuccess } from "@/lib/apiKeys";
