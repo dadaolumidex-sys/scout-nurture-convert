@@ -477,7 +477,7 @@ const SearchPage = () => {
                     return (
                       <button
                         key={m.id}
-                        onClick={() => { setMode(m.id); setResults([]); setInput(""); setSummary(null); }}
+                        onClick={() => { setMode(m.id); setResults([]); setInput(""); setSummary(null); setSelected(new Set()); }}
                         className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
                           active
                             ? "border-primary bg-primary/10 glow-primary"
