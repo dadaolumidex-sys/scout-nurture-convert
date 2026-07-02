@@ -25,7 +25,7 @@ async function streamChat({
   messages, persona, deepResearch, onDelta, onDone, onError,
 }: {
   messages: ChatMessage[]; persona: Persona; deepResearch: boolean;
-  onDelta: (text: string) => void; onDone: () => void; onError: (msg: string) => void;
+  onDelta: (text: string) => void; onDone: () => void; onError: (msg: string, code?: string) => void;
 }) {
   const apiMessages = messages.map((msg) => {
     if (msg.images && msg.images.length > 0) {
@@ -49,9 +49,11 @@ async function streamChat({
     body: JSON.stringify({ messages: apiMessages, persona, deepResearch }),
   });
 
-  if (!resp.ok) {
+  // Error responses come back as JSON (even with HTTP 200) — detect and surface them.
+  const contentType = resp.headers.get("content-type") || "";
+  if (!resp.ok || contentType.includes("application/json")) {
     const err = await resp.json().catch(() => ({ error: "Request failed" }));
-    onError(err.error || `Error ${resp.status}`);
+    onError(err.error || `Error ${resp.status}`, err.code);
     return;
   }
   if (!resp.body) { onError("No response stream"); return; }
