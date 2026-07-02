@@ -3,12 +3,14 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { CommandPalette } from "@/components/CommandPalette";
 import { NotificationsBell } from "@/components/NotificationsBell";
+import { OnboardingTour } from "@/components/OnboardingTour";
 
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
       <CommandPalette />
+      <OnboardingTour />
       <div className="min-h-screen flex w-full">
         <div className="hidden md:block">
           <AppSidebar />

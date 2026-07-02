@@ -4,6 +4,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Globe, Search, Loader2, ExternalLink, Sparkles, MapPin, Mail, Youtube, Music2, Instagram, Twitter, MessageSquare, ShoppingBag, Camera, Tv, Network, FileText, Lightbulb, Bookmark, BookmarkCheck, Trash2, History, Wand2, Send, Tag, X, Inbox, Star } from "lucide-react";
 import { toast } from "sonner";
 import { recordFailure, recordSuccess } from "@/lib/apiKeys";
@@ -77,6 +78,8 @@ const SearchPage = () => {
   const [saved, setSaved] = useState<any[]>([]);
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
   const [loadingSaved, setLoadingSaved] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [bulkSending, setBulkSending] = useState(false);
 
   // AI summary state
   const [summary, setSummary] = useState<{ summary: string; top_picks: { index: number; title: string; why: string; opener: string }[] } | null>(null);
@@ -158,9 +161,12 @@ const SearchPage = () => {
     loadSaved();
   };
 
-  const sendToInbox = async (item: any) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { toast.error("Sign in first"); return; }
+  // Core: add one normalized item to the Inbox with duplicate detection.
+  // Returns a status so callers (single + bulk) can report results consistently.
+  const addItemToInbox = async (
+    session: any,
+    item: any
+  ): Promise<{ status: "added" | "duplicate" | "error"; username: string; id?: string }> => {
     let platform = "twitch";
     let username = item.title || item.name || item.username || "lead";
     if (item.url) {
@@ -178,12 +184,7 @@ const SearchPage = () => {
     // Duplicate detection
     const { data: existing } = await (supabase.from("streamer_contacts" as any)
       .select("id, username").eq("user_id", session.user.id).eq("platform", platform).eq("username", username).maybeSingle() as any);
-    if (existing?.id) {
-      toast.info(`${username} is already in your Inbox`, {
-        action: { label: "Open", onClick: () => navigate(`/inbox/${existing.id}`) },
-      });
-      return;
-    }
+    if (existing?.id) return { status: "duplicate", username, id: existing.id };
     const { data, error } = await (supabase.from("streamer_contacts" as any).insert({
       user_id: session.user.id, platform, username,
       display_name: item.title?.slice(0, 120) || username,
@@ -191,11 +192,67 @@ const SearchPage = () => {
       description: (item.snippet || item.description || item.bio)?.slice(0, 500),
       status: "new", conversation_type: "new",
     }).select("id").single() as any);
-    if (error) { toast.error("Could not add to Inbox"); return; }
-    toast.success(`Added ${username} to Inbox`, {
-      action: { label: "Open", onClick: () => navigate(`/inbox/${data.id}`) },
+    if (error) return { status: "error", username };
+    return { status: "added", username, id: data.id };
+  };
+
+  const sendToInbox = async (item: any) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { toast.error("Sign in first"); return; }
+    const res = await addItemToInbox(session, item);
+    if (res.status === "duplicate") {
+      toast.info(`${res.username} is already in your Inbox`, {
+        action: { label: "Open", onClick: () => navigate(`/inbox/${res.id}`) },
+      });
+      return;
+    }
+    if (res.status === "error") { toast.error("Could not add to Inbox"); return; }
+    toast.success(`Added ${res.username} to Inbox`, {
+      action: { label: "Open", onClick: () => navigate(`/inbox/${res.id}`) },
     });
-    notify("info", "New contact", `${username} added from research`).catch(() => {});
+    notify("info", "New contact", `${res.username} added from research`).catch(() => {});
+  };
+
+  // Normalize a raw search result into the shape addItemToInbox expects.
+  const normalizeForInbox = (r: any) => ({
+    title: r.title || r.name || r.username || r.displayName,
+    url: r.url || r.link || r.profileUrl || r.webUrl || r.permalink,
+    image: r.thumbnailUrl || r.image || r.profilePicUrl,
+    snippet: r.description || r.snippet || r.bio,
+  });
+
+  const bulkSendToInbox = async () => {
+    if (bulkSending) return;
+    const items = results.filter((_, i) => selected.has(i));
+    if (items.length === 0) { toast.error("Select at least one result"); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { toast.error("Sign in first"); return; }
+    setBulkSending(true);
+    let added = 0, dupes = 0, failed = 0;
+    for (const r of items) {
+      const res = await addItemToInbox(session, normalizeForInbox(r));
+      if (res.status === "added") added++;
+      else if (res.status === "duplicate") dupes++;
+      else failed++;
+    }
+    setBulkSending(false);
+    setSelected(new Set());
+    const parts = [] as string[];
+    if (added) parts.push(`${added} added`);
+    if (dupes) parts.push(`${dupes} already in Inbox`);
+    if (failed) parts.push(`${failed} failed`);
+    toast.success(parts.join(" · ") || "Done", {
+      action: added ? { label: "Open Inbox", onClick: () => navigate("/inbox") } : undefined,
+    });
+    if (added) notify("info", "Leads added", `${added} lead(s) added from research`).catch(() => {});
+  };
+
+  const toggleSelect = (i: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
   };
 
   const summarizeResults = async () => {
@@ -255,6 +312,7 @@ const SearchPage = () => {
     if (!input.trim()) { toast.error(`Enter a ${cfg.needs === "url" ? "URL" : "query"}`); return; }
     setLoading(true);
     setResults([]);
+    setSelected(new Set());
     setSummary(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -420,7 +478,7 @@ const SearchPage = () => {
                     return (
                       <button
                         key={m.id}
-                        onClick={() => { setMode(m.id); setResults([]); setInput(""); setSummary(null); }}
+                        onClick={() => { setMode(m.id); setResults([]); setInput(""); setSummary(null); setSelected(new Set()); }}
                         className={`flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition ${
                           active
                             ? "border-primary bg-primary/10 glow-primary"
@@ -506,9 +564,44 @@ const SearchPage = () => {
               </Card>
             )}
 
+            {results.length > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2">
+                <button
+                  onClick={() => setSelected(selected.size === results.length ? new Set() : new Set(results.map((_, i) => i)))}
+                  className="text-xs font-medium text-muted-foreground hover:text-foreground flex items-center gap-1.5"
+                >
+                  <Checkbox checked={selected.size === results.length && results.length > 0} className="h-4 w-4 pointer-events-none" />
+                  {selected.size === results.length ? "Clear all" : "Select all"}
+                </button>
+                <span className="text-[11px] text-muted-foreground">{selected.size} selected</span>
+              </div>
+            )}
+
             <div className="space-y-3">
-              {results.map((r, i) => <ResultCard key={i} mode={mode} r={r} i={i} onSave={() => saveResult(r)} saved={isSaved(r)} onSendToInbox={() => sendToInbox({ title: r.title || r.name || r.username, url: r.url || r.link || r.profileUrl, image: r.thumbnailUrl || r.image || r.profilePicUrl, snippet: r.description || r.snippet || r.bio })} />)}
+              {results.map((r, i) => (
+                <ResultCard
+                  key={i} mode={mode} r={r} i={i}
+                  onSave={() => saveResult(r)} saved={isSaved(r)}
+                  selected={selected.has(i)} onToggleSelect={() => toggleSelect(i)}
+                  onSendToInbox={() => sendToInbox(normalizeForInbox(r))}
+                />
+              ))}
             </div>
+
+            {selected.size > 0 && (
+              <div className="sticky bottom-20 md:bottom-4 z-30 flex justify-center px-2">
+                <div className="flex items-center gap-2 rounded-full border border-primary/30 bg-card/95 backdrop-blur px-3 py-2 shadow-lg">
+                  <span className="text-xs font-medium text-foreground pl-1">{selected.size} selected</span>
+                  <Button size="sm" onClick={bulkSendToInbox} disabled={bulkSending} className="gradient-primary text-primary-foreground gap-1.5 h-8 rounded-full text-xs">
+                    {bulkSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Inbox className="h-3.5 w-3.5" />}
+                    Send to Inbox
+                  </Button>
+                  <button onClick={() => setSelected(new Set())} className="text-muted-foreground hover:text-foreground p-1" aria-label="Clear selection">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
 
@@ -584,7 +677,7 @@ const SearchPage = () => {
   );
 };
 
-function ResultCard({ mode, r, i, onSave, saved, onSendToInbox }: { mode: Mode; r: any; i: number; onSave: () => void; saved: boolean; onSendToInbox?: () => void }) {
+function ResultCard({ mode, r, i, onSave, saved, onSendToInbox, selected, onToggleSelect }: { mode: Mode; r: any; i: number; onSave: () => void; saved: boolean; onSendToInbox?: () => void; selected?: boolean; onToggleSelect?: () => void }) {
   // Universal field extraction
   const title =
     r.title || r.name || r.displayName || r.username || r.channelName || r.text?.slice(0, 80) ||
@@ -615,9 +708,12 @@ function ResultCard({ mode, r, i, onSave, saved, onSendToInbox }: { mode: Mode; 
   const isCreator = ["youtube","tiktok","instagram","twitter","reddit","twitch"].includes(mode) || /twitch\.tv|kick\.com|youtube\.com|tiktok\.com|instagram\.com/.test(url || "");
 
   return (
-    <Card className="bg-card border-border overflow-hidden">
+    <Card className={`bg-card overflow-hidden transition ${selected ? "border-primary ring-1 ring-primary/40" : "border-border"}`}>
       <CardContent className="p-4 space-y-2">
         <div className="flex items-start gap-3">
+          {onToggleSelect && (
+            <Checkbox checked={!!selected} onCheckedChange={onToggleSelect} className="mt-1 shrink-0" aria-label="Select result" />
+          )}
           {image && <img src={image} alt="" className="h-14 w-14 rounded-lg object-cover shrink-0 border border-border" />}
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">

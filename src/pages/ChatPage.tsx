@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, Plus, ImagePlus, Sparkles, X, Pencil, Trash2, Copy, MoreVertical, Check, RotateCcw, ArrowLeft, Cpu } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Send, Bot, Plus, ImagePlus, Sparkles, X, Pencil, Trash2, Copy, MoreVertical, Check, RotateCcw, ArrowLeft, Cpu, AlertTriangle, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,7 +26,7 @@ async function streamChat({
   messages, persona, deepResearch, onDelta, onDone, onError,
 }: {
   messages: ChatMessage[]; persona: Persona; deepResearch: boolean;
-  onDelta: (text: string) => void; onDone: () => void; onError: (msg: string) => void;
+  onDelta: (text: string) => void; onDone: () => void; onError: (msg: string, code?: string) => void;
 }) {
   const apiMessages = messages.map((msg) => {
     if (msg.images && msg.images.length > 0) {
@@ -49,9 +50,11 @@ async function streamChat({
     body: JSON.stringify({ messages: apiMessages, persona, deepResearch }),
   });
 
-  if (!resp.ok) {
+  // Error responses come back as JSON (even with HTTP 200) — detect and surface them.
+  const contentType = resp.headers.get("content-type") || "";
+  if (!resp.ok || contentType.includes("application/json")) {
     const err = await resp.json().catch(() => ({ error: "Request failed" }));
-    onError(err.error || `Error ${resp.status}`);
+    onError(err.error || `Error ${resp.status}`, err.code);
     return;
   }
   if (!resp.body) { onError("No response stream"); return; }
@@ -120,8 +123,10 @@ function ModelBadge({ deepResearch }: { deepResearch: boolean }) {
 
 const ChatPage = () => {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const [persona, setPersona] = useState<Persona>("friend");
   const [input, setInput] = useState("");
+  const [aiError, setAiError] = useState<{ msg: string; code?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [deepResearch, setDeepResearch] = useState(false);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
@@ -180,6 +185,7 @@ const ChatPage = () => {
   const sendMessagesStream = async (convoId: string, msgs: ChatMessage[]) => {
     sendLockRef.current = true;
     setLoading(true);
+    setAiError(null);
     let assistantSoFar = "";
     const unlock = () => { sendLockRef.current = false; setLoading(false); };
 
@@ -203,7 +209,7 @@ const ChatPage = () => {
           }
           unlock();
         },
-        onError: (msg) => { toast.error(msg); unlock(); },
+        onError: (msg, code) => { setAiError({ msg, code }); toast.error(msg); unlock(); },
       });
     } catch (e) { console.error(e); toast.error("Failed to get AI response"); unlock(); }
   };
@@ -253,6 +259,16 @@ const ChatPage = () => {
     setMessages(truncated);
     await replaceMessages(activeId, truncated);
     await sendMessagesStream(activeId, truncated);
+  };
+
+  const handleRetryLast = async () => {
+    if (!activeId || loading || sendLockRef.current) return;
+    // Drop a trailing empty/failed assistant turn, then resend from the last user message.
+    let msgs = [...messages];
+    if (msgs[msgs.length - 1]?.role === "assistant") msgs = msgs.slice(0, -1);
+    if (msgs.length === 0) return;
+    setMessages(msgs);
+    await sendMessagesStream(activeId, msgs);
   };
 
   const handleDelete = (index: number) => {
@@ -331,6 +347,30 @@ const ChatPage = () => {
       ))}
       {loading && messages[messages.length - 1]?.role !== "assistant" && (
         <TypingIndicator name={config.name} />
+      )}
+      {aiError && (
+        <div className="rounded-2xl border border-destructive/40 bg-destructive/10 p-3.5 space-y-2.5">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive mt-0.5 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">Couldn't get a reply</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{aiError.msg}</p>
+            </div>
+            <button onClick={() => setAiError(null)} className="ml-auto shrink-0 text-muted-foreground hover:text-foreground" aria-label="Dismiss">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2 pl-6">
+            {(aiError.code === "add_key" || aiError.code === "bad_key") && (
+              <Button size="sm" onClick={() => navigate("/settings")} className="gradient-primary text-primary-foreground gap-1.5 h-8 text-xs">
+                <KeyRound className="h-3.5 w-3.5" /> Add / fix API key
+              </Button>
+            )}
+            <Button size="sm" variant="outline" onClick={() => { setAiError(null); handleRetryLast(); }} className="gap-1.5 h-8 text-xs">
+              <RotateCcw className="h-3.5 w-3.5" /> Try again
+            </Button>
+          </div>
+        </div>
       )}
       <div ref={messagesEndRef} />
     </>
