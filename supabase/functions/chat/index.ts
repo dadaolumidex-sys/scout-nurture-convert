@@ -199,14 +199,28 @@ serve(async (req) => {
 
     if (!response) {
       const hasUserKey = Boolean(userKeys.openai || userKeys.gemini);
-      const msg = !hasUserKey
-        ? "Free AI quota is used up. Open Settings → API Keys and paste your own free Gemini API key (get one at aistudio.google.com/apikey) to keep chatting without limits."
-        : lastErr.includes("429")
-        ? "Your AI key is rate-limited. Wait a moment or add another key in Settings → API Keys."
-        : lastErr.includes("401") || lastErr.includes("403")
-        ? "Your saved AI key was rejected. Update it in Settings → API Keys."
-        : `AI providers failed (${lastErr || "unknown"}). Add a working Gemini or OpenAI key in Settings.`;
-      return new Response(JSON.stringify({ error: msg }), {
+      const isCredit = lastErr.includes("402") || lastErr.includes("429");
+      const isRejected = lastErr.includes("401") || lastErr.includes("403");
+      // code lets the UI show an actionable banner (add-key CTA)
+      let code = "unknown";
+      let msg = "";
+      if (isCredit && !hasUserKey) {
+        code = "add_key";
+        msg = "The shared AI allowance is used up for now. Add your own FREE Gemini key in Settings → API Keys (get one in 30 seconds at aistudio.google.com/apikey) and you'll never hit this limit again.";
+      } else if (isCredit && hasUserKey) {
+        code = "rate_limited";
+        msg = "Your AI key is busy or out of quota right now. Wait a moment, or add another key in Settings → API Keys for automatic backup.";
+      } else if (isRejected) {
+        code = "bad_key";
+        msg = "Your saved AI key was rejected. Update it in Settings → API Keys.";
+      } else if (!hasUserKey) {
+        code = "add_key";
+        msg = "AI is temporarily unavailable. Add your own free Gemini key in Settings → API Keys to keep chatting without interruptions.";
+      } else {
+        code = "unknown";
+        msg = `AI providers failed (${lastErr || "unknown"}). Check your keys in Settings → API Keys.`;
+      }
+      return new Response(JSON.stringify({ error: msg, code }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
