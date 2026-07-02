@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, Plus, ImagePlus, Sparkles, X, Pencil, Trash2, Copy, MoreVertical, Check, RotateCcw, ArrowLeft, Cpu } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Send, Bot, Plus, ImagePlus, Sparkles, X, Pencil, Trash2, Copy, MoreVertical, Check, RotateCcw, ArrowLeft, Cpu, AlertTriangle, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
