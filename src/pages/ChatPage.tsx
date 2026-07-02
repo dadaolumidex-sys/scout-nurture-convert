@@ -123,8 +123,10 @@ function ModelBadge({ deepResearch }: { deepResearch: boolean }) {
 
 const ChatPage = () => {
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const [persona, setPersona] = useState<Persona>("friend");
   const [input, setInput] = useState("");
+  const [aiError, setAiError] = useState<{ msg: string; code?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [deepResearch, setDeepResearch] = useState(false);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
