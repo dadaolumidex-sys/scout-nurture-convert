@@ -261,6 +261,16 @@ const ChatPage = () => {
     await sendMessagesStream(activeId, truncated);
   };
 
+  const handleRetryLast = async () => {
+    if (!activeId || loading || sendLockRef.current) return;
+    // Drop a trailing empty/failed assistant turn, then resend from the last user message.
+    let msgs = [...messages];
+    if (msgs[msgs.length - 1]?.role === "assistant") msgs = msgs.slice(0, -1);
+    if (msgs.length === 0) return;
+    setMessages(msgs);
+    await sendMessagesStream(activeId, msgs);
+  };
+
   const handleDelete = (index: number) => {
     setMessages((prev) => prev.filter((_, i) => i !== index));
     toast.success("Message deleted");
