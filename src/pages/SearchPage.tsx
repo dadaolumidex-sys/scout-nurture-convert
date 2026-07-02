@@ -158,9 +158,12 @@ const SearchPage = () => {
     loadSaved();
   };
 
-  const sendToInbox = async (item: any) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { toast.error("Sign in first"); return; }
+  // Core: add one normalized item to the Inbox with duplicate detection.
+  // Returns a status so callers (single + bulk) can report results consistently.
+  const addItemToInbox = async (
+    session: any,
+    item: any
+  ): Promise<{ status: "added" | "duplicate" | "error"; username: string; id?: string }> => {
     let platform = "twitch";
     let username = item.title || item.name || item.username || "lead";
     if (item.url) {
@@ -178,12 +181,7 @@ const SearchPage = () => {
     // Duplicate detection
     const { data: existing } = await (supabase.from("streamer_contacts" as any)
       .select("id, username").eq("user_id", session.user.id).eq("platform", platform).eq("username", username).maybeSingle() as any);
-    if (existing?.id) {
-      toast.info(`${username} is already in your Inbox`, {
-        action: { label: "Open", onClick: () => navigate(`/inbox/${existing.id}`) },
-      });
-      return;
-    }
+    if (existing?.id) return { status: "duplicate", username, id: existing.id };
     const { data, error } = await (supabase.from("streamer_contacts" as any).insert({
       user_id: session.user.id, platform, username,
       display_name: item.title?.slice(0, 120) || username,
@@ -191,11 +189,67 @@ const SearchPage = () => {
       description: (item.snippet || item.description || item.bio)?.slice(0, 500),
       status: "new", conversation_type: "new",
     }).select("id").single() as any);
-    if (error) { toast.error("Could not add to Inbox"); return; }
-    toast.success(`Added ${username} to Inbox`, {
-      action: { label: "Open", onClick: () => navigate(`/inbox/${data.id}`) },
+    if (error) return { status: "error", username };
+    return { status: "added", username, id: data.id };
+  };
+
+  const sendToInbox = async (item: any) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { toast.error("Sign in first"); return; }
+    const res = await addItemToInbox(session, item);
+    if (res.status === "duplicate") {
+      toast.info(`${res.username} is already in your Inbox`, {
+        action: { label: "Open", onClick: () => navigate(`/inbox/${res.id}`) },
+      });
+      return;
+    }
+    if (res.status === "error") { toast.error("Could not add to Inbox"); return; }
+    toast.success(`Added ${res.username} to Inbox`, {
+      action: { label: "Open", onClick: () => navigate(`/inbox/${res.id}`) },
     });
-    notify("info", "New contact", `${username} added from research`).catch(() => {});
+    notify("info", "New contact", `${res.username} added from research`).catch(() => {});
+  };
+
+  // Normalize a raw search result into the shape addItemToInbox expects.
+  const normalizeForInbox = (r: any) => ({
+    title: r.title || r.name || r.username || r.displayName,
+    url: r.url || r.link || r.profileUrl || r.webUrl || r.permalink,
+    image: r.thumbnailUrl || r.image || r.profilePicUrl,
+    snippet: r.description || r.snippet || r.bio,
+  });
+
+  const bulkSendToInbox = async () => {
+    if (bulkSending) return;
+    const items = results.filter((_, i) => selected.has(i));
+    if (items.length === 0) { toast.error("Select at least one result"); return; }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { toast.error("Sign in first"); return; }
+    setBulkSending(true);
+    let added = 0, dupes = 0, failed = 0;
+    for (const r of items) {
+      const res = await addItemToInbox(session, normalizeForInbox(r));
+      if (res.status === "added") added++;
+      else if (res.status === "duplicate") dupes++;
+      else failed++;
+    }
+    setBulkSending(false);
+    setSelected(new Set());
+    const parts = [] as string[];
+    if (added) parts.push(`${added} added`);
+    if (dupes) parts.push(`${dupes} already in Inbox`);
+    if (failed) parts.push(`${failed} failed`);
+    toast.success(parts.join(" · ") || "Done", {
+      action: added ? { label: "Open Inbox", onClick: () => navigate("/inbox") } : undefined,
+    });
+    if (added) notify("info", "Leads added", `${added} lead(s) added from research`).catch(() => {});
+  };
+
+  const toggleSelect = (i: number) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
   };
 
   const summarizeResults = async () => {
