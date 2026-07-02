@@ -209,7 +209,7 @@ const ChatPage = () => {
           }
           unlock();
         },
-        onError: (msg) => { toast.error(msg); unlock(); },
+        onError: (msg, code) => { setAiError({ msg, code }); toast.error(msg); unlock(); },
       });
     } catch (e) { console.error(e); toast.error("Failed to get AI response"); unlock(); }
   };
