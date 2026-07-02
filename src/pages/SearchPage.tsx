@@ -311,6 +311,7 @@ const SearchPage = () => {
     if (!input.trim()) { toast.error(`Enter a ${cfg.needs === "url" ? "URL" : "query"}`); return; }
     setLoading(true);
     setResults([]);
+    setSelected(new Set());
     setSummary(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
