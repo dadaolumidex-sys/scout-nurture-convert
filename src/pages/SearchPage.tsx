@@ -677,7 +677,7 @@ const SearchPage = () => {
   );
 };
 
-function ResultCard({ mode, r, i, onSave, saved, onSendToInbox }: { mode: Mode; r: any; i: number; onSave: () => void; saved: boolean; onSendToInbox?: () => void }) {
+function ResultCard({ mode, r, i, onSave, saved, onSendToInbox, selected, onToggleSelect }: { mode: Mode; r: any; i: number; onSave: () => void; saved: boolean; onSendToInbox?: () => void; selected?: boolean; onToggleSelect?: () => void }) {
   // Universal field extraction
   const title =
     r.title || r.name || r.displayName || r.username || r.channelName || r.text?.slice(0, 80) ||
