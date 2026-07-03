@@ -205,11 +205,13 @@ const ChatPage = () => {
     try {
       await streamChat({
         messages: msgs, persona, deepResearch,
+        memory: memoryEnabled ? memories.map((m) => m.content) : [],
         onDelta: upsertAssistant,
         onDone: async () => {
           if (assistantSoFar) {
             await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
             setMsgTimestamps(prev => [...prev, new Date()]);
+            void captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
           }
           unlock();
         },
