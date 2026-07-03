@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Settings, Key, Eye, EyeOff, Save, CheckCircle, Zap, User, Bell, Shield, Palette, Link2, Wrench, Download, LogOut, ChevronRight, ArrowLeft, Wifi, RefreshCw, Trash2, RotateCcw, Sparkles } from "lucide-react";
+import { Settings, Key, Eye, EyeOff, Save, CheckCircle, Zap, User, Bell, Shield, Palette, Link2, Wrench, Download, LogOut, ChevronRight, ArrowLeft, Wifi, RefreshCw, Trash2, RotateCcw, Sparkles, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ApiKeysManager } from "@/components/settings/ApiKeysManager";
