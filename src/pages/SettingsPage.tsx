@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { THEME_PRESETS, applyTheme, getStoredTheme } from "@/lib/themeColors";
 
-type SettingsView = "main" | "profile" | "notifications" | "security" | "appearance" | "api" | "troubleshoot" | "install";
+type SettingsView = "main" | "profile" | "notifications" | "security" | "appearance" | "api" | "memory" | "troubleshoot" | "install";
 
 const SettingsPage = () => {
   const { user } = useAuth();
