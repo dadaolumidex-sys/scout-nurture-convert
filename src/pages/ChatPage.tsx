@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useChatHistory, ChatMessage } from "@/hooks/useChatHistory";
+import { useAuth } from "@/hooks/useAuth";
+import { useMemory } from "@/hooks/useMemory";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
 
 type Persona = "friend" | "promoter";
