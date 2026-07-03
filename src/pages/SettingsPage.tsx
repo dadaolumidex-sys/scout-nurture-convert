@@ -5,15 +5,16 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Settings, Key, Eye, EyeOff, Save, CheckCircle, Zap, User, Bell, Shield, Palette, Link2, Wrench, Download, LogOut, ChevronRight, ArrowLeft, Wifi, RefreshCw, Trash2, RotateCcw, Sparkles } from "lucide-react";
+import { Settings, Key, Eye, EyeOff, Save, CheckCircle, Zap, User, Bell, Shield, Palette, Link2, Wrench, Download, LogOut, ChevronRight, ArrowLeft, Wifi, RefreshCw, Trash2, RotateCcw, Sparkles, Brain } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ApiKeysManager } from "@/components/settings/ApiKeysManager";
+import { MemoryManager } from "@/components/settings/MemoryManager";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { THEME_PRESETS, applyTheme, getStoredTheme } from "@/lib/themeColors";
 
-type SettingsView = "main" | "profile" | "notifications" | "security" | "appearance" | "api" | "troubleshoot" | "install";
+type SettingsView = "main" | "profile" | "notifications" | "security" | "appearance" | "api" | "memory" | "troubleshoot" | "install";
 
 const SettingsPage = () => {
   const { user } = useAuth();
@@ -182,6 +183,8 @@ const SettingsPage = () => {
 
           {view === "api" && <ApiKeysManager />}
 
+          {view === "memory" && <MemoryManager />}
+
           {view === "profile" && (
             <>
               <h1 className="text-2xl font-bold text-foreground">Profile</h1>
@@ -267,6 +270,7 @@ const SettingsPage = () => {
       section: "APP",
       items: [
         { icon: <Palette className="h-5 w-5 text-primary" />, label: "Appearance", desc: "Theme and display settings", view: "appearance" },
+        { icon: <Brain className="h-5 w-5 text-primary" />, label: "Memory", desc: "What the AI remembers about you", view: "memory" },
         { icon: <Link2 className="h-5 w-5 text-primary" />, label: "API & Connections", desc: "See which services are active", view: "api" },
         { icon: <Wrench className="h-5 w-5 text-primary" />, label: "Troubleshoot & Fix", desc: "Diagnose and fix common issues", view: "troubleshoot" },
         { icon: <Download className="h-5 w-5 text-primary" />, label: "Install App", desc: "Add to home screen", view: "install" },

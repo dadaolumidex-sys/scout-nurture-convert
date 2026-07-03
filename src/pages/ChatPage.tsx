@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useChatHistory, ChatMessage } from "@/hooks/useChatHistory";
+import { useMemory } from "@/hooks/useMemory";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
 
 type Persona = "friend" | "promoter";
@@ -23,9 +24,9 @@ const personaConfig = {
 };
 
 async function streamChat({
-  messages, persona, deepResearch, onDelta, onDone, onError,
+  messages, persona, deepResearch, memory, onDelta, onDone, onError,
 }: {
-  messages: ChatMessage[]; persona: Persona; deepResearch: boolean;
+  messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[];
   onDelta: (text: string) => void; onDone: () => void; onError: (msg: string, code?: string) => void;
 }) {
   const apiMessages = messages.map((msg) => {
@@ -47,7 +48,7 @@ async function streamChat({
   const resp = await fetch(CHAT_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-    body: JSON.stringify({ messages: apiMessages, persona, deepResearch }),
+    body: JSON.stringify({ messages: apiMessages, persona, deepResearch, memory: memory || [] }),
   });
 
   // Error responses come back as JSON (even with HTTP 200) — detect and surface them.
@@ -123,6 +124,7 @@ function ModelBadge({ deepResearch }: { deepResearch: boolean }) {
 
 const ChatPage = () => {
   const isMobile = useIsMobile();
+  const { memories, addMany, enabled: memoryEnabled } = useMemory();
   const navigate = useNavigate();
   const [persona, setPersona] = useState<Persona>("friend");
   const [input, setInput] = useState("");
@@ -182,6 +184,30 @@ const ChatPage = () => {
 
   const handleBackToList = () => setMobileView("list");
 
+  // Fire-and-forget: extract durable facts from the exchange and add them to long-term memory.
+  const captureMemory = async (msgs: ChatMessage[]) => {
+    if (!memoryEnabled) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-memory`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+        body: JSON.stringify({
+          messages: msgs.map((m) => ({ role: m.role, content: m.content })),
+          knownMemory: memories.map((m) => m.content),
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.facts) && data.facts.length > 0) {
+        await addMany(data.facts, "auto");
+      }
+    } catch (e) {
+      console.error("memory capture failed", e);
+    }
+  };
+
   const sendMessagesStream = async (convoId: string, msgs: ChatMessage[]) => {
     sendLockRef.current = true;
     setLoading(true);
@@ -201,11 +227,13 @@ const ChatPage = () => {
     try {
       await streamChat({
         messages: msgs, persona, deepResearch,
+        memory: memoryEnabled ? memories.map((m) => m.content) : [],
         onDelta: upsertAssistant,
         onDone: async () => {
           if (assistantSoFar) {
             await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
             setMsgTimestamps(prev => [...prev, new Date()]);
+            void captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
           }
           unlock();
         },

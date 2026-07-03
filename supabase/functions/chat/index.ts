@@ -126,9 +126,12 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages: rawMessages, persona, deepResearch } = await req.json();
+    const { messages: rawMessages, persona, deepResearch, memory } = await req.json();
     const isDeepResearch = Boolean(deepResearch);
     const safeMessages = normalizeMessages(rawMessages);
+    const memoryFacts: string[] = Array.isArray(memory)
+      ? memory.filter((m: unknown) => typeof m === "string" && (m as string).trim()).slice(0, 100)
+      : [];
 
     if (safeMessages.length === 0) {
       return new Response(JSON.stringify({ error: "Please enter a message first." }), {
@@ -139,6 +142,9 @@ serve(async (req) => {
 
     let systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
     if (isDeepResearch) systemPrompt += DEEP_RESEARCH_SUFFIX;
+    if (memoryFacts.length > 0) {
+      systemPrompt += `\n\nLONG-TERM MEMORY about this user (from previous chats — use it naturally to give personalized, context-aware answers; don't mention that you have memory unless asked):\n- ${memoryFacts.join("\n- ")}`;
+    }
 
     // Get user's API keys (fallback chain)
     let userKeys: { gemini?: string; openai?: string } = {};
