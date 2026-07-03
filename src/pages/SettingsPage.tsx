@@ -270,6 +270,7 @@ const SettingsPage = () => {
       section: "APP",
       items: [
         { icon: <Palette className="h-5 w-5 text-primary" />, label: "Appearance", desc: "Theme and display settings", view: "appearance" },
+        { icon: <Brain className="h-5 w-5 text-primary" />, label: "Memory", desc: "What the AI remembers about you", view: "memory" },
         { icon: <Link2 className="h-5 w-5 text-primary" />, label: "API & Connections", desc: "See which services are active", view: "api" },
         { icon: <Wrench className="h-5 w-5 text-primary" />, label: "Troubleshoot & Fix", desc: "Diagnose and fix common issues", view: "troubleshoot" },
         { icon: <Download className="h-5 w-5 text-primary" />, label: "Install App", desc: "Add to home screen", view: "install" },
