@@ -9,6 +9,7 @@ import { Settings, Key, Eye, EyeOff, Save, CheckCircle, Zap, User, Bell, Shield,
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ApiKeysManager } from "@/components/settings/ApiKeysManager";
+import { MemoryManager } from "@/components/settings/MemoryManager";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { THEME_PRESETS, applyTheme, getStoredTheme } from "@/lib/themeColors";
