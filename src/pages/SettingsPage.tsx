@@ -183,6 +183,8 @@ const SettingsPage = () => {
 
           {view === "api" && <ApiKeysManager />}
 
+          {view === "memory" && <MemoryManager />}
+
           {view === "profile" && (
             <>
               <h1 className="text-2xl font-bold text-foreground">Profile</h1>
