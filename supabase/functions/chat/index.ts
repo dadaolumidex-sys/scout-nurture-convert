@@ -126,9 +126,12 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages: rawMessages, persona, deepResearch } = await req.json();
+    const { messages: rawMessages, persona, deepResearch, memory } = await req.json();
     const isDeepResearch = Boolean(deepResearch);
     const safeMessages = normalizeMessages(rawMessages);
+    const memoryFacts: string[] = Array.isArray(memory)
+      ? memory.filter((m: unknown) => typeof m === "string" && (m as string).trim()).slice(0, 100)
+      : [];
 
     if (safeMessages.length === 0) {
       return new Response(JSON.stringify({ error: "Please enter a message first." }), {
