@@ -186,6 +186,30 @@ const ChatPage = () => {
 
   const handleBackToList = () => setMobileView("list");
 
+  // Fire-and-forget: extract durable facts from the exchange and add them to long-term memory.
+  const captureMemory = async (msgs: ChatMessage[]) => {
+    if (!memoryEnabled) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-memory`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+        body: JSON.stringify({
+          messages: msgs.map((m) => ({ role: m.role, content: m.content })),
+          knownMemory: memories.map((m) => m.content),
+        }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.facts) && data.facts.length > 0) {
+        await addMany(data.facts, "auto");
+      }
+    } catch (e) {
+      console.error("memory capture failed", e);
+    }
+  };
+
   const sendMessagesStream = async (convoId: string, msgs: ChatMessage[]) => {
     sendLockRef.current = true;
     setLoading(true);
