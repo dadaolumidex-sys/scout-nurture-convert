@@ -246,12 +246,13 @@ const ChatPage = () => {
     } catch (e) { console.error(e); toast.error("Failed to get AI response"); unlock(); }
   };
 
-  const handleSend = async () => {
-    if ((!input.trim() && pendingImages.length === 0) || loading || sendLockRef.current) return;
+  const handleSend = async (rawText: string) => {
+    const text = rawText.trim();
+    if ((!text && pendingImages.length === 0) || loading || sendLockRef.current) return;
 
     const userMsg: ChatMessage = {
       role: "user",
-      content: input || (pendingImages.length > 0 ? "Check this conversation and give me the perfect next reply" : ""),
+      content: text || (pendingImages.length > 0 ? "Check this conversation and give me the perfect next reply" : ""),
       images: pendingImages.length > 0 ? [...pendingImages] : undefined,
     };
 
