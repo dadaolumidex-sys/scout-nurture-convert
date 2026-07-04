@@ -572,5 +572,6 @@ export function useChatHistory() {
     startNewChat,
     setActiveId,
     renameConversation,
+    getRecentContext,
   };
 }
