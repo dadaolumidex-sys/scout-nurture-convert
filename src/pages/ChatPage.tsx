@@ -469,24 +469,15 @@ const ChatPage = () => {
         </div>
       )}
 
-      <div className="flex items-end gap-2 p-2">
-        <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-muted-foreground" onClick={() => fileInputRef.current?.click()} type="button">
-          <ImagePlus className="h-5 w-5" />
-        </Button>
-        <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
-        <div className="flex-1">
-          <Textarea
-            placeholder="Ask anything..."
-            value={input} onChange={(e) => setInput(e.target.value)}
-            className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5"
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            rows={1}
-          />
-        </div>
-        <Button onClick={handleSend} disabled={loading || (!input.trim() && pendingImages.length === 0)} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
-          <Send className="h-4 w-4" />
-        </Button>
-      </div>
+      <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
+      <ChatComposer
+        ref={composerRef}
+        variant="mobile"
+        loading={loading}
+        hasPendingImages={pendingImages.length > 0}
+        onSend={handleSend}
+        onPickImage={() => fileInputRef.current?.click()}
+      />
     </div>
   );
 
