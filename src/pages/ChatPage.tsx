@@ -13,6 +13,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useChatHistory, ChatMessage } from "@/hooks/useChatHistory";
 import { useMemory } from "@/hooks/useMemory";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
+import { ChatComposer, ChatComposerHandle } from "@/components/chat/ChatComposer";
+
 
 type Persona = "friend" | "promoter";
 
@@ -127,7 +129,6 @@ const ChatPage = () => {
   const { memories, addMany, enabled: memoryEnabled } = useMemory();
   const navigate = useNavigate();
   const [persona, setPersona] = useState<Persona>("friend");
-  const [input, setInput] = useState("");
   const [aiError, setAiError] = useState<{ msg: string; code?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [deepResearch, setDeepResearch] = useState(false);
@@ -138,6 +139,7 @@ const ChatPage = () => {
   const [msgTimestamps, setMsgTimestamps] = useState<Date[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<ChatComposerHandle>(null);
   const sendLockRef = useRef(false);
 
   const {
@@ -169,7 +171,7 @@ const ChatPage = () => {
 
   const handleNewChat = () => {
     startNewChat();
-    setInput("");
+    composerRef.current?.setText("");
     setPendingImages([]);
     setEditingIndex(null);
     setMsgTimestamps([]);
@@ -244,12 +246,13 @@ const ChatPage = () => {
     } catch (e) { console.error(e); toast.error("Failed to get AI response"); unlock(); }
   };
 
-  const handleSend = async () => {
-    if ((!input.trim() && pendingImages.length === 0) || loading || sendLockRef.current) return;
+  const handleSend = async (rawText: string) => {
+    const text = rawText.trim();
+    if ((!text && pendingImages.length === 0) || loading || sendLockRef.current) return;
 
     const userMsg: ChatMessage = {
       role: "user",
-      content: input || (pendingImages.length > 0 ? "Check this conversation and give me the perfect next reply" : ""),
+      content: text || (pendingImages.length > 0 ? "Check this conversation and give me the perfect next reply" : ""),
       images: pendingImages.length > 0 ? [...pendingImages] : undefined,
     };
 
@@ -285,7 +288,6 @@ const ChatPage = () => {
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setMsgTimestamps(prev => [...prev, new Date()]);
-    setInput("");
     setPendingImages([]);
 
     await saveMessage(convoId, userMsg);
@@ -435,7 +437,7 @@ const ChatPage = () => {
         <p className="text-xs mb-4">Ask me anything — writing, coding, research, business, study help, or analyze a screenshot. Toggle Deep Research for in-depth answers 🚀</p>
         <div className="flex flex-wrap justify-center gap-2">
           {["Explain a topic simply", "Help me write something", "Analyze my screenshot"].map(s => (
-            <button key={s} onClick={() => { setInput(s); }} className="text-xs px-3 py-1.5 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
+            <button key={s} onClick={() => { composerRef.current?.setText(s); }} className="text-xs px-3 py-1.5 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
               {s}
             </button>
           ))}
@@ -467,24 +469,15 @@ const ChatPage = () => {
         </div>
       )}
 
-      <div className="flex items-end gap-2 p-2">
-        <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-muted-foreground" onClick={() => fileInputRef.current?.click()} type="button">
-          <ImagePlus className="h-5 w-5" />
-        </Button>
-        <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
-        <div className="flex-1">
-          <Textarea
-            placeholder="Ask anything..."
-            value={input} onChange={(e) => setInput(e.target.value)}
-            className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5"
-            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-            rows={1}
-          />
-        </div>
-        <Button onClick={handleSend} disabled={loading || (!input.trim() && pendingImages.length === 0)} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
-          <Send className="h-4 w-4" />
-        </Button>
-      </div>
+      <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
+      <ChatComposer
+        ref={composerRef}
+        variant="mobile"
+        loading={loading}
+        hasPendingImages={pendingImages.length > 0}
+        onSend={handleSend}
+        onPickImage={() => fileInputRef.current?.click()}
+      />
     </div>
   );
 
@@ -603,23 +596,15 @@ const ChatPage = () => {
             </div>
           )}
 
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <Textarea
-                placeholder="Type your message or upload a conversation screenshot..."
-                value={input} onChange={(e) => setInput(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-10 min-h-[72px]"
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              />
-              <Button variant="ghost" size="icon" className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => fileInputRef.current?.click()} type="button">
-                <ImagePlus className="h-4 w-4" />
-              </Button>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
-            </div>
-            <Button onClick={handleSend} disabled={loading || (!input.trim() && pendingImages.length === 0)} className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0">
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
+          <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
+          <ChatComposer
+            ref={composerRef}
+            variant="desktop"
+            loading={loading}
+            hasPendingImages={pendingImages.length > 0}
+            onSend={handleSend}
+            onPickImage={() => fileInputRef.current?.click()}
+          />
         </div>
       </div>
     </DashboardLayout>
