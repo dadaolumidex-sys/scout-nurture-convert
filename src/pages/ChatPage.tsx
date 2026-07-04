@@ -129,7 +129,6 @@ const ChatPage = () => {
   const { memories, addMany, enabled: memoryEnabled } = useMemory();
   const navigate = useNavigate();
   const [persona, setPersona] = useState<Persona>("friend");
-  const [input, setInput] = useState("");
   const [aiError, setAiError] = useState<{ msg: string; code?: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [deepResearch, setDeepResearch] = useState(false);
@@ -140,6 +139,7 @@ const ChatPage = () => {
   const [msgTimestamps, setMsgTimestamps] = useState<Date[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const composerRef = useRef<ChatComposerHandle>(null);
   const sendLockRef = useRef(false);
 
   const {
