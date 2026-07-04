@@ -1,3 +1,4 @@
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
@@ -11,8 +12,12 @@ interface MarkdownMessageProps {
  * Shared renderer for AI replies.
  * Uses GitHub-flavored markdown (tables, task lists, strikethrough, autolinks)
  * with readable spacing, clear headings, tidy bullets and code blocks.
+ *
+ * Memoized: parsing markdown is expensive, so we only re-render when the
+ * message content (or className) actually changes — this keeps typing in the
+ * chat box fast even in long conversations.
  */
-export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
+function MarkdownMessageBase({ content, className }: MarkdownMessageProps) {
   return (
     <div
       className={cn(
