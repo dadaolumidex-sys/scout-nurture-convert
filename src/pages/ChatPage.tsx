@@ -596,23 +596,15 @@ const ChatPage = () => {
             </div>
           )}
 
-          <div className="flex gap-2">
-            <div className="flex-1 relative">
-              <Textarea
-                placeholder="Type your message or upload a conversation screenshot..."
-                value={input} onChange={(e) => setInput(e.target.value)}
-                className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-10 min-h-[72px]"
-                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              />
-              <Button variant="ghost" size="icon" className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => fileInputRef.current?.click()} type="button">
-                <ImagePlus className="h-4 w-4" />
-              </Button>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
-            </div>
-            <Button onClick={handleSend} disabled={loading || (!input.trim() && pendingImages.length === 0)} className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0">
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
+          <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
+          <ChatComposer
+            ref={composerRef}
+            variant="desktop"
+            loading={loading}
+            hasPendingImages={pendingImages.length > 0}
+            onSend={handleSend}
+            onPickImage={() => fileInputRef.current?.click()}
+          />
         </div>
       </div>
     </DashboardLayout>
