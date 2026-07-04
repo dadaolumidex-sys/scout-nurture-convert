@@ -288,7 +288,6 @@ const ChatPage = () => {
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setMsgTimestamps(prev => [...prev, new Date()]);
-    setInput("");
     setPendingImages([]);
 
     await saveMessage(convoId, userMsg);
