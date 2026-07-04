@@ -208,7 +208,7 @@ const ChatPage = () => {
     }
   };
 
-  const sendMessagesStream = async (convoId: string, msgs: ChatMessage[]) => {
+  const sendMessagesStream = async (convoId: string, msgs: ChatMessage[], extraContext: string[] = []) => {
     sendLockRef.current = true;
     setLoading(true);
     setAiError(null);
@@ -224,10 +224,12 @@ const ChatPage = () => {
       });
     };
 
+    const memoryPayload = memoryEnabled ? memories.map((m) => m.content) : [];
+
     try {
       await streamChat({
         messages: msgs, persona, deepResearch,
-        memory: memoryEnabled ? memories.map((m) => m.content) : [],
+        memory: [...extraContext, ...memoryPayload],
         onDelta: upsertAssistant,
         onDone: async () => {
           if (assistantSoFar) {
