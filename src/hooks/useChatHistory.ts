@@ -519,6 +519,44 @@ export function useChatHistory() {
     setMessages([]);
   }, [user]);
 
+  /**
+   * Grab the last few messages from the most recent PREVIOUS conversation so a
+   * brand-new chat can still "remember" what you were just talking about.
+   * `excludeId` skips the current/active conversation.
+   */
+  const getRecentContext = useCallback(
+    async (excludeId: string | null, limit = 6): Promise<ChatMessage[]> => {
+      if (user) {
+        const { data: convos } = await supabase
+          .from("ai_conversations")
+          .select("id")
+          .eq("user_id", user.id)
+          .order("updated_at", { ascending: false })
+          .limit(5);
+        const target = (convos || []).find((c: { id: string }) => c.id !== excludeId);
+        if (!target) return [];
+        const { data } = await supabase
+          .from("ai_messages")
+          .select("role, content, created_at")
+          .eq("conversation_id", target.id)
+          .order("created_at", { ascending: false })
+          .limit(limit);
+        return sortStoredMessages((data as any[]) || [])
+          .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }))
+          .filter((m) => m.content?.trim());
+      }
+
+      const convos = readGuestConversations().filter((c) => c.id !== excludeId);
+      if (convos.length === 0) return [];
+      const target = convos[0];
+      const msgs = readGuestMessages()
+        .filter((m) => m.conversation_id === target.id)
+        .slice(-limit);
+      return msgs.map((m) => ({ role: m.role, content: m.content })).filter((m) => m.content?.trim());
+    },
+    [user]
+  );
+
   return {
     conversations,
     activeId,
@@ -534,5 +572,6 @@ export function useChatHistory() {
     startNewChat,
     setActiveId,
     renameConversation,
+    getRecentContext,
   };
 }
