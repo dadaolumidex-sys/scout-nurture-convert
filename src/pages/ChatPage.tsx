@@ -437,7 +437,7 @@ const ChatPage = () => {
         <p className="text-xs mb-4">Ask me anything — writing, coding, research, business, study help, or analyze a screenshot. Toggle Deep Research for in-depth answers 🚀</p>
         <div className="flex flex-wrap justify-center gap-2">
           {["Explain a topic simply", "Help me write something", "Analyze my screenshot"].map(s => (
-            <button key={s} onClick={() => { setInput(s); }} className="text-xs px-3 py-1.5 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
+            <button key={s} onClick={() => { composerRef.current?.setText(s); }} className="text-xs px-3 py-1.5 rounded-full border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors">
               {s}
             </button>
           ))}
