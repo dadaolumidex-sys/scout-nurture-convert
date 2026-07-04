@@ -144,7 +144,7 @@ const ChatPage = () => {
     conversations, activeId, messages, setMessages,
     loadMessages, createConversation, saveMessage,
     replaceMessages, deleteConversation, startNewChat,
-    renameConversation,
+    renameConversation, getRecentContext,
   } = useChatHistory();
 
   const config = personaConfig[persona];
