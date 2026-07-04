@@ -171,7 +171,7 @@ const ChatPage = () => {
 
   const handleNewChat = () => {
     startNewChat();
-    setInput("");
+    composerRef.current?.setText("");
     setPendingImages([]);
     setEditingIndex(null);
     setMsgTimestamps([]);
