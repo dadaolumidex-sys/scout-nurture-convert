@@ -60,3 +60,5 @@ function MarkdownMessageBase({ content, className }: MarkdownMessageProps) {
     </div>
   );
 }
+
+export const MarkdownMessage = memo(MarkdownMessageBase);
