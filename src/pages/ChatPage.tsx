@@ -130,6 +130,7 @@ function ModelBadge({ deepResearch }: { deepResearch: boolean }) {
 const ChatPage = () => {
   const isMobile = useIsMobile();
   const { memories, addMany, enabled: memoryEnabled } = useMemory();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [persona, setPersona] = useState<Persona>("friend");
   const [aiError, setAiError] = useState<{ msg: string; code?: string } | null>(null);
