@@ -152,10 +152,11 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages = [], persona, contactContext } = await req.json() as {
+    const { messages = [], persona, contactContext, knowledge: guestKnowledge } = await req.json() as {
       messages?: IncomingMessage[];
       persona?: string;
       contactContext?: string;
+      knowledge?: KnowledgeEntry[];
     };
 
     const activePersona = persona === "promoter" ? "promoter" : "friend";
