@@ -76,37 +76,51 @@ export function KnowledgeBase() {
   };
 
   const handleAdd = async () => {
-    const entryContent = dialogMode === "url" ? `URL: ${url}\n\n(Content to be analyzed)` : content;
-    if (!title.trim() || !entryContent.trim()) {
-      toast.error("Title and content are required");
+    const hasSource = dialogMode === "url" ? url.trim() : content.trim();
+    if (!title.trim() || !hasSource) {
+      toast.error(dialogMode === "url" ? "Title and URL are required" : "Title and content are required");
       return;
     }
 
     setAnalyzing(true);
     let insights: Insight[] = [];
+    let entryContent = dialogMode === "url" ? `URL: ${url}` : content;
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       const resp = await fetch(ANALYZE_URL, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ content: entryContent, type: "knowledge", persona }),
+        body: JSON.stringify({
+          content: dialogMode === "url" ? "" : content,
+          url: dialogMode === "url" ? url : undefined,
+          type: "knowledge",
+          persona,
+        }),
       });
 
-      if (resp.ok) {
-        const data = await resp.json();
-        try {
-          const cleaned = data.result.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-          insights = JSON.parse(cleaned);
-        } catch {
-          console.warn("Could not parse insights:", data.result);
-        }
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        toast.error(data.error || "Couldn't analyze that source");
+        setAnalyzing(false);
+        return;
+      }
+      if (data.extractedContent) entryContent = data.extractedContent;
+      try {
+        const cleaned = String(data.result || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+        insights = JSON.parse(cleaned);
+      } catch {
+        console.warn("Could not parse insights:", data.result);
       }
     } catch (e) {
       console.error("Analysis error:", e);
     }
+
 
     const { error } = user
       ? await supabase.from("knowledge_entries").insert({
