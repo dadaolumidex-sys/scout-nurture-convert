@@ -126,7 +126,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages: rawMessages, persona, deepResearch, memory } = await req.json();
+    const { messages: rawMessages, persona, deepResearch, memory, knowledge: guestKnowledge } = await req.json();
     const isDeepResearch = Boolean(deepResearch);
     const safeMessages = normalizeMessages(rawMessages);
     const memoryFacts: string[] = Array.isArray(memory)
@@ -146,8 +146,10 @@ serve(async (req) => {
       systemPrompt += `\n\nLONG-TERM MEMORY about this user (from previous chats — use it naturally to give personalized, context-aware answers; don't mention that you have memory unless asked):\n- ${memoryFacts.join("\n- ")}`;
     }
 
-    // Get user's API keys (fallback chain)
+    // Get user's API keys (fallback chain) and their saved knowledge / objection playbook.
     let userKeys: { gemini?: string; openai?: string } = {};
+    let dbKnowledge: KnowledgeEntry[] = [];
+    const personaKey = persona === "promoter" ? "brozeen" : "nifimas";
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -160,9 +162,24 @@ serve(async (req) => {
           const { data: settings } = await sb.from("user_settings").select("gemini_api_key, openai_api_key").eq("user_id", user.id).single();
           if (settings?.gemini_api_key) userKeys.gemini = settings.gemini_api_key;
           if (settings?.openai_api_key) userKeys.openai = settings.openai_api_key;
+          const { data: kn } = await sb.from("knowledge_entries")
+            .select("title, content, category, insights")
+            .eq("user_id", user.id)
+            .or(`persona.eq.${personaKey},persona.eq.shared`)
+            .limit(30);
+          if (Array.isArray(kn)) dbKnowledge = kn as KnowledgeEntry[];
         }
       }
     } catch (_) { /* ignore */ }
+
+    // Auth users read from the DB; guests send their local knowledge in the request.
+    const knowledgeEntries: KnowledgeEntry[] = dbKnowledge.length
+      ? dbKnowledge
+      : (Array.isArray(guestKnowledge) ? guestKnowledge : []);
+    const { knowledgeContext, objectionContext } = buildKnowledgeContext(knowledgeEntries);
+    if (knowledgeContext || objectionContext) {
+      systemPrompt += knowledgeContext + objectionContext + KNOWLEDGE_GUARDRAIL;
+    }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const ENV_GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
