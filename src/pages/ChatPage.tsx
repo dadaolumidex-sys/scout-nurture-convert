@@ -228,11 +228,14 @@ const ChatPage = () => {
     };
 
     const memoryPayload = memoryEnabled ? memories.map((m) => m.content) : [];
+    // Guests: pass their locally-saved knowledge/objections so the AI can use them.
+    const guestKnowledge = user ? [] : guestStorage.knowledge.list();
 
     try {
       await streamChat({
         messages: msgs, persona, deepResearch,
         memory: [...extraContext, ...memoryPayload],
+        knowledge: guestKnowledge,
         onDelta: upsertAssistant,
         onDone: async () => {
           if (assistantSoFar) {
