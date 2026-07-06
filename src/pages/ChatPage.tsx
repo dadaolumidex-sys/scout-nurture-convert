@@ -26,9 +26,9 @@ const personaConfig = {
 };
 
 async function streamChat({
-  messages, persona, deepResearch, memory, onDelta, onDone, onError,
+  messages, persona, deepResearch, memory, knowledge, onDelta, onDone, onError,
 }: {
-  messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[];
+  messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[]; knowledge?: unknown[];
   onDelta: (text: string) => void; onDone: () => void; onError: (msg: string, code?: string) => void;
 }) {
   const apiMessages = messages.map((msg) => {
@@ -50,8 +50,9 @@ async function streamChat({
   const resp = await fetch(CHAT_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-    body: JSON.stringify({ messages: apiMessages, persona, deepResearch, memory: memory || [] }),
+    body: JSON.stringify({ messages: apiMessages, persona, deepResearch, memory: memory || [], knowledge: knowledge || [] }),
   });
+
 
   // Error responses come back as JSON (even with HTTP 200) — detect and surface them.
   const contentType = resp.headers.get("content-type") || "";
