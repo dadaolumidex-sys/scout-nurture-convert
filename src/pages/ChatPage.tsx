@@ -12,6 +12,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useChatHistory, ChatMessage } from "@/hooks/useChatHistory";
 import { useMemory } from "@/hooks/useMemory";
+import { useAuth } from "@/hooks/useAuth";
+import { guestStorage } from "@/lib/guestStorage";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
 import { ChatComposer, ChatComposerHandle } from "@/components/chat/ChatComposer";
 
