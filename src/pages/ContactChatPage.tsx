@@ -217,7 +217,7 @@ const ContactChatPage = () => {
           Authorization: `Bearer ${token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ messages: recentMessages, persona: targetPersona, contactContext }),
+        body: JSON.stringify({ messages: recentMessages, persona: targetPersona, contactContext, knowledge: user ? [] : guestStorage.knowledge.list() }),
       });
 
       if (!resp.ok) {
