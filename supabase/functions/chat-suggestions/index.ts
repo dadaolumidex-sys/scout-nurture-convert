@@ -183,7 +183,7 @@ serve(async (req) => {
       } catch (_) { /* ignore */ }
     }
 
-    const knowledgeQuery = sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${activePersona === "friend" ? "nifimas" : "brozeen"},persona.eq.shared`).limit(20);
+    const knowledgeQuery = sb.from("knowledge_entries").select("title, content, category, insights").or(`persona.eq.${activePersona === "friend" ? "nifimas" : "brozeen"},persona.eq.shared`).limit(30);
     const trainingQuery = sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").in("status", ["ready", "analyzed"]).limit(10);
     if (userId) {
       knowledgeQuery.eq("user_id", userId);
@@ -194,14 +194,13 @@ serve(async (req) => {
     }
     const [knowledgeRes, trainingRes] = await Promise.all([knowledgeQuery, trainingQuery]);
 
-    const knowledgeEntries = knowledgeRes.data || [];
+    // Authenticated users read from the DB; guests pass their local knowledge in the request.
+    const knowledgeEntries: KnowledgeEntry[] = (knowledgeRes.data && knowledgeRes.data.length)
+      ? (knowledgeRes.data as KnowledgeEntry[])
+      : (Array.isArray(guestKnowledge) ? guestKnowledge : []);
     const trainingConvos = trainingRes.data || [];
 
-    let knowledgeContext = "";
-    if (knowledgeEntries.length > 0) {
-      knowledgeContext = `\n\n## Knowledge Base (use these strategies and scripts):\n` +
-        knowledgeEntries.map((e: any) => `### ${e.title} [${e.category}]\n${e.content}`).join("\n\n");
-    }
+    const { knowledgeContext, objectionContext } = buildKnowledgeContext(knowledgeEntries);
 
     let styleContext = "";
     if (trainingConvos.length > 0) {
