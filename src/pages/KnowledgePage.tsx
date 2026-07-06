@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { KnowledgeBase } from "@/components/knowledge/KnowledgeBase";
 import { TrainingMemory } from "@/components/knowledge/TrainingMemory";
+import { ObjectionHandling } from "@/components/knowledge/ObjectionHandling";
 
 const KnowledgePage = () => {
   const [activeTab, setActiveTab] = useState("knowledge");
@@ -18,9 +19,12 @@ const KnowledgePage = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-muted border border-border">
+          <TabsList className="bg-muted border border-border flex-wrap h-auto">
             <TabsTrigger value="knowledge" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               📚 Knowledge Base
+            </TabsTrigger>
+            <TabsTrigger value="objections" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
+              🛡️ Objection Handling
             </TabsTrigger>
             <TabsTrigger value="training" className="data-[state=active]:bg-secondary/10 data-[state=active]:text-secondary">
               🧠 Training Memory
@@ -29,6 +33,9 @@ const KnowledgePage = () => {
 
           <TabsContent value="knowledge">
             <KnowledgeBase />
+          </TabsContent>
+          <TabsContent value="objections">
+            <ObjectionHandling />
           </TabsContent>
           <TabsContent value="training">
             <TrainingMemory />
