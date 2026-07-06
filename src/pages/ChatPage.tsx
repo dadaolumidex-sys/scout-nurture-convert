@@ -12,6 +12,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useChatHistory, ChatMessage } from "@/hooks/useChatHistory";
 import { useMemory } from "@/hooks/useMemory";
+import { useAuth } from "@/hooks/useAuth";
+import { guestStorage } from "@/lib/guestStorage";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
 import { ChatComposer, ChatComposerHandle } from "@/components/chat/ChatComposer";
 
@@ -26,9 +28,9 @@ const personaConfig = {
 };
 
 async function streamChat({
-  messages, persona, deepResearch, memory, onDelta, onDone, onError,
+  messages, persona, deepResearch, memory, knowledge, onDelta, onDone, onError,
 }: {
-  messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[];
+  messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[]; knowledge?: unknown[];
   onDelta: (text: string) => void; onDone: () => void; onError: (msg: string, code?: string) => void;
 }) {
   const apiMessages = messages.map((msg) => {
@@ -50,8 +52,9 @@ async function streamChat({
   const resp = await fetch(CHAT_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-    body: JSON.stringify({ messages: apiMessages, persona, deepResearch, memory: memory || [] }),
+    body: JSON.stringify({ messages: apiMessages, persona, deepResearch, memory: memory || [], knowledge: knowledge || [] }),
   });
+
 
   // Error responses come back as JSON (even with HTTP 200) — detect and surface them.
   const contentType = resp.headers.get("content-type") || "";
@@ -127,6 +130,7 @@ function ModelBadge({ deepResearch }: { deepResearch: boolean }) {
 const ChatPage = () => {
   const isMobile = useIsMobile();
   const { memories, addMany, enabled: memoryEnabled } = useMemory();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [persona, setPersona] = useState<Persona>("friend");
   const [aiError, setAiError] = useState<{ msg: string; code?: string } | null>(null);
@@ -227,11 +231,14 @@ const ChatPage = () => {
     };
 
     const memoryPayload = memoryEnabled ? memories.map((m) => m.content) : [];
+    // Guests: pass their locally-saved knowledge/objections so the AI can use them.
+    const guestKnowledge = user ? [] : guestStorage.knowledge.list();
 
     try {
       await streamChat({
         messages: msgs, persona, deepResearch,
         memory: [...extraContext, ...memoryPayload],
+        knowledge: guestKnowledge,
         onDelta: upsertAssistant,
         onDone: async () => {
           if (assistantSoFar) {

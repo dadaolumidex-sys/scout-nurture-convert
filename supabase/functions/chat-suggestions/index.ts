@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { buildKnowledgeContext, KNOWLEDGE_GUARDRAIL, type KnowledgeEntry } from "../_shared/knowledge.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -152,10 +153,11 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages = [], persona, contactContext } = await req.json() as {
+    const { messages = [], persona, contactContext, knowledge: guestKnowledge } = await req.json() as {
       messages?: IncomingMessage[];
       persona?: string;
       contactContext?: string;
+      knowledge?: KnowledgeEntry[];
     };
 
     const activePersona = persona === "promoter" ? "promoter" : "friend";
@@ -182,7 +184,7 @@ serve(async (req) => {
       } catch (_) { /* ignore */ }
     }
 
-    const knowledgeQuery = sb.from("knowledge_entries").select("title, content, category").or(`persona.eq.${activePersona === "friend" ? "nifimas" : "brozeen"},persona.eq.shared`).limit(20);
+    const knowledgeQuery = sb.from("knowledge_entries").select("title, content, category, insights").or(`persona.eq.${activePersona === "friend" ? "nifimas" : "brozeen"},persona.eq.shared`).limit(30);
     const trainingQuery = sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").in("status", ["ready", "analyzed"]).limit(10);
     if (userId) {
       knowledgeQuery.eq("user_id", userId);
@@ -193,14 +195,13 @@ serve(async (req) => {
     }
     const [knowledgeRes, trainingRes] = await Promise.all([knowledgeQuery, trainingQuery]);
 
-    const knowledgeEntries = knowledgeRes.data || [];
+    // Authenticated users read from the DB; guests pass their local knowledge in the request.
+    const knowledgeEntries: KnowledgeEntry[] = (knowledgeRes.data && knowledgeRes.data.length)
+      ? (knowledgeRes.data as KnowledgeEntry[])
+      : (Array.isArray(guestKnowledge) ? guestKnowledge : []);
     const trainingConvos = trainingRes.data || [];
 
-    let knowledgeContext = "";
-    if (knowledgeEntries.length > 0) {
-      knowledgeContext = `\n\n## Knowledge Base (use these strategies and scripts):\n` +
-        knowledgeEntries.map((e: any) => `### ${e.title} [${e.category}]\n${e.content}`).join("\n\n");
-    }
+    const { knowledgeContext, objectionContext } = buildKnowledgeContext(knowledgeEntries);
 
     let styleContext = "";
     if (trainingConvos.length > 0) {
@@ -215,7 +216,7 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + knowledgeContext + styleContext;
+    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + knowledgeContext + objectionContext + styleContext + ((knowledgeContext || objectionContext) ? KNOWLEDGE_GUARDRAIL : "");
 
     const response = await callAI({
       model: "google/gemini-3-flash-preview",

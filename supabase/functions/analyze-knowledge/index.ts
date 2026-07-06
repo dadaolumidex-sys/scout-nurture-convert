@@ -55,11 +55,82 @@ async function callAI(body: Record<string, unknown>): Promise<Response> {
   return lastResponse!;
 }
 
+// Strip HTML down to readable text for URL sources.
+function htmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Best-effort content extraction from a URL (articles, blog posts, social pages,
+// and YouTube meta/description). Returns "" if nothing usable was found.
+async function fetchUrlContent(url: string): Promise<string> {
+  try {
+    const resp = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; StreamScoutBot/1.0)",
+        "Accept": "text/html,application/xhtml+xml",
+      },
+    });
+    if (!resp.ok) return "";
+    const html = await resp.text();
+
+    // Pull out title + meta description first (works great for YouTube/social).
+    const title = html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || "";
+    const desc =
+      html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+      html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+      "";
+
+    const bodyText = htmlToText(html).slice(0, 12000);
+    const parts = [title && `Title: ${title}`, desc && `Description: ${desc}`, bodyText]
+      .filter(Boolean)
+      .join("\n\n");
+    return parts.slice(0, 12000);
+  } catch (e) {
+    console.error("fetchUrlContent failed:", e);
+    return "";
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { content, type, persona } = await req.json();
+    const { content, type, persona, url } = await req.json();
+
+    // If a URL was provided, fetch its content first.
+    let sourceText: string = typeof content === "string" ? content : "";
+    if (typeof url === "string" && url.trim()) {
+      const fetched = await fetchUrlContent(url.trim());
+      if (fetched) {
+        sourceText = `${sourceText ? sourceText + "\n\n" : ""}Source URL: ${url}\n\n${fetched}`;
+      } else if (!sourceText) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "Couldn't read that link automatically (some sites like YouTube block bots). Paste the transcript or key text instead.",
+          }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    if (!sourceText.trim()) {
+      return new Response(JSON.stringify({ error: "No content to analyze." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     let systemPrompt = "";
 
@@ -76,6 +147,20 @@ Format your response as:
 Style: [your analysis]
 
 Keep it concise but insightful.`;
+    } else if (type === "objection") {
+      systemPrompt = `You are extracting an OBJECTION-HANDLING PLAYBOOK from sales / persuasion / psychology content (this may be a transcript, article, script, or notes).
+
+Your job: find every objection, hesitation, or point of resistance a prospective buyer might raise, and the best way to respond to it based on the material.
+
+Return a JSON array. Each item MUST have:
+- "category": always "Objection Handling"
+- "insight": a single string formatted EXACTLY as: "Objection: <the objection in the buyer's words> → Response: <the concise, persuasive way to handle it>"
+
+Rules:
+- Extract 3-15 of the most useful, reusable objection/response pairs.
+- Keep each response tactical and specific (mention the psychology/technique when relevant, e.g. reframing, social proof, scarcity, feel-felt-found).
+- If the content is general sales psychology (no explicit objections), infer the common objections it helps overcome and write pairs for them.
+- Only return the JSON array, nothing else.`;
     } else {
       systemPrompt = `You are extracting actionable insights from sales/marketing content for a streamer promotion business.
 
@@ -93,7 +178,7 @@ Only return the JSON array, nothing else.`;
       model: "google/gemini-3-flash-preview",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: content.slice(0, 8000) },
+        { role: "user", content: sourceText.slice(0, 12000) },
       ],
     });
 
@@ -116,7 +201,7 @@ Only return the JSON array, nothing else.`;
     const data = await response.json();
     const result = data.choices?.[0]?.message?.content || "";
 
-    return new Response(JSON.stringify({ result }), {
+    return new Response(JSON.stringify({ result, extractedContent: sourceText.slice(0, 12000) }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
