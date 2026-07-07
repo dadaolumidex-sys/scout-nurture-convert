@@ -295,10 +295,13 @@ export function ObjectionHandling() {
                 </div>
               ) : mode === "file" ? (
                 <div>
-                  <Label className="text-foreground">Upload a text file (.txt, .md, .csv)</Label>
-                  <Input ref={fileRef} type="file" accept=".txt,.md,.csv,.text,text/*" onChange={handleFile}
+                  <Label className="text-foreground">Upload a file (PDF, Word, text, image — up to 20MB)</Label>
+                  <Input ref={fileRef} type="file"
+                    accept=".txt,.md,.csv,.text,.json,.log,.pdf,.doc,.docx,text/*,application/pdf,image/*"
+                    onChange={handleFile}
                     className="bg-muted border-border text-foreground" />
                   {content && <p className="text-xs text-muted-foreground mt-1">{content.length} characters loaded.</p>}
+                  {fileData && <p className="text-xs text-muted-foreground mt-1">📎 {fileName} attached — the AI will read it.</p>}
                 </div>
               ) : (
                 <div>
