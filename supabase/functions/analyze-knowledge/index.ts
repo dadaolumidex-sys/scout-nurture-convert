@@ -177,11 +177,30 @@ Format as JSON array:
 Only return the JSON array, nothing else.`;
     }
 
+    // Build the user message. If a file was uploaded, send it as a multimodal block
+    // so the AI reads the PDF/image directly; otherwise send the extracted text.
+    let userContent: unknown;
+    if (hasFile) {
+      const mime = (fileMime as string) || "application/octet-stream";
+      const instruction = sourceText.trim()
+        ? sourceText.slice(0, 8000)
+        : "Analyze the attached file and extract the requested information from its contents.";
+      const blocks: unknown[] = [{ type: "text", text: instruction }];
+      if (mime.startsWith("image/")) {
+        blocks.push({ type: "image_url", image_url: { url: fileData } });
+      } else {
+        blocks.push({ type: "file", file: { filename: (fileName as string) || "upload", file_data: fileData } });
+      }
+      userContent = blocks;
+    } else {
+      userContent = sourceText.slice(0, 12000);
+    }
+
     const response = await callAI({
       model: "google/gemini-3-flash-preview",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: sourceText.slice(0, 12000) },
+        { role: "user", content: userContent },
       ],
     });
 
