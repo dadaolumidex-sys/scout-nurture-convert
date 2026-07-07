@@ -150,8 +150,13 @@ const ChatPage = () => {
     conversations, activeId, messages, setMessages,
     loadMessages, createConversation, saveMessage,
     replaceMessages, deleteConversation, startNewChat,
-    renameConversation, getRecentContext,
+    renameConversation,
   } = useChatHistory();
+
+  // Track which conversation is on screen so streamed tokens/saves never bleed
+  // into a different chat if the user switches while a reply is streaming.
+  const activeIdRef = useRef<string | null>(activeId);
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   const config = personaConfig[persona];
 
@@ -214,15 +219,18 @@ const ChatPage = () => {
     }
   };
 
-  const sendMessagesStream = async (convoId: string, msgs: ChatMessage[], extraContext: string[] = []) => {
+  const sendMessagesStream = async (convoId: string, msgs: ChatMessage[]) => {
     sendLockRef.current = true;
     setLoading(true);
     setAiError(null);
     let assistantSoFar = "";
     const unlock = () => { sendLockRef.current = false; setLoading(false); };
+    // Only touch on-screen state while THIS conversation is still the active one.
+    const isStillActive = () => activeIdRef.current === convoId;
 
     const upsertAssistant = (chunk: string) => {
       assistantSoFar += chunk;
+      if (!isStillActive()) return; // user switched chats mid-stream — don't bleed into another chat
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === "assistant") return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
@@ -237,18 +245,19 @@ const ChatPage = () => {
     try {
       await streamChat({
         messages: msgs, persona, deepResearch,
-        memory: [...extraContext, ...memoryPayload],
+        memory: memoryPayload,
         knowledge: guestKnowledge,
         onDelta: upsertAssistant,
         onDone: async () => {
           if (assistantSoFar) {
+            // Always persist to the conversation the reply belongs to.
             await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
-            setMsgTimestamps(prev => [...prev, new Date()]);
+            if (isStillActive()) setMsgTimestamps(prev => [...prev, new Date()]);
             void captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
           }
           unlock();
         },
-        onError: (msg, code) => { setAiError({ msg, code }); toast.error(msg); unlock(); },
+        onError: (msg, code) => { if (isStillActive()) { setAiError({ msg, code }); } toast.error(msg); unlock(); },
       });
     } catch (e) { console.error(e); toast.error("Failed to get AI response"); unlock(); }
   };
@@ -263,10 +272,6 @@ const ChatPage = () => {
       images: pendingImages.length > 0 ? [...pendingImages] : undefined,
     };
 
-    // Fresh chat with no messages yet? Pull the tail of the last conversation so
-    // the AI still "remembers" what we were just talking about.
-    const isFreshChat = messages.length === 0;
-
     let convoId = activeId;
     if (!convoId) {
       try {
@@ -277,28 +282,16 @@ const ChatPage = () => {
       }
     }
 
-    let extraContext: string[] = [];
-    if (isFreshChat) {
-      try {
-        const recent = await getRecentContext(convoId, 6);
-        if (recent.length > 0) {
-          extraContext = [
-            "Recent conversation from a previous chat (continue naturally, use it for context):",
-            ...recent.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`),
-          ];
-        }
-      } catch (e) {
-        console.error("recent context failed", e);
-      }
-    }
-
+    // Each conversation is isolated: only its own messages are sent to the AI.
+    // Long-term "remembering" comes from the durable memory system, not from
+    // pulling raw messages of a different chat/person.
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setMsgTimestamps(prev => [...prev, new Date()]);
     setPendingImages([]);
 
     await saveMessage(convoId, userMsg);
-    await sendMessagesStream(convoId, newMessages, extraContext);
+    await sendMessagesStream(convoId, newMessages);
   };
 
   const handleEditSave = async (index: number) => {
