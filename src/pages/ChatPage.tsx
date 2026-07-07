@@ -150,8 +150,13 @@ const ChatPage = () => {
     conversations, activeId, messages, setMessages,
     loadMessages, createConversation, saveMessage,
     replaceMessages, deleteConversation, startNewChat,
-    renameConversation, getRecentContext,
+    renameConversation,
   } = useChatHistory();
+
+  // Track which conversation is on screen so streamed tokens/saves never bleed
+  // into a different chat if the user switches while a reply is streaming.
+  const activeIdRef = useRef<string | null>(activeId);
+  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   const config = personaConfig[persona];
 
