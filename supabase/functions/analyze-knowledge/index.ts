@@ -223,7 +223,11 @@ Only return the JSON array, nothing else.`;
     const data = await response.json();
     const result = data.choices?.[0]?.message?.content || "";
 
-    return new Response(JSON.stringify({ result, extractedContent: sourceText.slice(0, 12000) }), {
+    const extractedContent = sourceText.trim()
+      ? sourceText.slice(0, 12000)
+      : (hasFile ? `Uploaded file: ${(fileName as string) || "file"}` : "");
+
+    return new Response(JSON.stringify({ result, extractedContent }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
