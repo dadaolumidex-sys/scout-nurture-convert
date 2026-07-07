@@ -147,7 +147,7 @@ export function ObjectionHandling() {
   };
 
   const handleAnalyze = async () => {
-    const hasSource = mode === "url" ? url.trim() : content.trim();
+    const hasSource = mode === "url" ? url.trim() : (content.trim() || fileData);
     if (!title.trim() || !hasSource) {
       toast.error(mode === "url" ? "Add a title and URL" : "Add a title and content");
       return;
@@ -165,6 +165,9 @@ export function ObjectionHandling() {
         body: JSON.stringify({
           content: mode === "url" ? "" : content,
           url: mode === "url" ? url : undefined,
+          fileData: mode === "file" && fileData ? fileData : undefined,
+          fileName: mode === "file" && fileData ? fileName : undefined,
+          fileMime: mode === "file" && fileData ? fileMime : undefined,
           type: "objection",
           persona,
         }),
