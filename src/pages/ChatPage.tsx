@@ -219,15 +219,18 @@ const ChatPage = () => {
     }
   };
 
-  const sendMessagesStream = async (convoId: string, msgs: ChatMessage[], extraContext: string[] = []) => {
+  const sendMessagesStream = async (convoId: string, msgs: ChatMessage[]) => {
     sendLockRef.current = true;
     setLoading(true);
     setAiError(null);
     let assistantSoFar = "";
     const unlock = () => { sendLockRef.current = false; setLoading(false); };
+    // Only touch on-screen state while THIS conversation is still the active one.
+    const isStillActive = () => activeIdRef.current === convoId;
 
     const upsertAssistant = (chunk: string) => {
       assistantSoFar += chunk;
+      if (!isStillActive()) return; // user switched chats mid-stream — don't bleed into another chat
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === "assistant") return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
@@ -242,18 +245,19 @@ const ChatPage = () => {
     try {
       await streamChat({
         messages: msgs, persona, deepResearch,
-        memory: [...extraContext, ...memoryPayload],
+        memory: memoryPayload,
         knowledge: guestKnowledge,
         onDelta: upsertAssistant,
         onDone: async () => {
           if (assistantSoFar) {
+            // Always persist to the conversation the reply belongs to.
             await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
-            setMsgTimestamps(prev => [...prev, new Date()]);
+            if (isStillActive()) setMsgTimestamps(prev => [...prev, new Date()]);
             void captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
           }
           unlock();
         },
-        onError: (msg, code) => { setAiError({ msg, code }); toast.error(msg); unlock(); },
+        onError: (msg, code) => { if (isStillActive()) { setAiError({ msg, code }); } toast.error(msg); unlock(); },
       });
     } catch (e) { console.error(e); toast.error("Failed to get AI response"); unlock(); }
   };
