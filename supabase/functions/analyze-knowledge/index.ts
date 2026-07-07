@@ -107,7 +107,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { content, type, persona, url } = await req.json();
+    const { content, type, persona, url, fileData, fileName, fileMime } = await req.json();
+
+    // A file (PDF / image / doc) was uploaded as a base64 data URL — the AI reads it directly.
+    const hasFile = typeof fileData === "string" && fileData.startsWith("data:");
 
     // If a URL was provided, fetch its content first.
     let sourceText: string = typeof content === "string" ? content : "";
@@ -126,7 +129,7 @@ serve(async (req) => {
       }
     }
 
-    if (!sourceText.trim()) {
+    if (!sourceText.trim() && !hasFile) {
       return new Response(JSON.stringify({ error: "No content to analyze." }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
