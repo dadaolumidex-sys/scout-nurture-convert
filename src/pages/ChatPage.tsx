@@ -272,10 +272,6 @@ const ChatPage = () => {
       images: pendingImages.length > 0 ? [...pendingImages] : undefined,
     };
 
-    // Fresh chat with no messages yet? Pull the tail of the last conversation so
-    // the AI still "remembers" what we were just talking about.
-    const isFreshChat = messages.length === 0;
-
     let convoId = activeId;
     if (!convoId) {
       try {
@@ -286,28 +282,16 @@ const ChatPage = () => {
       }
     }
 
-    let extraContext: string[] = [];
-    if (isFreshChat) {
-      try {
-        const recent = await getRecentContext(convoId, 6);
-        if (recent.length > 0) {
-          extraContext = [
-            "Recent conversation from a previous chat (continue naturally, use it for context):",
-            ...recent.map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`),
-          ];
-        }
-      } catch (e) {
-        console.error("recent context failed", e);
-      }
-    }
-
+    // Each conversation is isolated: only its own messages are sent to the AI.
+    // Long-term "remembering" comes from the durable memory system, not from
+    // pulling raw messages of a different chat/person.
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setMsgTimestamps(prev => [...prev, new Date()]);
     setPendingImages([]);
 
     await saveMessage(convoId, userMsg);
-    await sendMessagesStream(convoId, newMessages, extraContext);
+    await sendMessagesStream(convoId, newMessages);
   };
 
   const handleEditSave = async (index: number) => {
