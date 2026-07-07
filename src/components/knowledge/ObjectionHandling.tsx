@@ -78,14 +78,36 @@ export function ObjectionHandling() {
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast.error("File must be under 2MB of text"); return; }
+    if (file.size > 20 * 1024 * 1024) { toast.error("File must be under 20MB"); return; }
+
+    // reset any previous file selection
+    setContent(""); setFileData(""); setFileName(""); setFileMime("");
+    if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ""));
+
+    const name = file.name.toLowerCase();
+    const isText =
+      file.type.startsWith("text/") ||
+      /\.(txt|md|csv|text|json|log)$/.test(name);
+
     const reader = new FileReader();
-    reader.onload = () => {
-      setContent(String(reader.result || ""));
-      if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ""));
-      toast.success("File loaded — now click Analyze & Save");
-    };
-    reader.readAsText(file);
+    if (isText) {
+      reader.onload = () => {
+        setContent(String(reader.result || ""));
+        toast.success("File loaded — now click Analyze & Save");
+      };
+      reader.onerror = () => toast.error("Couldn't read that file");
+      reader.readAsText(file);
+    } else {
+      // PDFs, Word docs, images → send the raw file to the AI for text extraction
+      reader.onload = () => {
+        setFileData(String(reader.result || ""));
+        setFileName(file.name);
+        setFileMime(file.type || "application/octet-stream");
+        toast.success("File attached — now click Analyze & Save");
+      };
+      reader.onerror = () => toast.error("Couldn't read that file");
+      reader.readAsDataURL(file);
+    }
   };
 
   const saveEntry = async (payload: {
