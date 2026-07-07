@@ -48,6 +48,9 @@ export function ObjectionHandling() {
   const [response, setResponse] = useState("");
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [fileData, setFileData] = useState("");      // base64 data URL for non-text files (PDF, docx, images)
+  const [fileName, setFileName] = useState("");
+  const [fileMime, setFileMime] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
