@@ -48,6 +48,9 @@ export function ObjectionHandling() {
   const [response, setResponse] = useState("");
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [fileData, setFileData] = useState("");      // base64 data URL for non-text files (PDF, docx, images)
+  const [fileName, setFileName] = useState("");
+  const [fileMime, setFileMime] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -75,14 +78,36 @@ export function ObjectionHandling() {
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { toast.error("File must be under 2MB of text"); return; }
+    if (file.size > 20 * 1024 * 1024) { toast.error("File must be under 20MB"); return; }
+
+    // reset any previous file selection
+    setContent(""); setFileData(""); setFileName(""); setFileMime("");
+    if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ""));
+
+    const name = file.name.toLowerCase();
+    const isText =
+      file.type.startsWith("text/") ||
+      /\.(txt|md|csv|text|json|log)$/.test(name);
+
     const reader = new FileReader();
-    reader.onload = () => {
-      setContent(String(reader.result || ""));
-      if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ""));
-      toast.success("File loaded — now click Analyze & Save");
-    };
-    reader.readAsText(file);
+    if (isText) {
+      reader.onload = () => {
+        setContent(String(reader.result || ""));
+        toast.success("File loaded — now click Analyze & Save");
+      };
+      reader.onerror = () => toast.error("Couldn't read that file");
+      reader.readAsText(file);
+    } else {
+      // PDFs, Word docs, images → send the raw file to the AI for text extraction
+      reader.onload = () => {
+        setFileData(String(reader.result || ""));
+        setFileName(file.name);
+        setFileMime(file.type || "application/octet-stream");
+        toast.success("File attached — now click Analyze & Save");
+      };
+      reader.onerror = () => toast.error("Couldn't read that file");
+      reader.readAsDataURL(file);
+    }
   };
 
   const saveEntry = async (payload: {
@@ -122,7 +147,7 @@ export function ObjectionHandling() {
   };
 
   const handleAnalyze = async () => {
-    const hasSource = mode === "url" ? url.trim() : content.trim();
+    const hasSource = mode === "url" ? url.trim() : (content.trim() || fileData);
     if (!title.trim() || !hasSource) {
       toast.error(mode === "url" ? "Add a title and URL" : "Add a title and content");
       return;
@@ -140,6 +165,9 @@ export function ObjectionHandling() {
         body: JSON.stringify({
           content: mode === "url" ? "" : content,
           url: mode === "url" ? url : undefined,
+          fileData: mode === "file" && fileData ? fileData : undefined,
+          fileName: mode === "file" && fileData ? fileName : undefined,
+          fileMime: mode === "file" && fileData ? fileMime : undefined,
           type: "objection",
           persona,
         }),
@@ -185,6 +213,7 @@ export function ObjectionHandling() {
     if (ok) {
       toast.success(`Saved ${insights.length} objection responses to your playbook!`);
       setTitle(""); setContent(""); setUrl("");
+      setFileData(""); setFileName(""); setFileMime("");
       if (fileRef.current) fileRef.current.value = "";
       fetchEntries();
     }
@@ -266,10 +295,13 @@ export function ObjectionHandling() {
                 </div>
               ) : mode === "file" ? (
                 <div>
-                  <Label className="text-foreground">Upload a text file (.txt, .md, .csv)</Label>
-                  <Input ref={fileRef} type="file" accept=".txt,.md,.csv,.text,text/*" onChange={handleFile}
+                  <Label className="text-foreground">Upload a file (PDF, Word, text, image — up to 20MB)</Label>
+                  <Input ref={fileRef} type="file"
+                    accept=".txt,.md,.csv,.text,.json,.log,.pdf,.doc,.docx,text/*,application/pdf,image/*"
+                    onChange={handleFile}
                     className="bg-muted border-border text-foreground" />
                   {content && <p className="text-xs text-muted-foreground mt-1">{content.length} characters loaded.</p>}
+                  {fileData && <p className="text-xs text-muted-foreground mt-1">📎 {fileName} attached — the AI will read it.</p>}
                 </div>
               ) : (
                 <div>

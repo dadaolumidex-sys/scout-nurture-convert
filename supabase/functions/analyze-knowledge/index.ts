@@ -107,7 +107,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { content, type, persona, url } = await req.json();
+    const { content, type, persona, url, fileData, fileName, fileMime } = await req.json();
+
+    // A file (PDF / image / doc) was uploaded as a base64 data URL — the AI reads it directly.
+    const hasFile = typeof fileData === "string" && fileData.startsWith("data:");
 
     // If a URL was provided, fetch its content first.
     let sourceText: string = typeof content === "string" ? content : "";
@@ -126,7 +129,7 @@ serve(async (req) => {
       }
     }
 
-    if (!sourceText.trim()) {
+    if (!sourceText.trim() && !hasFile) {
       return new Response(JSON.stringify({ error: "No content to analyze." }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -174,11 +177,30 @@ Format as JSON array:
 Only return the JSON array, nothing else.`;
     }
 
+    // Build the user message. If a file was uploaded, send it as a multimodal block
+    // so the AI reads the PDF/image directly; otherwise send the extracted text.
+    let userContent: unknown;
+    if (hasFile) {
+      const mime = (fileMime as string) || "application/octet-stream";
+      const instruction = sourceText.trim()
+        ? sourceText.slice(0, 8000)
+        : "Analyze the attached file and extract the requested information from its contents.";
+      const blocks: unknown[] = [{ type: "text", text: instruction }];
+      if (mime.startsWith("image/")) {
+        blocks.push({ type: "image_url", image_url: { url: fileData } });
+      } else {
+        blocks.push({ type: "file", file: { filename: (fileName as string) || "upload", file_data: fileData } });
+      }
+      userContent = blocks;
+    } else {
+      userContent = sourceText.slice(0, 12000);
+    }
+
     const response = await callAI({
       model: "google/gemini-3-flash-preview",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: sourceText.slice(0, 12000) },
+        { role: "user", content: userContent },
       ],
     });
 
@@ -201,7 +223,11 @@ Only return the JSON array, nothing else.`;
     const data = await response.json();
     const result = data.choices?.[0]?.message?.content || "";
 
-    return new Response(JSON.stringify({ result, extractedContent: sourceText.slice(0, 12000) }), {
+    const extractedContent = sourceText.trim()
+      ? sourceText.slice(0, 12000)
+      : (hasFile ? `Uploaded file: ${(fileName as string) || "file"}` : "");
+
+    return new Response(JSON.stringify({ result, extractedContent }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
