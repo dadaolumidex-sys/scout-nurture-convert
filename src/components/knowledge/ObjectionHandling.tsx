@@ -213,6 +213,7 @@ export function ObjectionHandling() {
     if (ok) {
       toast.success(`Saved ${insights.length} objection responses to your playbook!`);
       setTitle(""); setContent(""); setUrl("");
+      setFileData(""); setFileName(""); setFileMime("");
       if (fileRef.current) fileRef.current.value = "";
       fetchEntries();
     }
