@@ -241,7 +241,7 @@ const ContactChatPage = () => {
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: "Request failed" }));
         toast.error(err.error || `Error ${resp.status}`);
-        setLoading(false);
+        if (activeContactRef.current === requestContactId) setLoading(false);
         return;
       }
 

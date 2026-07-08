@@ -57,6 +57,7 @@ export function ChatHistoryPanel({ conversations, activeId, onSelect, onNew, onD
           {conversations.map((c) => (
             <li
               key={c.id}
+              onClick={() => { if (renamingId !== c.id) onSelect(c.id); }}
               className={cn(
                 "group flex items-center gap-2 rounded-lg px-3 py-2.5 cursor-pointer text-sm transition-colors",
                 activeId === c.id ? "bg-accent text-accent-foreground" : "hover:bg-muted text-foreground"
@@ -80,7 +81,7 @@ export function ChatHistoryPanel({ conversations, activeId, onSelect, onNew, onD
                 <>
                   <button
                     type="button"
-                    onClick={() => onSelect(c.id)}
+                    onClick={(e) => { e.stopPropagation(); onSelect(c.id); }}
                     aria-current={activeId === c.id ? "true" : undefined}
                     aria-label={`Open conversation: ${c.title}`}
                     className="truncate flex-1 text-xs text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"

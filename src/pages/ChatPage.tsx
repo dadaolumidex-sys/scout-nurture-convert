@@ -175,6 +175,11 @@ const ChatPage = () => {
   }, [activeId, isMobile, navigate, threadId]);
 
   useEffect(() => {
+    if (!isMobile) return;
+    if (threadId || activeId || conversations.length === 0) setMobileView("chat");
+  }, [activeId, conversations.length, isMobile, threadId]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 

@@ -35,15 +35,15 @@ export function MemoryManager() {
           <Brain className="h-6 w-6 text-primary" /> Memory
         </h1>
         <p className="text-sm text-muted-foreground">
-          The AI remembers key facts from your chats — your goals, projects and preferences — so it gives smarter, more personal answers over time.
+          The AI remembers key facts inside each chat thread so replies stay useful without mixing one conversation into another.
         </p>
       </div>
 
       <Card className="bg-card border-border">
         <CardContent className="p-4 flex items-center justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-foreground">Remember across chats</p>
-            <p className="text-xs text-muted-foreground">When on, the assistant learns and recalls facts automatically.</p>
+            <p className="text-sm font-medium text-foreground">Remember per chat</p>
+            <p className="text-xs text-muted-foreground">When on, the assistant learns and recalls facts only for the matching conversation.</p>
           </div>
           <Switch checked={enabled} onCheckedChange={(v) => { setEnabled(v); toast.success(v ? "Memory turned on" : "Memory turned off"); }} />
         </CardContent>
