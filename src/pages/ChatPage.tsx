@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Send, Bot, Plus, ImagePlus, Sparkles, X, Pencil, Trash2, Copy, MoreVertical, Check, RotateCcw, ArrowLeft, Cpu, AlertTriangle, KeyRound } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -132,6 +132,7 @@ const ChatPage = () => {
   const { memories, addMany, enabled: memoryEnabled } = useMemory();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { threadId } = useParams<{ threadId?: string }>();
   const [persona, setPersona] = useState<Persona>("friend");
   const [aiError, setAiError] = useState<{ msg: string; code?: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -148,6 +149,7 @@ const ChatPage = () => {
 
   const {
     conversations, activeId, messages, setMessages,
+    loadingMessages,
     loadMessages, createConversation, saveMessage,
     replaceMessages, deleteConversation, startNewChat,
     renameConversation,
@@ -159,6 +161,12 @@ const ChatPage = () => {
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   const config = personaConfig[persona];
+
+  useEffect(() => {
+    if (!threadId || activeId === threadId) return;
+    void loadMessages(threadId);
+    if (isMobile) setMobileView("chat");
+  }, [activeId, isMobile, loadMessages, threadId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -180,6 +188,7 @@ const ChatPage = () => {
 
   const handleNewChat = () => {
     startNewChat();
+    navigate("/chat");
     composerRef.current?.setText("");
     setPendingImages([]);
     setEditingIndex(null);
@@ -188,12 +197,19 @@ const ChatPage = () => {
   };
 
   const handleSelectConversation = (id: string) => {
+    navigate(`/chat/${id}`);
     loadMessages(id);
     setMsgTimestamps([]);
     if (isMobile) setMobileView("chat");
   };
 
   const handleBackToList = () => setMobileView("list");
+
+  const getScopedMemory = (convoId: string) => (
+    memoryEnabled
+      ? memories.filter((m) => (m.conversation_id ?? null) === convoId).map((m) => m.content)
+      : []
+  );
 
   // Fire-and-forget: extract durable facts from the exchange and add them to long-term memory.
   const captureMemory = async (msgs: ChatMessage[]) => {
@@ -212,7 +228,7 @@ const ChatPage = () => {
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data.facts) && data.facts.length > 0) {
-        await addMany(data.facts, "auto");
+        await addMany(data.facts, "auto", activeIdRef.current);
       }
     } catch (e) {
       console.error("memory capture failed", e);
@@ -238,7 +254,7 @@ const ChatPage = () => {
       });
     };
 
-    const memoryPayload = memoryEnabled ? memories.map((m) => m.content) : [];
+    const memoryPayload = getScopedMemory(convoId);
     // Guests: pass their locally-saved knowledge/objections so the AI can use them.
     const guestKnowledge = user ? [] : guestStorage.knowledge.list();
 
@@ -276,6 +292,7 @@ const ChatPage = () => {
     if (!convoId) {
       try {
         convoId = await createConversation(persona, deepResearch);
+        navigate(`/chat/${convoId}`, { replace: true });
       } catch {
         toast.error("Failed to create conversation");
         return;
@@ -530,7 +547,7 @@ const ChatPage = () => {
 
         {/* Messages */}
           <div className="flex-1 overflow-auto px-3 py-3 space-y-3">
-            {messages.length === 0 ? emptyState : renderMessages("max-w-[calc(100%-2.25rem)]")}
+            {loadingMessages ? <TypingIndicator name="Loading chat" /> : messages.length === 0 ? emptyState : renderMessages("max-w-[calc(100%-2.25rem)]")}
         </div>
 
         {/* Input */}
@@ -580,7 +597,7 @@ const ChatPage = () => {
           </div>
 
           <div className="flex-1 overflow-auto space-y-3 mb-2">
-            {messages.length === 0 ? emptyState : renderMessages("max-w-[82%]")}
+            {loadingMessages ? <TypingIndicator name="Loading chat" /> : messages.length === 0 ? emptyState : renderMessages("max-w-[82%]")}
           </div>
 
           {pendingImages.length > 0 && (

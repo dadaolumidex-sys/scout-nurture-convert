@@ -68,7 +68,7 @@ export function useMemory() {
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(MAX_MEMORIES);
-      setMemories(error ? [] : ((data as MemoryItem[]) || []));
+      setMemories(error ? [] : (((data as unknown) as MemoryItem[]) || []));
     } else {
       setMemories(readGuest());
     }
@@ -92,7 +92,7 @@ export function useMemory() {
           .insert({ user_id: user.id, content: clean, source, conversation_id: conversationId ?? null } as any)
           .select("id, content, source, conversation_id, created_at")
           .single();
-        if (!error && data) setMemories((prev) => [data as MemoryItem, ...prev]);
+        if (!error && data) setMemories((prev) => [((data as unknown) as MemoryItem), ...prev]);
       } else {
         const item: MemoryItem = { id: createId(), content: clean, source, conversation_id: conversationId ?? null, created_at: nowIso() };
         setMemories((prev) => {
@@ -130,7 +130,7 @@ export function useMemory() {
           .from("user_memory" as any)
           .insert(fresh.map((content) => ({ user_id: user.id, content, source, conversation_id: scopedConversationId })) as any)
           .select("id, content, source, conversation_id, created_at");
-        if (!error && data) setMemories((prev) => [...(data as MemoryItem[]), ...prev]);
+        if (!error && data) setMemories((prev) => [...((data as unknown) as MemoryItem[]), ...prev]);
       } else {
         const items: MemoryItem[] = fresh.map((content) => ({ id: createId(), content, source, conversation_id: scopedConversationId, created_at: nowIso() }));
         setMemories((prev) => {
@@ -186,7 +186,7 @@ export async function getMemorySnapshot(userId?: string, conversationId?: string
       .limit(MAX_MEMORIES);
     query = scopedConversationId ? query.eq("conversation_id", scopedConversationId) : query.is("conversation_id", null);
     const { data } = await query;
-    return (data || []).map((d: { content: string }) => d.content);
+    return (((data as unknown) as Array<{ content: string }>) || []).map((d) => d.content);
   }
   return readGuest()
     .filter((m) => (m.conversation_id ?? null) === scopedConversationId)
