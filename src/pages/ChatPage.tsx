@@ -129,7 +129,7 @@ function ModelBadge({ deepResearch }: { deepResearch: boolean }) {
 
 const ChatPage = () => {
   const isMobile = useIsMobile();
-  const { memories, addMany, enabled: memoryEnabled } = useMemory();
+  const { addMany, enabled: memoryEnabled } = useMemory();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { threadId } = useParams<{ threadId?: string }>();
@@ -167,6 +167,12 @@ const ChatPage = () => {
     void loadMessages(threadId);
     if (isMobile) setMobileView("chat");
   }, [activeId, isMobile, loadMessages, threadId]);
+
+  useEffect(() => {
+    if (!activeId || threadId) return;
+    navigate(`/chat/${activeId}`, { replace: true });
+    if (isMobile) setMobileView("chat");
+  }, [activeId, isMobile, navigate, threadId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
