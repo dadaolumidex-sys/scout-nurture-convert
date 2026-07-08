@@ -63,9 +63,17 @@ const ContactChatPage = () => {
   const [suggestionsPersona, setSuggestionsPersona] = useState<Persona | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageLoadRef = useRef(0);
+  const activeContactRef = useRef<string | undefined>(contactId);
+
+  useEffect(() => {
+    activeContactRef.current = contactId;
+  }, [contactId]);
 
   useEffect(() => {
     if (contactId) {
+      setMessages([]);
+      setSuggestions([]);
       loadContact();
       loadMessages();
     }
@@ -89,14 +97,23 @@ const ContactChatPage = () => {
 
   const loadMessages = async () => {
     if (!contactId) return;
+    const requestId = ++messageLoadRef.current;
+    const currentContactId = contactId;
+    setMessages([]);
+
+    const finish = (nextMessages: ChatMessage[]) => {
+      if (messageLoadRef.current === requestId && activeContactRef.current === currentContactId) {
+        setMessages(nextMessages);
+      }
+    };
 
     if (!user) {
-      setMessages(guestStorage.messages.list(contactId) as ChatMessage[]);
+      finish(guestStorage.messages.list(currentContactId) as ChatMessage[]);
       return;
     }
 
-    const { data } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
-    if (data) setMessages(data);
+    const { data } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", currentContactId).order("created_at", { ascending: true }) as any);
+    if (data) finish(data);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -186,6 +203,7 @@ const ContactChatPage = () => {
   };
 
   const generateSuggestions = async (targetPersona: Persona) => {
+    const requestContactId = contactId;
     setLoading(true);
     setSuggestions([]);
     setSelectedSuggestion(null);
@@ -223,17 +241,17 @@ const ContactChatPage = () => {
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({ error: "Request failed" }));
         toast.error(err.error || `Error ${resp.status}`);
-        setLoading(false);
+        if (activeContactRef.current === requestContactId) setLoading(false);
         return;
       }
 
       const data = await resp.json();
-      setSuggestions(data.suggestions || []);
+      if (activeContactRef.current === requestContactId) setSuggestions(data.suggestions || []);
     } catch (e) {
       console.error(e);
       toast.error("Failed to generate suggestions");
     }
-    setLoading(false);
+    if (activeContactRef.current === requestContactId) setLoading(false);
   };
 
   const handleSelectSuggestion = async (index: number) => {

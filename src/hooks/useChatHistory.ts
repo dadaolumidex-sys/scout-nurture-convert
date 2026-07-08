@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -168,11 +168,13 @@ function toStoredMessage(convoId: string, msg: ChatMessage, createdAt = nowIso()
 }
 
 export function useChatHistory() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const loadRequestRef = useRef(0);
 
   const migrateGuestHistory = useCallback(async () => {
     if (!user || typeof window === "undefined") return;
@@ -237,6 +239,7 @@ export function useChatHistory() {
   }, [user]);
 
   const loadConversations = useCallback(async () => {
+    if (authLoading) return;
     setLoadingHistory(true);
 
     if (user) {
@@ -261,11 +264,20 @@ export function useChatHistory() {
     }
 
     setLoadingHistory(false);
-  }, [migrateGuestHistory, user]);
+  }, [authLoading, migrateGuestHistory, user]);
 
   const loadMessages = useCallback(async (convoId: string) => {
+    const requestId = ++loadRequestRef.current;
     setActiveId(convoId);
+    setLoadingMessages(true);
+    setMessages([]);
     writeActiveConversation(user?.id, convoId);
+
+    const finish = (nextMessages: ChatMessage[]) => {
+      if (loadRequestRef.current !== requestId) return;
+      setMessages(nextMessages);
+      setLoadingMessages(false);
+    };
 
     if (user) {
       const { data, error } = await supabase
@@ -275,7 +287,7 @@ export function useChatHistory() {
         .order("created_at", { ascending: true });
 
       if (error) {
-        setMessages(toChatMessages(readCachedMessages(user.id, convoId)));
+        finish(toChatMessages(readCachedMessages(user.id, convoId)));
         return;
       }
 
@@ -292,16 +304,23 @@ export function useChatHistory() {
       );
 
       writeCachedMessages(user.id, convoId, storedMessages);
-      setMessages(toChatMessages(storedMessages));
+      finish(toChatMessages(storedMessages));
     } else {
       const guestMessages = readGuestMessages().filter((message) => message.conversation_id === convoId);
-      setMessages(toChatMessages(guestMessages));
+      finish(toChatMessages(guestMessages));
     }
   }, [user]);
 
   useEffect(() => {
     void loadConversations();
   }, [loadConversations]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    loadRequestRef.current += 1;
+    setActiveId(null);
+    setMessages([]);
+  }, [authLoading, user?.id]);
 
   useEffect(() => {
     if (loadingHistory || activeId || conversations.length === 0) return;
@@ -337,8 +356,10 @@ export function useChatHistory() {
       });
       writeCachedMessages(user.id, conversation.id, []);
       setActiveId(conversation.id);
+      loadRequestRef.current += 1;
       writeActiveConversation(user.id, conversation.id);
       setMessages([]);
+      setLoadingMessages(false);
       return conversation.id;
     }
 
@@ -356,8 +377,10 @@ export function useChatHistory() {
     writeGuestConversations(nextConversations);
     setConversations(nextConversations);
     setActiveId(id);
+    loadRequestRef.current += 1;
     writeActiveConversation(undefined, id);
     setMessages([]);
+    setLoadingMessages(false);
     return id;
   }, [user]);
 
@@ -482,8 +505,10 @@ export function useChatHistory() {
 
     if (activeId === convoId) {
       setActiveId(null);
+      loadRequestRef.current += 1;
       writeActiveConversation(user?.id, null);
       setMessages([]);
+      setLoadingMessages(false);
     }
   }, [activeId, user]);
 
@@ -515,8 +540,10 @@ export function useChatHistory() {
 
   const startNewChat = useCallback(() => {
     setActiveId(null);
+    loadRequestRef.current += 1;
     writeActiveConversation(user?.id, null);
     setMessages([]);
+    setLoadingMessages(false);
   }, [user]);
 
   /**
@@ -563,6 +590,7 @@ export function useChatHistory() {
     messages,
     setMessages,
     loadingHistory,
+    loadingMessages,
     loadConversations,
     loadMessages,
     createConversation,
