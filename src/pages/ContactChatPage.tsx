@@ -63,9 +63,12 @@ const ContactChatPage = () => {
   const [suggestionsPersona, setSuggestionsPersona] = useState<Persona | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageLoadRef = useRef(0);
 
   useEffect(() => {
     if (contactId) {
+      setMessages([]);
+      setSuggestions([]);
       loadContact();
       loadMessages();
     }
@@ -89,14 +92,23 @@ const ContactChatPage = () => {
 
   const loadMessages = async () => {
     if (!contactId) return;
+    const requestId = ++messageLoadRef.current;
+    const currentContactId = contactId;
+    setMessages([]);
+
+    const finish = (nextMessages: ChatMessage[]) => {
+      if (messageLoadRef.current === requestId && contactId === currentContactId) {
+        setMessages(nextMessages);
+      }
+    };
 
     if (!user) {
-      setMessages(guestStorage.messages.list(contactId) as ChatMessage[]);
+      finish(guestStorage.messages.list(currentContactId) as ChatMessage[]);
       return;
     }
 
-    const { data } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
-    if (data) setMessages(data);
+    const { data } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", currentContactId).order("created_at", { ascending: true }) as any);
+    if (data) finish(data);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

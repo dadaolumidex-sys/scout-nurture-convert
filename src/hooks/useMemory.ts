@@ -63,8 +63,8 @@ export function useMemory() {
     setLoading(true);
     if (user) {
       const { data, error } = await supabase
-        .from("user_memory")
-        .select("id, content, source, created_at")
+        .from("user_memory" as any)
+        .select("id, content, source, conversation_id, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(MAX_MEMORIES);
@@ -88,9 +88,9 @@ export function useMemory() {
 
       if (user) {
         const { data, error } = await supabase
-          .from("user_memory")
+          .from("user_memory" as any)
           .insert({ user_id: user.id, content: clean, source, conversation_id: conversationId ?? null } as any)
-          .select("id, content, source, created_at")
+          .select("id, content, source, conversation_id, created_at")
           .single();
         if (!error && data) setMemories((prev) => [data as MemoryItem, ...prev]);
       } else {
@@ -127,7 +127,7 @@ export function useMemory() {
 
       if (user) {
         const { data, error } = await supabase
-          .from("user_memory")
+          .from("user_memory" as any)
           .insert(fresh.map((content) => ({ user_id: user.id, content, source, conversation_id: scopedConversationId })) as any)
           .select("id, content, source, conversation_id, created_at");
         if (!error && data) setMemories((prev) => [...(data as MemoryItem[]), ...prev]);
@@ -179,7 +179,7 @@ export async function getMemorySnapshot(userId?: string, conversationId?: string
   const scopedConversationId = conversationId ?? null;
   if (userId) {
     let query = supabase
-      .from("user_memory")
+      .from("user_memory" as any)
       .select("content")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
