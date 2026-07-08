@@ -54,12 +54,13 @@ function normalize(text: string) {
 }
 
 export function useMemory() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabledState] = useState(isMemoryEnabled());
 
   const load = useCallback(async () => {
+    if (authLoading) return;
     setLoading(true);
     if (user) {
       const { data, error } = await supabase
@@ -73,7 +74,7 @@ export function useMemory() {
       setMemories(readGuest());
     }
     setLoading(false);
-  }, [user]);
+  }, [authLoading, user]);
 
   useEffect(() => {
     void load();

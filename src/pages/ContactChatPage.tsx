@@ -64,6 +64,11 @@ const ContactChatPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageLoadRef = useRef(0);
+  const activeContactRef = useRef<string | undefined>(contactId);
+
+  useEffect(() => {
+    activeContactRef.current = contactId;
+  }, [contactId]);
 
   useEffect(() => {
     if (contactId) {
@@ -97,7 +102,7 @@ const ContactChatPage = () => {
     setMessages([]);
 
     const finish = (nextMessages: ChatMessage[]) => {
-      if (messageLoadRef.current === requestId && contactId === currentContactId) {
+      if (messageLoadRef.current === requestId && activeContactRef.current === currentContactId) {
         setMessages(nextMessages);
       }
     };
@@ -198,6 +203,7 @@ const ContactChatPage = () => {
   };
 
   const generateSuggestions = async (targetPersona: Persona) => {
+    const requestContactId = contactId;
     setLoading(true);
     setSuggestions([]);
     setSelectedSuggestion(null);
@@ -240,12 +246,12 @@ const ContactChatPage = () => {
       }
 
       const data = await resp.json();
-      setSuggestions(data.suggestions || []);
+      if (activeContactRef.current === requestContactId) setSuggestions(data.suggestions || []);
     } catch (e) {
       console.error(e);
       toast.error("Failed to generate suggestions");
     }
-    setLoading(false);
+    if (activeContactRef.current === requestContactId) setLoading(false);
   };
 
   const handleSelectSuggestion = async (index: number) => {

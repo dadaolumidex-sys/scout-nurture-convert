@@ -168,7 +168,7 @@ function toStoredMessage(convoId: string, msg: ChatMessage, createdAt = nowIso()
 }
 
 export function useChatHistory() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -239,6 +239,7 @@ export function useChatHistory() {
   }, [user]);
 
   const loadConversations = useCallback(async () => {
+    if (authLoading) return;
     setLoadingHistory(true);
 
     if (user) {
@@ -263,7 +264,7 @@ export function useChatHistory() {
     }
 
     setLoadingHistory(false);
-  }, [migrateGuestHistory, user]);
+  }, [authLoading, migrateGuestHistory, user]);
 
   const loadMessages = useCallback(async (convoId: string) => {
     const requestId = ++loadRequestRef.current;
@@ -313,6 +314,13 @@ export function useChatHistory() {
   useEffect(() => {
     void loadConversations();
   }, [loadConversations]);
+
+  useEffect(() => {
+    if (authLoading) return;
+    loadRequestRef.current += 1;
+    setActiveId(null);
+    setMessages([]);
+  }, [authLoading, user?.id]);
 
   useEffect(() => {
     if (loadingHistory || activeId || conversations.length === 0) return;
