@@ -212,7 +212,7 @@ const ChatPage = () => {
   );
 
   // Fire-and-forget: extract durable facts from the exchange and add them to long-term memory.
-  const captureMemory = async (msgs: ChatMessage[]) => {
+  const captureMemory = async (msgs: ChatMessage[], convoId: string) => {
     if (!memoryEnabled) return;
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -222,13 +222,13 @@ const ChatPage = () => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
         body: JSON.stringify({
           messages: msgs.map((m) => ({ role: m.role, content: m.content })),
-          knownMemory: memories.map((m) => m.content),
+          knownMemory: getScopedMemory(convoId),
         }),
       });
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data.facts) && data.facts.length > 0) {
-        await addMany(data.facts, "auto", activeIdRef.current);
+        await addMany(data.facts, "auto", convoId);
       }
     } catch (e) {
       console.error("memory capture failed", e);
@@ -269,7 +269,7 @@ const ChatPage = () => {
             // Always persist to the conversation the reply belongs to.
             await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
             if (isStillActive()) setMsgTimestamps(prev => [...prev, new Date()]);
-            void captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
+            void captureMemory([...msgs, { role: "assistant", content: assistantSoFar }], convoId);
           }
           unlock();
         },
@@ -292,12 +292,14 @@ const ChatPage = () => {
     if (!convoId) {
       try {
         convoId = await createConversation(persona, deepResearch);
+        activeIdRef.current = convoId;
         navigate(`/chat/${convoId}`, { replace: true });
       } catch {
         toast.error("Failed to create conversation");
         return;
       }
     }
+    activeIdRef.current = convoId;
 
     // Each conversation is isolated: only its own messages are sent to the AI.
     // Long-term "remembering" comes from the durable memory system, not from
