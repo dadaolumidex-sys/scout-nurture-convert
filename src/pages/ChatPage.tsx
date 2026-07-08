@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useChatHistory, ChatMessage } from "@/hooks/useChatHistory";
-import { useMemory } from "@/hooks/useMemory";
+import { getMemorySnapshot, useMemory } from "@/hooks/useMemory";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
@@ -205,10 +205,8 @@ const ChatPage = () => {
 
   const handleBackToList = () => setMobileView("list");
 
-  const getScopedMemory = (convoId: string) => (
-    memoryEnabled
-      ? memories.filter((m) => (m.conversation_id ?? null) === convoId).map((m) => m.content)
-      : []
+  const getScopedMemory = async (convoId: string) => (
+    memoryEnabled ? getMemorySnapshot(user?.id, convoId) : []
   );
 
   // Fire-and-forget: extract durable facts from the exchange and add them to long-term memory.
@@ -222,7 +220,7 @@ const ChatPage = () => {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
         body: JSON.stringify({
           messages: msgs.map((m) => ({ role: m.role, content: m.content })),
-          knownMemory: getScopedMemory(convoId),
+          knownMemory: await getScopedMemory(convoId),
         }),
       });
       if (!res.ok) return;
@@ -254,7 +252,7 @@ const ChatPage = () => {
       });
     };
 
-    const memoryPayload = getScopedMemory(convoId);
+    const memoryPayload = await getScopedMemory(convoId);
     // Guests: pass their locally-saved knowledge/objections so the AI can use them.
     const guestKnowledge = user ? [] : guestStorage.knowledge.list();
 
