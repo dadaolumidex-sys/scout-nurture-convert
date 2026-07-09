@@ -23,7 +23,6 @@ function AppRoutes() {
       <Route path="/" element={<Index />} />
       <Route path="/analyzer" element={<AnalyzerPage />} />
       <Route path="/chat" element={<ChatPage />} />
-      <Route path="/chat/:threadId" element={<ChatPage />} />
       <Route path="/inbox" element={<InboxPage />} />
       <Route path="/inbox/:contactId" element={<ContactChatPage />} />
       <Route path="/knowledge" element={<KnowledgePage />} />

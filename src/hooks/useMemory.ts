@@ -6,7 +6,6 @@ export type MemoryItem = {
   id: string;
   content: string;
   source: string;
-  conversation_id?: string | null;
   created_at: string;
 };
 
@@ -54,48 +53,47 @@ function normalize(text: string) {
 }
 
 export function useMemory() {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [enabled, setEnabledState] = useState(isMemoryEnabled());
 
   const load = useCallback(async () => {
-    if (authLoading) return;
     setLoading(true);
     if (user) {
       const { data, error } = await supabase
-        .from("user_memory" as any)
-        .select("id, content, source, conversation_id, created_at")
+        .from("user_memory")
+        .select("id, content, source, created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(MAX_MEMORIES);
-      setMemories(error ? [] : (((data as unknown) as MemoryItem[]) || []));
+      setMemories(error ? [] : ((data as MemoryItem[]) || []));
     } else {
       setMemories(readGuest());
     }
     setLoading(false);
-  }, [authLoading, user]);
+  }, [user]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const addMemory = useCallback(
-    async (content: string, source = "manual", conversationId?: string | null) => {
+    async (content: string, source = "manual") => {
       const clean = content.trim();
       if (!clean) return;
       const key = normalize(clean);
-      if (memories.some((m) => normalize(m.content) === key && (m.conversation_id ?? null) === (conversationId ?? null))) return;
+      if (memories.some((m) => normalize(m.content) === key)) return;
 
       if (user) {
         const { data, error } = await supabase
-          .from("user_memory" as any)
-          .insert({ user_id: user.id, content: clean, source, conversation_id: conversationId ?? null } as any)
-          .select("id, content, source, conversation_id, created_at")
+          .from("user_memory")
+          .insert({ user_id: user.id, content: clean, source })
+          .select("id, content, source, created_at")
           .single();
-        if (!error && data) setMemories((prev) => [((data as unknown) as MemoryItem), ...prev]);
+        if (!error && data) setMemories((prev) => [data as MemoryItem, ...prev]);
       } else {
-        const item: MemoryItem = { id: createId(), content: clean, source, conversation_id: conversationId ?? null, created_at: nowIso() };
+        const item: MemoryItem = { id: createId(), content: clean, source, created_at: nowIso() };
         setMemories((prev) => {
           const next = [item, ...prev];
           writeGuest(next);
@@ -108,13 +106,8 @@ export function useMemory() {
 
   /** Save several auto-extracted facts at once (deduped against current + each other). */
   const addMany = useCallback(
-    async (contents: string[], source = "auto", conversationId?: string | null) => {
-      const scopedConversationId = conversationId ?? null;
-      const seen = new Set(
-        memories
-          .filter((m) => (m.conversation_id ?? null) === scopedConversationId)
-          .map((m) => normalize(m.content))
-      );
+    async (contents: string[], source = "auto") => {
+      const seen = new Set(memories.map((m) => normalize(m.content)));
       const fresh: string[] = [];
       for (const c of contents) {
         const clean = c.trim();
@@ -128,12 +121,12 @@ export function useMemory() {
 
       if (user) {
         const { data, error } = await supabase
-          .from("user_memory" as any)
-          .insert(fresh.map((content) => ({ user_id: user.id, content, source, conversation_id: scopedConversationId })) as any)
-          .select("id, content, source, conversation_id, created_at");
-        if (!error && data) setMemories((prev) => [...((data as unknown) as MemoryItem[]), ...prev]);
+          .from("user_memory")
+          .insert(fresh.map((content) => ({ user_id: user.id, content, source })))
+          .select("id, content, source, created_at");
+        if (!error && data) setMemories((prev) => [...(data as MemoryItem[]), ...prev]);
       } else {
-        const items: MemoryItem[] = fresh.map((content) => ({ id: createId(), content, source, conversation_id: scopedConversationId, created_at: nowIso() }));
+        const items: MemoryItem[] = fresh.map((content) => ({ id: createId(), content, source, created_at: nowIso() }));
         setMemories((prev) => {
           const next = [...items, ...prev];
           writeGuest(next);
@@ -175,21 +168,16 @@ export function useMemory() {
 }
 
 /** Read current memory facts synchronously for sending with a chat request. */
-export async function getMemorySnapshot(userId?: string, conversationId?: string | null): Promise<string[]> {
+export async function getMemorySnapshot(userId?: string): Promise<string[]> {
   if (!isMemoryEnabled()) return [];
-  const scopedConversationId = conversationId ?? null;
   if (userId) {
-    let query = supabase
-      .from("user_memory" as any)
+    const { data } = await supabase
+      .from("user_memory")
       .select("content")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(MAX_MEMORIES);
-    query = scopedConversationId ? query.eq("conversation_id", scopedConversationId) : query.is("conversation_id", null);
-    const { data } = await query;
-    return (((data as unknown) as Array<{ content: string }>) || []).map((d) => d.content);
+    return (data || []).map((d: { content: string }) => d.content);
   }
-  return readGuest()
-    .filter((m) => (m.conversation_id ?? null) === scopedConversationId)
-    .map((m) => m.content);
+  return readGuest().map((m) => m.content);
 }

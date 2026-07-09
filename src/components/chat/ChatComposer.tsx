@@ -37,7 +37,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
     const submit = () => {
       const trimmed = text.trim();
       if ((!trimmed && !hasPendingImages) || loading) return;
-      onSend(trimmed || (hasPendingImages ? "Check this conversation and give me the perfect next reply" : text));
+      onSend(text);
       setText("");
     };
 
