@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Globe, Inbox, KeyRound, Sparkles, ArrowRight, ArrowLeft, Check } from "lucide-react";
 
@@ -77,8 +77,8 @@ export function OnboardingTour() {
           </div>
         </div>
         <div className="p-5 space-y-3">
-          <h2 className="text-lg font-bold text-foreground">{current.title}</h2>
-          <p className="text-sm text-muted-foreground leading-relaxed">{current.body}</p>
+          <DialogTitle className="text-lg font-bold text-foreground">{current.title}</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground leading-relaxed">{current.body}</DialogDescription>
 
           {current.cta && (
             <Button
