@@ -529,7 +529,9 @@ export function useChatHistory() {
   }, [user]);
 
   const startNewChat = useCallback(() => {
+    loadTokenRef.current++;
     setActiveId(null);
+
     writeActiveConversation(user?.id, null);
     setMessages([]);
   }, [user]);
