@@ -173,6 +173,10 @@ export function useChatHistory() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  // Guards against out-of-order loads: an older fetch must never paint its
+  // messages into a conversation the user has already switched away from.
+  const loadTokenRef = useRef(0);
+
 
   const migrateGuestHistory = useCallback(async () => {
     if (!user || typeof window === "undefined") return;
