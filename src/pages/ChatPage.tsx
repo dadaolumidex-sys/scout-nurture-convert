@@ -177,17 +177,28 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach((file) => {
-      if (file.size > 10 * 1024 * 1024) { toast.error("Image must be under 10MB"); return; }
-      const reader = new FileReader();
-      reader.onload = () => setPendingImages((prev) => [...prev, reader.result as string]);
-      reader.readAsDataURL(file);
-    });
+    if (!files || files.length === 0) return;
+    const list = Array.from(files);
     if (fileInputRef.current) fileInputRef.current.value = "";
+
+    setImageLoading(true);
+    try {
+      for (const file of list) {
+        if (file.size > 20 * 1024 * 1024) { toast.error(`${file.name} is over 20MB`); continue; }
+        try {
+          const compressed = await compressImageFile(file);
+          setPendingImages((prev) => [...prev, compressed]);
+        } catch {
+          toast.error(`Couldn't read ${file.name}`);
+        }
+      }
+    } finally {
+      setImageLoading(false);
+    }
   };
+
 
   const removePendingImage = (index: number) => setPendingImages((prev) => prev.filter((_, i) => i !== index));
 
