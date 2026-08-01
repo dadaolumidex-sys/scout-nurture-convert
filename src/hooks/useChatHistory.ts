@@ -324,7 +324,9 @@ export function useChatHistory() {
   }, [activeId, conversations, loadMessages, loadingHistory, user]);
 
   const createConversation = useCallback(async (persona: string, deepResearch: boolean): Promise<string> => {
+    loadTokenRef.current++;
     const now = nowIso();
+
 
     if (user) {
       const { data, error } = await supabase
