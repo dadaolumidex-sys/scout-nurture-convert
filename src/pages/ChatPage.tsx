@@ -291,6 +291,7 @@ const ChatPage = () => {
   const handleSend = async (rawText: string) => {
     const text = rawText.trim();
     if ((!text && pendingImages.length === 0) || loading || sendLockRef.current) return;
+    if (imageLoading) { toast.info("Still preparing your image…"); return; }
 
     const userMsg: ChatMessage = {
       role: "user",
@@ -307,6 +308,10 @@ const ChatPage = () => {
         return;
       }
     }
+    // Mark this chat as the one on screen immediately: the state-driven ref
+    // updates a tick later, and without this a brand-new chat would drop its
+    // very first streamed reply.
+    activeIdRef.current = convoId;
 
     // Each conversation is isolated: only its own messages are sent to the AI.
     // Long-term "remembering" comes from the durable memory system, not from
@@ -316,8 +321,10 @@ const ChatPage = () => {
     setMsgTimestamps(prev => [...prev, new Date()]);
     setPendingImages([]);
 
-    await saveMessage(convoId, userMsg);
+    // Persist in the background so the AI request starts immediately.
+    void saveMessage(convoId, userMsg);
     await sendMessagesStream(convoId, newMessages);
+
   };
 
   const handleEditSave = async (index: number) => {
