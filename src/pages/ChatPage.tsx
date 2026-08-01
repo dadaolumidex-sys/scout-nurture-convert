@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
 import { ChatComposer, ChatComposerHandle } from "@/components/chat/ChatComposer";
+import { compressImageFile } from "@/lib/imageCompress";
 
 
 type Persona = "friend" | "promoter";
@@ -33,8 +34,17 @@ async function streamChat({
   messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[]; knowledge?: unknown[];
   onDelta: (text: string) => void; onDone: () => void; onError: (msg: string, code?: string) => void;
 }) {
-  const apiMessages = messages.map((msg) => {
-    if (msg.images && msg.images.length > 0) {
+  // Only the most recent user turn keeps its images. Re-uploading every old
+  // screenshot on every turn is what made replies crawl (especially on phones).
+  const lastImageIndex = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user" && messages[i].images?.length) return i;
+    }
+    return -1;
+  })();
+
+  const apiMessages = messages.map((msg, i) => {
+    if (i === lastImageIndex && msg.images && msg.images.length > 0) {
       return {
         role: msg.role,
         content: [
@@ -43,8 +53,12 @@ async function streamChat({
         ],
       };
     }
-    return { role: msg.role, content: msg.content };
+    return {
+      role: msg.role,
+      content: msg.content || (msg.images?.length ? "[image sent earlier]" : ""),
+    };
   });
+
 
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
@@ -137,6 +151,7 @@ const ChatPage = () => {
   const [loading, setLoading] = useState(false);
   const [deepResearch, setDeepResearch] = useState(false);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [imageLoading, setImageLoading] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editContent, setEditContent] = useState("");
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
@@ -164,21 +179,33 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
-    Array.from(files).forEach((file) => {
-      if (file.size > 10 * 1024 * 1024) { toast.error("Image must be under 10MB"); return; }
-      const reader = new FileReader();
-      reader.onload = () => setPendingImages((prev) => [...prev, reader.result as string]);
-      reader.readAsDataURL(file);
-    });
+    if (!files || files.length === 0) return;
+    const list = Array.from(files);
     if (fileInputRef.current) fileInputRef.current.value = "";
+
+    setImageLoading(true);
+    try {
+      for (const file of list) {
+        if (file.size > 20 * 1024 * 1024) { toast.error(`${file.name} is over 20MB`); continue; }
+        try {
+          const compressed = await compressImageFile(file);
+          setPendingImages((prev) => [...prev, compressed]);
+        } catch {
+          toast.error(`Couldn't read ${file.name}`);
+        }
+      }
+    } finally {
+      setImageLoading(false);
+    }
   };
+
 
   const removePendingImage = (index: number) => setPendingImages((prev) => prev.filter((_, i) => i !== index));
 
   const handleNewChat = () => {
+    activeIdRef.current = null;
     startNewChat();
     composerRef.current?.setText("");
     setPendingImages([]);
@@ -188,6 +215,8 @@ const ChatPage = () => {
   };
 
   const handleSelectConversation = (id: string) => {
+    activeIdRef.current = id;
+    setAiError(null);
     loadMessages(id);
     setMsgTimestamps([]);
     if (isMobile) setMobileView("chat");
@@ -265,6 +294,7 @@ const ChatPage = () => {
   const handleSend = async (rawText: string) => {
     const text = rawText.trim();
     if ((!text && pendingImages.length === 0) || loading || sendLockRef.current) return;
+    if (imageLoading) { toast.info("Still preparing your image…"); return; }
 
     const userMsg: ChatMessage = {
       role: "user",
@@ -281,6 +311,10 @@ const ChatPage = () => {
         return;
       }
     }
+    // Mark this chat as the one on screen immediately: the state-driven ref
+    // updates a tick later, and without this a brand-new chat would drop its
+    // very first streamed reply.
+    activeIdRef.current = convoId;
 
     // Each conversation is isolated: only its own messages are sent to the AI.
     // Long-term "remembering" comes from the durable memory system, not from
@@ -290,8 +324,10 @@ const ChatPage = () => {
     setMsgTimestamps(prev => [...prev, new Date()]);
     setPendingImages([]);
 
-    await saveMessage(convoId, userMsg);
+    // Persist in the background so the AI request starts immediately.
+    void saveMessage(convoId, userMsg);
     await sendMessagesStream(convoId, newMessages);
+
   };
 
   const handleEditSave = async (index: number) => {
@@ -456,6 +492,9 @@ const ChatPage = () => {
         <ModelBadge deepResearch={deepResearch} />
       </div>
 
+      {imageLoading && (
+        <p className="px-3 pt-1.5 text-xs text-muted-foreground">Preparing image…</p>
+      )}
       {pendingImages.length > 0 && (
         <div className="flex gap-1.5 px-3 pt-1.5 flex-wrap">
           {pendingImages.map((img, idx) => (
@@ -473,7 +512,7 @@ const ChatPage = () => {
       <ChatComposer
         ref={composerRef}
         variant="mobile"
-        loading={loading}
+        loading={loading || imageLoading}
         hasPendingImages={pendingImages.length > 0}
         onSend={handleSend}
         onPickImage={() => fileInputRef.current?.click()}
@@ -583,6 +622,9 @@ const ChatPage = () => {
             {messages.length === 0 ? emptyState : renderMessages("max-w-[82%]")}
           </div>
 
+          {imageLoading && (
+            <p className="mb-1.5 text-xs text-muted-foreground">Preparing image…</p>
+          )}
           {pendingImages.length > 0 && (
             <div className="flex gap-1.5 mb-1.5 flex-wrap">
               {pendingImages.map((img, idx) => (
@@ -600,7 +642,7 @@ const ChatPage = () => {
           <ChatComposer
             ref={composerRef}
             variant="desktop"
-            loading={loading}
+            loading={loading || imageLoading}
             hasPendingImages={pendingImages.length > 0}
             onSend={handleSend}
             onPickImage={() => fileInputRef.current?.click()}
