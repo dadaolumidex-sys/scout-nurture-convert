@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
 import { ChatComposer, ChatComposerHandle } from "@/components/chat/ChatComposer";
+import { compressImageFile } from "@/lib/imageCompress";
 
 
 type Persona = "friend" | "promoter";
@@ -150,6 +151,7 @@ const ChatPage = () => {
   const [loading, setLoading] = useState(false);
   const [deepResearch, setDeepResearch] = useState(false);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [imageLoading, setImageLoading] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editContent, setEditContent] = useState("");
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
