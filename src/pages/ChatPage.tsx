@@ -205,6 +205,7 @@ const ChatPage = () => {
   const removePendingImage = (index: number) => setPendingImages((prev) => prev.filter((_, i) => i !== index));
 
   const handleNewChat = () => {
+    activeIdRef.current = null;
     startNewChat();
     composerRef.current?.setText("");
     setPendingImages([]);
@@ -214,6 +215,8 @@ const ChatPage = () => {
   };
 
   const handleSelectConversation = (id: string) => {
+    activeIdRef.current = id;
+    setAiError(null);
     loadMessages(id);
     setMsgTimestamps([]);
     if (isMobile) setMobileView("chat");
@@ -506,7 +509,7 @@ const ChatPage = () => {
       <ChatComposer
         ref={composerRef}
         variant="mobile"
-        loading={loading}
+        loading={loading || imageLoading}
         hasPendingImages={pendingImages.length > 0}
         onSend={handleSend}
         onPickImage={() => fileInputRef.current?.click()}
@@ -633,7 +636,7 @@ const ChatPage = () => {
           <ChatComposer
             ref={composerRef}
             variant="desktop"
-            loading={loading}
+            loading={loading || imageLoading}
             hasPendingImages={pendingImages.length > 0}
             onSend={handleSend}
             onPickImage={() => fileInputRef.current?.click()}
