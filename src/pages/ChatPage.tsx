@@ -33,8 +33,17 @@ async function streamChat({
   messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[]; knowledge?: unknown[];
   onDelta: (text: string) => void; onDone: () => void; onError: (msg: string, code?: string) => void;
 }) {
-  const apiMessages = messages.map((msg) => {
-    if (msg.images && msg.images.length > 0) {
+  // Only the most recent user turn keeps its images. Re-uploading every old
+  // screenshot on every turn is what made replies crawl (especially on phones).
+  const lastImageIndex = (() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === "user" && messages[i].images?.length) return i;
+    }
+    return -1;
+  })();
+
+  const apiMessages = messages.map((msg, i) => {
+    if (i === lastImageIndex && msg.images && msg.images.length > 0) {
       return {
         role: msg.role,
         content: [
@@ -43,8 +52,12 @@ async function streamChat({
         ],
       };
     }
-    return { role: msg.role, content: msg.content };
+    return {
+      role: msg.role,
+      content: msg.content || (msg.images?.length ? "[image sent earlier]" : ""),
+    };
   });
+
 
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
