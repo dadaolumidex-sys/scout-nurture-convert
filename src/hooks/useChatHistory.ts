@@ -268,18 +268,24 @@ export function useChatHistory() {
   }, [migrateGuestHistory, user]);
 
   const loadMessages = useCallback(async (convoId: string) => {
+    const token = ++loadTokenRef.current;
     setActiveId(convoId);
     writeActiveConversation(user?.id, convoId);
 
     if (user) {
+      // Show cached messages instantly so switching chats feels snappy.
+      const cached = readCachedMessages(user.id, convoId);
+      if (cached.length > 0) setMessages(toChatMessages(cached));
+
       const { data, error } = await supabase
         .from("ai_messages")
         .select("*")
         .eq("conversation_id", convoId)
         .order("created_at", { ascending: true });
 
+      if (token !== loadTokenRef.current) return; // user switched chats — discard
       if (error) {
-        setMessages(toChatMessages(readCachedMessages(user.id, convoId)));
+        setMessages(toChatMessages(cached));
         return;
       }
 
@@ -296,12 +302,15 @@ export function useChatHistory() {
       );
 
       writeCachedMessages(user.id, convoId, storedMessages);
+      if (token !== loadTokenRef.current) return;
       setMessages(toChatMessages(storedMessages));
     } else {
       const guestMessages = readGuestMessages().filter((message) => message.conversation_id === convoId);
+      if (token !== loadTokenRef.current) return;
       setMessages(toChatMessages(guestMessages));
     }
   }, [user]);
+
 
   useEffect(() => {
     void loadConversations();
