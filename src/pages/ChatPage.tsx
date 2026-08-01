@@ -492,6 +492,9 @@ const ChatPage = () => {
         <ModelBadge deepResearch={deepResearch} />
       </div>
 
+      {imageLoading && (
+        <p className="px-3 pt-1.5 text-xs text-muted-foreground">Preparing image…</p>
+      )}
       {pendingImages.length > 0 && (
         <div className="flex gap-1.5 px-3 pt-1.5 flex-wrap">
           {pendingImages.map((img, idx) => (
@@ -619,6 +622,9 @@ const ChatPage = () => {
             {messages.length === 0 ? emptyState : renderMessages("max-w-[82%]")}
           </div>
 
+          {imageLoading && (
+            <p className="mb-1.5 text-xs text-muted-foreground">Preparing image…</p>
+          )}
           {pendingImages.length > 0 && (
             <div className="flex gap-1.5 mb-1.5 flex-wrap">
               {pendingImages.map((img, idx) => (
