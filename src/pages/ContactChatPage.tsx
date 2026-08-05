@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Send, Image, Pencil, Trash2, Check, X, Copy, MoreVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -36,7 +36,7 @@ type ChatMessage = {
   selected: boolean;
 };
 
-type Persona = "friend" | "promoter";
+type Persona = "friend" | "promoter" | "streamer";
 type Suggestion = { message: string; reason: string; approach: string };
 
 const SUGGESTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-suggestions`;
@@ -44,16 +44,19 @@ const SUGGESTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-
 const personaConfig = {
   friend: { name: "Nifimas", emoji: "🤝", label: "Friend", badgeClass: "border-secondary/50 bg-secondary/10 text-secondary" },
   promoter: { name: "Brozeen", emoji: "💼", label: "Promoter", badgeClass: "border-primary/50 bg-primary/10 text-primary" },
+  streamer: { name: "Big Streamer", emoji: "🎤", label: "Big Streamer", badgeClass: "border-info/50 bg-info/10 text-info" },
 };
 
 const ContactChatPage = () => {
   const { contactId } = useParams<{ contactId: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialPersona = (["friend", "promoter", "streamer"] as const).find((p) => p === searchParams.get("persona")) || "friend";
   const [contact, setContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [persona, setPersona] = useState<Persona>("friend");
+  const [persona, setPersona] = useState<Persona>(initialPersona);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
@@ -448,7 +451,9 @@ const ContactChatPage = () => {
             size="sm"
             className={persona === "friend"
               ? "border-secondary/30 text-secondary hover:bg-secondary/10"
-              : "border-primary/30 text-primary hover:bg-primary/10"
+              : persona === "streamer"
+                ? "border-info/30 text-info hover:bg-info/10"
+                : "border-primary/30 text-primary hover:bg-primary/10"
             }
           >
             {config.emoji} Get {config.name} Reply

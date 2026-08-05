@@ -10,7 +10,7 @@ type Contact = {
   growth_stage: string | null;
 };
 
-type Persona = "friend" | "promoter";
+type Persona = "friend" | "promoter" | "streamer";
 
 type Props = {
   contact: Contact;
@@ -19,13 +19,14 @@ type Props = {
   onBack: () => void;
 };
 
-const personaConfig = {
-  friend: { badgeClass: "border-secondary/50 bg-secondary/10 text-secondary" },
-  promoter: { badgeClass: "border-primary/50 bg-primary/10 text-primary" },
+const personaConfig: Record<Persona, { badgeClass: string; emoji: string; name: string; aria: string }> = {
+  friend: { badgeClass: "border-secondary/50 bg-secondary/10 text-secondary", emoji: "🤝", name: "Nifimas", aria: "Nifimas, friendly persona" },
+  promoter: { badgeClass: "border-primary/50 bg-primary/10 text-primary", emoji: "💼", name: "Brozeen", aria: "Brozeen, promoter persona" },
+  streamer: { badgeClass: "border-info/50 bg-info/10 text-info", emoji: "🎤", name: "Big Streamer", aria: "Big streamer, direct peer persona" },
 };
 
 export const ChatHeader = ({ contact, persona, onPersonaChange, onBack }: Props) => (
-  <div className="flex items-center gap-3 mb-4 pb-3 border-b border-border">
+  <div className="flex flex-wrap items-center gap-3 mb-4 pb-3 border-b border-border">
     <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back to inbox" className="text-muted-foreground hover:text-foreground shrink-0">
       <ArrowLeft className="h-4 w-4" />
     </Button>
@@ -36,36 +37,28 @@ export const ChatHeader = ({ contact, persona, onPersonaChange, onBack }: Props)
         <span className="text-sm font-bold text-foreground" aria-hidden="true">{(contact.display_name || contact.username)[0].toUpperCase()}</span>
       )}
     </div>
-    <div className="flex-1 min-w-0">
+    <div className="flex-1 min-w-[140px]">
       <h1 className="text-lg font-bold text-foreground truncate">{contact.display_name || contact.username}</h1>
       <div className="flex items-center gap-2">
         <Badge variant="outline" className="text-xs border-primary/30 text-primary capitalize">{contact.platform}</Badge>
         {contact.growth_stage && <Badge variant="outline" className="text-xs text-muted-foreground">{contact.growth_stage}</Badge>}
       </div>
     </div>
-    <div className="flex gap-2" role="radiogroup" aria-label="AI persona">
-      <Button
-        size="sm"
-        variant="outline"
-        role="radio"
-        aria-checked={persona === "friend"}
-        aria-label="Nifimas, friendly persona"
-        onClick={() => onPersonaChange("friend")}
-        className={persona === "friend" ? personaConfig.friend.badgeClass : "text-muted-foreground"}
-      >
-        <span aria-hidden="true">🤝</span> Nifimas
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        role="radio"
-        aria-checked={persona === "promoter"}
-        aria-label="Brozeen, promoter persona"
-        onClick={() => onPersonaChange("promoter")}
-        className={persona === "promoter" ? personaConfig.promoter.badgeClass : "text-muted-foreground"}
-      >
-        <span aria-hidden="true">💼</span> Brozeen
-      </Button>
+    <div className="flex gap-2 flex-wrap w-full sm:w-auto" role="radiogroup" aria-label="AI persona">
+      {(Object.keys(personaConfig) as Persona[]).map((key) => (
+        <Button
+          key={key}
+          size="sm"
+          variant="outline"
+          role="radio"
+          aria-checked={persona === key}
+          aria-label={personaConfig[key].aria}
+          onClick={() => onPersonaChange(key)}
+          className={persona === key ? personaConfig[key].badgeClass : "text-muted-foreground"}
+        >
+          <span aria-hidden="true">{personaConfig[key].emoji}</span> {personaConfig[key].name}
+        </Button>
+      ))}
     </div>
   </div>
 );

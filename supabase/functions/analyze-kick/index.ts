@@ -1,3 +1,5 @@
+import { generateHooks } from "../_shared/hooks.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -60,8 +62,23 @@ Deno.serve(async (req) => {
     const weaknesses = generateWeaknesses(channel, avgViewers, frequency, followers);
     const opportunities = generateOpportunities(avgViewers, growthStage);
     const promotionPotential = generatePromotionPotential(growthStage, avgViewers, frequency);
-    const friendMessage = generateFriendMessage(displayName, growthStage, livestream);
-    const promoterMessage = generatePromoterMessage(displayName, growthStage, avgViewers);
+    const category = livestream?.categories?.[0]?.name || recentCategories?.[0]?.name || 'Variety';
+
+    const hooks = await generateHooks({
+      displayName,
+      platform: 'Kick',
+      category,
+      followers: followersEstimate,
+      avgViewers: avgViewers !== null ? `~${avgViewers}` : 'unknown',
+      frequency,
+      growthStage,
+      isLive,
+      liveTitle: livestream?.session_title || null,
+      description,
+      strengths,
+      weaknesses,
+      opportunities,
+    });
 
     const analysis = {
       username: channel.slug || username,
@@ -71,7 +88,7 @@ Deno.serve(async (req) => {
       broadcasterType,
       createdAt,
       platform: 'kick',
-      contentCategory: livestream?.categories?.[0]?.name || recentCategories?.[0]?.name || 'Variety',
+      contentCategory: category,
       followersEstimate,
       avgViewers: avgViewers !== null ? `~${avgViewers}` : 'Unknown',
       streamingFrequency: frequency,
@@ -80,8 +97,10 @@ Deno.serve(async (req) => {
       weaknesses,
       opportunities,
       promotionPotential,
-      friendMessage,
-      promoterMessage,
+      auditSummary: hooks.auditSummary,
+      friendMessage: hooks.friendMessage,
+      promoterMessage: hooks.promoterMessage,
+      streamerMessage: hooks.streamerMessage,
       isLive,
       liveTitle: livestream?.session_title || null,
       liveGame: livestream?.categories?.[0]?.name || recentCategories?.[0]?.name || null,
@@ -196,23 +215,4 @@ function generatePromotionPotential(growthStage: string, avgViewers: number | nu
     return 'Medium — needs a more consistent schedule first, but promotion could provide motivation and results.';
   }
   return 'Good — solid foundation. Strategic promotion could push them past their current plateau.';
-}
-
-function generateFriendMessage(displayName: string, growthStage: string, livestream: any): string {
-  if (livestream) {
-    return `Hey ${displayName}! I just caught your stream on Kick playing ${livestream.categories?.[0]?.name || 'your game'} and your vibe is really solid! How long have you been on Kick? I feel like you're at that point where the right push could really change things 🔥`;
-  }
-  if (growthStage === 'New Streamer' || growthStage === 'Small Creator') {
-    return `Hey ${displayName}! Found your Kick channel and I can tell you're putting in the work. The grind as a smaller streamer is real — how's it been going? Being on Kick early is a smart move, you've got something building here 💪`;
-  }
-  return `Hey ${displayName}! Been checking out your Kick channel and your content is really solid. How's the streaming journey been? I'm always curious to hear what creators at your level think about Kick's growth 🔥`;
-}
-
-function generatePromoterMessage(displayName: string, growthStage: string, avgViewers: number | null): string {
-  const viewerNote = avgViewers !== null ? `averaging around ${avgViewers} viewers` : 'building your audience';
-
-  if (growthStage === 'New Streamer' || growthStage === 'Small Creator') {
-    return `Hi ${displayName}! I work with streamers in your stage of growth, and your Kick channel has strong potential. You're ${viewerNote}, and being on Kick early gives you a real edge. I'd love to chat about how we could get your stream in front of more eyes. Open to a quick conversation?`;
-  }
-  return `Hi ${displayName}! I've been following your Kick channel and I'm impressed by what you've built. You're ${viewerNote}, and with the right growth strategy, you could see a significant jump. I specialize in helping streamers break through to the next level. Would you be open to discussing some strategies?`;
 }

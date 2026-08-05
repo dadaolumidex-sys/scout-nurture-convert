@@ -9,7 +9,7 @@ type Suggestion = {
   approach: string;
 };
 
-type Persona = "friend" | "promoter";
+type Persona = "friend" | "promoter" | "streamer";
 
 type Props = {
   suggestions: Suggestion[];
@@ -29,6 +29,11 @@ const personaStyles: Record<Persona, { border: string; selected: string; badge: 
     border: "border-primary/30",
     selected: "border-primary ring-2 ring-primary/40",
     badge: "border-primary/50 bg-primary/10 text-primary",
+  },
+  streamer: {
+    border: "border-info/30",
+    selected: "border-info ring-2 ring-info/40",
+    badge: "border-info/50 bg-info/10 text-info",
   },
 };
 
