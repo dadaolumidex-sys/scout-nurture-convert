@@ -395,9 +395,11 @@ export type Database = {
       }
       streamer_contacts: {
         Row: {
+          audit_summary: string | null
           avg_viewers: string | null
           broadcaster_type: string | null
           channel_url: string | null
+          content_category: string | null
           conversation_type: string | null
           created_at: string | null
           created_at_twitch: string | null
@@ -418,6 +420,7 @@ export type Database = {
           promoter_message: string | null
           promotion_potential: string | null
           status: string | null
+          streamer_message: string | null
           streaming_frequency: string | null
           strengths: string[] | null
           updated_at: string | null
@@ -426,9 +429,11 @@ export type Database = {
           weaknesses: string[] | null
         }
         Insert: {
+          audit_summary?: string | null
           avg_viewers?: string | null
           broadcaster_type?: string | null
           channel_url?: string | null
+          content_category?: string | null
           conversation_type?: string | null
           created_at?: string | null
           created_at_twitch?: string | null
@@ -449,6 +454,7 @@ export type Database = {
           promoter_message?: string | null
           promotion_potential?: string | null
           status?: string | null
+          streamer_message?: string | null
           streaming_frequency?: string | null
           strengths?: string[] | null
           updated_at?: string | null
@@ -457,9 +463,11 @@ export type Database = {
           weaknesses?: string[] | null
         }
         Update: {
+          audit_summary?: string | null
           avg_viewers?: string | null
           broadcaster_type?: string | null
           channel_url?: string | null
+          content_category?: string | null
           conversation_type?: string | null
           created_at?: string | null
           created_at_twitch?: string | null
@@ -480,6 +488,7 @@ export type Database = {
           promoter_message?: string | null
           promotion_potential?: string | null
           status?: string | null
+          streamer_message?: string | null
           streaming_frequency?: string | null
           strengths?: string[] | null
           updated_at?: string | null
