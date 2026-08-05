@@ -223,7 +223,7 @@ const AnalyzerPage = () => {
                   return;
                 }
                 toast.success("Message copied — opening conversation");
-                navigate(`/chat/${contactId}?persona=${persona}`);
+                navigate(`/inbox/${contactId}?persona=${persona}`);
               }}
             />
           </div>
