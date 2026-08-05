@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Search, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,8 @@ export type AnalysisResult = {
   promotionPotential: string;
   friendMessage: string;
   promoterMessage: string;
+  streamerMessage: string;
+  auditSummary: string;
   isLive: boolean;
   liveTitle: string | null;
   liveGame: string | null;
@@ -40,9 +43,11 @@ export type AnalysisResult = {
 
 const AnalyzerPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [contactId, setContactId] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
     if (!url.trim()) {
@@ -67,6 +72,7 @@ const AnalyzerPage = () => {
     }
 
     setLoading(true);
+    setContactId(null);
     try {
       const functionName = platform === "twitch" ? "analyze-twitch" : "analyze-kick";
       const { data, error } = await supabase.functions.invoke(functionName, {
@@ -101,6 +107,9 @@ const AnalyzerPage = () => {
         promotion_potential: data.promotionPotential,
         friend_message: data.friendMessage,
         promoter_message: data.promoterMessage,
+        streamer_message: data.streamerMessage,
+        audit_summary: data.auditSummary,
+        content_category: data.contentCategory,
         is_live: data.isLive,
         live_title: data.liveTitle,
         live_game: data.liveGame,
@@ -121,13 +130,18 @@ const AnalyzerPage = () => {
             .from("streamer_contacts" as any)
             .update({ ...contactPayload, updated_at: new Date().toISOString() })
             .eq("id", existing[0].id) as any);
+          setContactId(existing[0].id);
         } else {
-          await (supabase
+          const { data: inserted } = await (supabase
             .from("streamer_contacts" as any)
-            .insert({ ...contactPayload, user_id: user.id }) as any);
+            .insert({ ...contactPayload, user_id: user.id })
+            .select("id")
+            .single() as any);
+          setContactId(inserted?.id ?? null);
         }
       } else {
-        guestStorage.contacts.upsert(contactPayload);
+        const saved = guestStorage.contacts.upsert(contactPayload);
+        setContactId(saved?.id ?? null);
       }
 
       toast.success(user ? "Analysis complete!" : "Analysis complete and saved in guest mode!");
@@ -187,8 +201,31 @@ const AnalyzerPage = () => {
               <AnalysisSection title="Opportunities" items={result.opportunities} color="text-info" />
             </div>
 
+            {result.auditSummary && (
+              <Card className="bg-card border-border">
+                <CardContent className="p-5">
+                  <h2 className="text-sm font-bold text-primary mb-2">Audit summary</h2>
+                  <p className="text-[15px] font-medium text-foreground/90 leading-relaxed">{result.auditSummary}</p>
+                </CardContent>
+              </Card>
+            )}
+
             <PromotionPotential text={result.promotionPotential} />
-            <SuggestedMessages friendMessage={result.friendMessage} promoterMessage={result.promoterMessage} />
+            <SuggestedMessages
+              friendMessage={result.friendMessage}
+              promoterMessage={result.promoterMessage}
+              streamerMessage={result.streamerMessage}
+              onStartConversation={(persona) => {
+                const msg = persona === "friend" ? result.friendMessage : persona === "promoter" ? result.promoterMessage : result.streamerMessage;
+                navigator.clipboard.writeText(msg).catch(() => {});
+                if (!contactId) {
+                  toast.error("Saving this streamer failed — try analyzing again.");
+                  return;
+                }
+                toast.success("Message copied — opening conversation");
+                navigate(`/chat/${contactId}?persona=${persona}`);
+              }}
+            />
           </div>
         )}
       </div>
