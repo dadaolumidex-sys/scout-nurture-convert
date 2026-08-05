@@ -36,7 +36,7 @@ type ChatMessage = {
   selected: boolean;
 };
 
-type Persona = "friend" | "promoter";
+type Persona = "friend" | "promoter" | "streamer";
 type Suggestion = { message: string; reason: string; approach: string };
 
 const SUGGESTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-suggestions`;
@@ -44,6 +44,7 @@ const SUGGESTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-
 const personaConfig = {
   friend: { name: "Nifimas", emoji: "🤝", label: "Friend", badgeClass: "border-secondary/50 bg-secondary/10 text-secondary" },
   promoter: { name: "Brozeen", emoji: "💼", label: "Promoter", badgeClass: "border-primary/50 bg-primary/10 text-primary" },
+  streamer: { name: "Big Streamer", emoji: "🎤", label: "Big Streamer", badgeClass: "border-info/50 bg-info/10 text-info" },
 };
 
 const ContactChatPage = () => {
@@ -448,7 +449,9 @@ const ContactChatPage = () => {
             size="sm"
             className={persona === "friend"
               ? "border-secondary/30 text-secondary hover:bg-secondary/10"
-              : "border-primary/30 text-primary hover:bg-primary/10"
+              : persona === "streamer"
+                ? "border-info/30 text-info hover:bg-info/10"
+                : "border-primary/30 text-primary hover:bg-primary/10"
             }
           >
             {config.emoji} Get {config.name} Reply
