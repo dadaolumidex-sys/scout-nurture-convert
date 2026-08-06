@@ -456,6 +456,12 @@ const ContactChatPage = () => {
                             <Copy className="h-3 w-3 mr-2" /> Copy
                           </DropdownMenuItem>
                         )}
+                        {msg.role === "assistant" && (contact.discord_channel_id || contact.discord_user_id) && (
+                          <DropdownMenuItem onClick={() => sendToDiscord(msg)} className="text-foreground">
+                            <Rocket className="h-3 w-3 mr-2" /> Send to Discord
+                          </DropdownMenuItem>
+                        )}
+
                         <DropdownMenuItem onClick={() => { setEditingId(msg.id); setEditContent(msg.content); }} className="text-foreground">
                           <Pencil className="h-3 w-3 mr-2" /> Edit
                         </DropdownMenuItem>
