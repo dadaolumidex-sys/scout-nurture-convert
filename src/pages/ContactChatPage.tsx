@@ -313,7 +313,28 @@ const ContactChatPage = () => {
     toast.success("Message deleted");
   };
 
+  const sendToDiscord = async (msg: ChatMessage) => {
+    if (!user) { toast.error("Sign in to send to Discord"); return; }
+    if (!contact?.discord_channel_id && !contact?.discord_user_id) {
+      toast.error("Link this contact to Discord first");
+      return;
+    }
+    const t = toast.loading("Sending to Discord...");
+    try {
+      const { data, error } = await supabase.functions.invoke("discord-send", {
+        body: { contactId, content: msg.content, messageId: msg.id },
+      });
+      if (error) throw new Error((await (error as any)?.context?.text?.()) || error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast.success("Sent on Discord", { id: t });
+      await loadMessages();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send", { id: t });
+    }
+  };
+
   const config = personaConfig[persona];
+
 
   if (!contact) {
     return (
