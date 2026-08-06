@@ -354,6 +354,24 @@ const ContactChatPage = () => {
           onBack={() => navigate("/inbox")}
         />
 
+        {user && contactId && (
+          <DiscordPanel
+            contactId={contactId}
+            persona={persona}
+            signedIn={!!user}
+            discord={{
+              discord_channel_id: contact.discord_channel_id ?? null,
+              discord_user_id: contact.discord_user_id ?? null,
+              discord_sync_enabled: contact.discord_sync_enabled ?? false,
+              discord_persona: contact.discord_persona ?? persona,
+              discord_last_synced_at: contact.discord_last_synced_at ?? null,
+            }}
+            onChanged={async () => { await loadContact(); await loadMessages(); }}
+          />
+        )}
+
+
+
         {/* Messages */}
         <div className="flex-1 overflow-auto space-y-3 mb-4 pr-1">
           {messages.filter((msg) => msg.persona === persona).length === 0 && (
