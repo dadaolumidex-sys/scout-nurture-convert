@@ -25,7 +25,13 @@ type Contact = {
   conversation_type: string | null;
   growth_stage: string | null;
   status: string | null;
+  discord_channel_id?: string | null;
+  discord_user_id?: string | null;
+  discord_sync_enabled?: boolean | null;
+  discord_persona?: string | null;
+  discord_last_synced_at?: string | null;
 };
+
 
 type ChatMessage = {
   id: string;
