@@ -195,11 +195,13 @@ export type Database = {
           contact_id: string
           content: string
           created_at: string
+          discord_message_id: string | null
           id: string
           image_url: string | null
           persona: string | null
           role: string
           selected: boolean | null
+          source: string
           updated_at: string
           user_id: string
         }
@@ -207,11 +209,13 @@ export type Database = {
           contact_id: string
           content: string
           created_at?: string
+          discord_message_id?: string | null
           id?: string
           image_url?: string | null
           persona?: string | null
           role?: string
           selected?: boolean | null
+          source?: string
           updated_at?: string
           user_id: string
         }
@@ -219,11 +223,13 @@ export type Database = {
           contact_id?: string
           content?: string
           created_at?: string
+          discord_message_id?: string | null
           id?: string
           image_url?: string | null
           persona?: string | null
           role?: string
           selected?: boolean | null
+          source?: string
           updated_at?: string
           user_id?: string
         }
@@ -404,6 +410,12 @@ export type Database = {
           created_at: string | null
           created_at_twitch: string | null
           description: string | null
+          discord_channel_id: string | null
+          discord_last_message_id: string | null
+          discord_last_synced_at: string | null
+          discord_persona: string
+          discord_sync_enabled: boolean
+          discord_user_id: string | null
           display_name: string | null
           followers_estimate: string | null
           friend_message: string | null
@@ -438,6 +450,12 @@ export type Database = {
           created_at?: string | null
           created_at_twitch?: string | null
           description?: string | null
+          discord_channel_id?: string | null
+          discord_last_message_id?: string | null
+          discord_last_synced_at?: string | null
+          discord_persona?: string
+          discord_sync_enabled?: boolean
+          discord_user_id?: string | null
           display_name?: string | null
           followers_estimate?: string | null
           friend_message?: string | null
@@ -472,6 +490,12 @@ export type Database = {
           created_at?: string | null
           created_at_twitch?: string | null
           description?: string | null
+          discord_channel_id?: string | null
+          discord_last_message_id?: string | null
+          discord_last_synced_at?: string | null
+          discord_persona?: string
+          discord_sync_enabled?: boolean
+          discord_user_id?: string | null
           display_name?: string | null
           followers_estimate?: string | null
           friend_message?: string | null
