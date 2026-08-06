@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Send, Image, Pencil, Trash2, Check, X, Copy, MoreVertical } from "lucide-react";
+import { Send, Image, Pencil, Trash2, Check, X, Copy, MoreVertical, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SuggestionCards } from "@/components/chat/SuggestionCards";
+import { DiscordPanel } from "@/components/inbox/DiscordPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage, readFileAsDataUrl } from "@/lib/guestStorage";
+
 
 type Contact = {
   id: string;
@@ -23,7 +25,13 @@ type Contact = {
   conversation_type: string | null;
   growth_stage: string | null;
   status: string | null;
+  discord_channel_id?: string | null;
+  discord_user_id?: string | null;
+  discord_sync_enabled?: boolean | null;
+  discord_persona?: string | null;
+  discord_last_synced_at?: string | null;
 };
+
 
 type ChatMessage = {
   id: string;
@@ -305,7 +313,28 @@ const ContactChatPage = () => {
     toast.success("Message deleted");
   };
 
+  const sendToDiscord = async (msg: ChatMessage) => {
+    if (!user) { toast.error("Sign in to send to Discord"); return; }
+    if (!contact?.discord_channel_id && !contact?.discord_user_id) {
+      toast.error("Link this contact to Discord first");
+      return;
+    }
+    const t = toast.loading("Sending to Discord...");
+    try {
+      const { data, error } = await supabase.functions.invoke("discord-send", {
+        body: { contactId, content: msg.content, messageId: msg.id },
+      });
+      if (error) throw new Error((await (error as any)?.context?.text?.()) || error.message);
+      if ((data as any)?.error) throw new Error((data as any).error);
+      toast.success("Sent on Discord", { id: t });
+      await loadMessages();
+    } catch (e: any) {
+      toast.error(e.message || "Failed to send", { id: t });
+    }
+  };
+
   const config = personaConfig[persona];
+
 
   if (!contact) {
     return (
@@ -324,6 +353,24 @@ const ContactChatPage = () => {
           onPersonaChange={(p) => { setPersona(p); setSuggestions([]); setSelectedSuggestion(null); }}
           onBack={() => navigate("/inbox")}
         />
+
+        {user && contactId && (
+          <DiscordPanel
+            contactId={contactId}
+            persona={persona}
+            signedIn={!!user}
+            discord={{
+              discord_channel_id: contact.discord_channel_id ?? null,
+              discord_user_id: contact.discord_user_id ?? null,
+              discord_sync_enabled: contact.discord_sync_enabled ?? false,
+              discord_persona: contact.discord_persona ?? persona,
+              discord_last_synced_at: contact.discord_last_synced_at ?? null,
+            }}
+            onChanged={async () => { await loadContact(); await loadMessages(); }}
+          />
+        )}
+
+
 
         {/* Messages */}
         <div className="flex-1 overflow-auto space-y-3 mb-4 pr-1">
@@ -409,6 +456,12 @@ const ContactChatPage = () => {
                             <Copy className="h-3 w-3 mr-2" /> Copy
                           </DropdownMenuItem>
                         )}
+                        {msg.role === "assistant" && (contact.discord_channel_id || contact.discord_user_id) && (
+                          <DropdownMenuItem onClick={() => sendToDiscord(msg)} className="text-foreground">
+                            <Rocket className="h-3 w-3 mr-2" /> Send to Discord
+                          </DropdownMenuItem>
+                        )}
+
                         <DropdownMenuItem onClick={() => { setEditingId(msg.id); setEditContent(msg.content); }} className="text-foreground">
                           <Pencil className="h-3 w-3 mr-2" /> Edit
                         </DropdownMenuItem>
