@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Send, Image, Pencil, Trash2, Check, X, Copy, MoreVertical } from "lucide-react";
+import { Send, Image, Pencil, Trash2, Check, X, Copy, MoreVertical, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SuggestionCards } from "@/components/chat/SuggestionCards";
+import { DiscordPanel } from "@/components/inbox/DiscordPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage, readFileAsDataUrl } from "@/lib/guestStorage";
+
 
 type Contact = {
   id: string;
