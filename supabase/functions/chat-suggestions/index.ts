@@ -225,7 +225,7 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + knowledgeContext + objectionContext + styleContext + ((knowledgeContext || objectionContext) ? KNOWLEDGE_GUARDRAIL : "");
+    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + KNOWLEDGE_GUARDRAIL;
 
     const response = await callAI({
       model: "google/gemini-3-flash-preview",
@@ -236,16 +236,20 @@ serve(async (req) => {
           role: "user",
           content: `${contactContext || ""}
 
-Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each suggestion should have a different approach/angle.
+Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each one a different angle.
 
-Critical persona rules:
-- Never mix personas.
-- If persona is Nifimas (friend), stay warm/casual and only softly refer to Brozeen when streamer asks for deeper strategy or execution.
-- If persona is Brozeen (promoter), stay expert/professional and drive toward conversion with a clear next step.
+Hard rules for every suggestion:
+- 1-3 short sentences, max ~45 words. Casual lowercase Discord typing. No markdown, no bullets, no corporate words, nothing that sounds like an AI.
+- If their last message contains any hesitation or push-back, base the reply on the closest match in the objection playbook above.
+- Never mix personas:
+  • Nifimas (friend) = rapport only, zero pitching, zero service talk.
+  • Brozeen (promoter) = name a specific gap, give value first, pitch only when they're warm.
+  • Big Streamer = authority closer, direct proposal/pricing, short and calm.
 
 Match my personal communication style from the training examples and use strategies from the knowledge base when relevant.
 
 Use the suggest_replies tool to return your suggestions.`,
+
         },
       ],
       tools: [
