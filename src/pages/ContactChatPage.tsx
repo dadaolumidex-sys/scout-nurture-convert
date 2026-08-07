@@ -528,23 +528,23 @@ const ContactChatPage = () => {
         </div>
 
         {/* Generate + Status */}
-        <div className="flex gap-2 mb-3 items-center">
+        <div className="flex flex-wrap gap-2 mb-3 items-center">
           <Button
             onClick={() => generateSuggestions(persona)}
             disabled={loading || messages.filter((m) => m.persona === persona).length === 0}
             variant="outline"
             size="sm"
-            className={persona === "friend"
+            className={`shrink-0 ${persona === "friend"
               ? "border-secondary/30 text-secondary hover:bg-secondary/10"
               : persona === "streamer"
                 ? "border-info/30 text-info hover:bg-info/10"
-                : "border-primary/30 text-primary hover:bg-primary/10"
-            }
+                : "border-primary/30 text-primary hover:bg-primary/10"}`}
           >
             {config.emoji} Get {config.name} Reply
           </Button>
-          <div className="flex-1" />
+          <div className="hidden sm:block flex-1" />
           <select
+            aria-label="Lead status"
             value={contact?.status || "new"}
             onChange={async (e) => {
               const newStatus = e.target.value;
@@ -554,16 +554,16 @@ const ContactChatPage = () => {
                 guestStorage.contacts.update(contactId, { status: newStatus });
               }
               setContact((prev) => prev ? { ...prev, status: newStatus } : prev);
-              toast.success(`Status: ${newStatus.replace(/_/g, " ")}`);
+              toast.success(`Status: ${getLeadStatus(newStatus).label}`);
             }}
-            className="text-xs bg-muted border border-border rounded-md px-2 py-1 text-foreground"
+            className="text-xs bg-muted border border-border rounded-md px-2 py-1.5 text-foreground max-w-full flex-1 sm:flex-none sm:w-auto"
           >
-            <option value="new">👋 New friend request</option>
-            <option value="in_conversation">💬 In conversation</option>
-            <option value="ready_to_pitch">🎯 Ready to pitch</option>
-            <option value="converted">✅ Converted</option>
+            {LEAD_STATUSES.map((s) => (
+              <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>
+            ))}
           </select>
         </div>
+
 
         {/* Input */}
         <div className="flex gap-2 items-end">
