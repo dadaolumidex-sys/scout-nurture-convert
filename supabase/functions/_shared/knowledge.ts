@@ -35,7 +35,9 @@ export const HUMAN_VOICE_RULES = `\n\n## HOW YOU MUST WRITE (non-negotiable)
 - Always reference something concrete about THEM (their game, a moment, their viewer count, their schedule) when the conversation gives you it.
 - End in a way that's easy to reply to — a short question or an open line, not a pitch wall.`;
 
-export type Insight = { category?: string; insight?: string };
+const isObjectionCategory = (c?: string) =>
+  typeof c === "string" && c.toLowerCase().includes("objection");
+
 
 
 export function buildKnowledgeContext(entries: KnowledgeEntry[]): {
