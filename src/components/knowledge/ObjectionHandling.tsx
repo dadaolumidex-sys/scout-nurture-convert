@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
+import { DEFAULT_OBJECTION_PAIRS } from "@/lib/defaultObjections";
+
 
 type Insight = { category: string; insight: string };
 type Entry = {
