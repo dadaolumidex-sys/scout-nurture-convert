@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
+import { DEFAULT_OBJECTION_PAIRS } from "@/lib/defaultObjections";
+
 
 type Insight = { category: string; insight: string };
 type Entry = {
@@ -220,7 +222,28 @@ export function ObjectionHandling() {
     setSaving(false);
   };
 
+  const handleSeedDefaults = async () => {
+    setSaving(true);
+    const insights = DEFAULT_OBJECTION_PAIRS.map((p) => ({
+      category: "Objection Handling",
+      insight: `Objection: ${p.objection} → Response: ${p.response}`,
+    }));
+    const ok = await saveEntry({
+      title: "Starter playbook — common streamer objections",
+      content: insights.map((i) => i.insight).join("\n\n"),
+      source_type: "manual",
+      source_url: null,
+      insights,
+    });
+    if (ok) {
+      toast.success("Starter playbook added");
+      fetchEntries();
+    }
+    setSaving(false);
+  };
+
   const handleDelete = async (id: string) => {
+
     if (user) {
       const { error } = await supabase.from("knowledge_entries").delete().eq("id", id);
       if (error) { toast.error("Failed to delete"); return; }
@@ -321,11 +344,19 @@ export function ObjectionHandling() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           Your Playbook — <span className="text-foreground font-medium">{totalObjections}</span> objection responses
         </p>
+        <Button variant="outline" size="sm" onClick={handleSeedDefaults} disabled={saving}
+          className="border-primary/30 text-primary hover:bg-primary/10">
+          <Plus className="h-3.5 w-3.5 mr-1" /> Add starter playbook
+        </Button>
       </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        The AI already uses a built-in baseline for "is this a bot?", "no budget" and "send me proof" — your own saved responses always take priority.
+      </p>
+
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>

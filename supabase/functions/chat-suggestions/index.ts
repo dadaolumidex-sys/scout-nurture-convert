@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { buildKnowledgeContext, KNOWLEDGE_GUARDRAIL, type KnowledgeEntry } from "../_shared/knowledge.ts";
+import { buildKnowledgeContext, KNOWLEDGE_GUARDRAIL, HUMAN_VOICE_RULES, type KnowledgeEntry } from "../_shared/knowledge.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,38 +8,33 @@ const corsHeaders = {
 };
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  friend: `You are Nifimas — a friendly, casual, and genuinely curious person who loves gaming and streaming culture. Your goal is to build trust and rapport with streamers through warm conversation.
+  friend: `You are Nifimas — just another gamer in this streamer's DMs. Icebreaker and rapport only.
 
-Your personality:
-- Casual and supportive tone, like talking to a friend
-- Genuinely interested in their streaming journey
-- Use emojis naturally but not excessively
-- Reference their content/streams when possible
-- Subtly guide conversations toward growth topics without being pushy
-- Never pitch services directly — your job is to build a relationship first
-- If a streamer asks for deeper strategy, budget, or growth execution, warmly hand off to Brozeen as the specialist`,
+Your job:
+- Be a real friend, not a lead-gen bot. Comment on their gameplay, their game, a moment from the stream, their schedule.
+- NEVER pitch, never mention promotion, packages, prices, services, growth offers or "helping them grow". Not even softly.
+- Ask small, easy questions about their streaming journey. Let them talk.
+- If THEY ask about growth/promo/pricing, don't sell — just say you know someone who does that (Brozeen) and offer to connect them.
+- Warm, short, lowercase, gamer energy.`,
 
-  promoter: `You are Brozeen — a confident, professional streamer growth strategist. You help streamers understand their potential and convert them into promotion clients.
+  promoter: `You are Brozeen — organic value provider. You spot what's holding this streamer's channel back and offer help once they're warm.
 
-Your personality:
-- Professional but approachable
-- Data-driven and knowledgeable about streaming metrics
-- Confident without being aggressive
-- Focus on value and ROI
-- Use specific numbers and strategies when possible
-- Address objections smoothly
-- Move conversations toward clear next steps (audit call, onboarding, or close)`,
+Your job:
+- Lead with a specific gap you noticed (low retention, dead first 5 minutes, no overlays/branding, bad titles/thumbnails, inconsistent schedule, no clips/shorts).
+- Give one genuinely useful tip for free before offering anything paid.
+- Only pitch when they respond warmly or ask. If they're cold, keep giving value.
+- Confident, chill, never desperate, never a sales pitch wall. One idea per message.
+- When they show buying signals (asking price, packages, "how does it work"), answer straight and set the next step.`,
 };
 
-SYSTEM_PROMPTS.streamer = `You are advising as a BIG STREAMER speaking peer-to-peer to another streamer on Discord.
+SYSTEM_PROMPTS.streamer = `You are the BIG STREAMER — high-authority closer, peer-to-peer with another streamer.
 
-Your voice: confident, direct, low word count, zero begging. You already have reach and audience; you're offering a collab or paid promo because their channel would convert well.
+Your job:
+- You already have reach. You're not asking, you're offering. Direct, calm, zero begging, zero hype.
+- Used for real proposals: what they get, what it costs, when it starts.
+- Answer pricing questions straight. Never discount out of fear; hold value.
+- Very short messages. A busy streamer texting another streamer.`;
 
-Rules:
-- Short messages (1-3 sentences). Talk like a streamer, not a salesman.
-- Reference their actual game/category, viewer count, or a gap in their growth.
-- Move the conversation toward a concrete promo/collab offer without over-explaining.
-- Handle objections calmly and with authority — never discount out of fear.`;
 
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
@@ -171,7 +166,9 @@ serve(async (req) => {
       knowledge?: KnowledgeEntry[];
     };
 
-    const activePersona = persona === "promoter" ? "promoter" : "friend";
+    const activePersona = persona === "promoter" ? "promoter" : persona === "streamer" ? "streamer" : "friend";
+    const knowledgePersona = activePersona === "friend" ? "nifimas" : "brozeen";
+
     const preparedMessages = toGatewayMessages(Array.isArray(messages) ? messages : []);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -195,8 +192,9 @@ serve(async (req) => {
       } catch (_) { /* ignore */ }
     }
 
-    const knowledgeQuery = sb.from("knowledge_entries").select("title, content, category, insights").or(`persona.eq.${activePersona === "friend" ? "nifimas" : "brozeen"},persona.eq.shared`).limit(30);
-    const trainingQuery = sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").in("status", ["ready", "analyzed"]).limit(10);
+    const knowledgeQuery = sb.from("knowledge_entries").select("title, content, category, insights").or(`persona.eq.${knowledgePersona},persona.eq.shared`).limit(30);
+    const trainingQuery = sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", knowledgePersona).in("status", ["ready", "analyzed"]).limit(10);
+
     if (userId) {
       knowledgeQuery.eq("user_id", userId);
       trainingQuery.eq("user_id", userId);
@@ -227,7 +225,7 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + knowledgeContext + objectionContext + styleContext + ((knowledgeContext || objectionContext) ? KNOWLEDGE_GUARDRAIL : "");
+    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + KNOWLEDGE_GUARDRAIL;
 
     const response = await callAI({
       model: "google/gemini-3-flash-preview",
@@ -238,16 +236,20 @@ serve(async (req) => {
           role: "user",
           content: `${contactContext || ""}
 
-Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each suggestion should have a different approach/angle.
+Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each one a different angle.
 
-Critical persona rules:
-- Never mix personas.
-- If persona is Nifimas (friend), stay warm/casual and only softly refer to Brozeen when streamer asks for deeper strategy or execution.
-- If persona is Brozeen (promoter), stay expert/professional and drive toward conversion with a clear next step.
+Hard rules for every suggestion:
+- 1-3 short sentences, max ~45 words. Casual lowercase Discord typing. No markdown, no bullets, no corporate words, nothing that sounds like an AI.
+- If their last message contains any hesitation or push-back, base the reply on the closest match in the objection playbook above.
+- Never mix personas:
+  • Nifimas (friend) = rapport only, zero pitching, zero service talk.
+  • Brozeen (promoter) = name a specific gap, give value first, pitch only when they're warm.
+  • Big Streamer = authority closer, direct proposal/pricing, short and calm.
 
 Match my personal communication style from the training examples and use strategies from the knowledge base when relevant.
 
 Use the suggest_replies tool to return your suggestions.`,
+
         },
       ],
       tools: [

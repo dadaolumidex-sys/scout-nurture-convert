@@ -14,6 +14,8 @@ import { SuggestionCards } from "@/components/chat/SuggestionCards";
 import { DiscordPanel } from "@/components/inbox/DiscordPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage, readFileAsDataUrl } from "@/lib/guestStorage";
+import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
+
 
 
 type Contact = {
@@ -335,6 +337,17 @@ const ContactChatPage = () => {
 
   const config = personaConfig[persona];
 
+  // Smart auto-transition: read the streamer's latest incoming message for intent signals.
+  const lastIncoming = [...messages].reverse().find((m) => m.role === "user")?.content?.toLowerCase() || "";
+  const pricingSignal = /\b(price|pricing|cost|how much|package|packages|rate|rates|budget|pay|payment|quote)\b/.test(lastIncoming);
+  const warmSignal = /\b(yeah|yea|yes|sure|sounds good|interested|tell me more|i'm down|im down|lets|let's|ok cool|okay cool|why not|go on|how does it work)\b/.test(lastIncoming);
+  const suggestedPersona: Persona | null = pricingSignal && persona !== "streamer"
+    ? "streamer"
+    : warmSignal && persona === "friend"
+      ? "promoter"
+      : null;
+
+
 
   if (!contact) {
     return (
@@ -370,6 +383,27 @@ const ContactChatPage = () => {
           />
         )}
 
+        {suggestedPersona && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+            <p className="text-xs sm:text-sm text-foreground flex-1 min-w-[180px]">
+              {suggestedPersona === "streamer"
+                ? "💰 They're asking about pricing — time for the closer."
+                : "🔥 They replied warm — time to add value."}
+            </p>
+            <Button
+              size="sm"
+              className="gradient-primary text-primary-foreground h-8"
+              onClick={() => {
+                setPersona(suggestedPersona);
+                setSuggestions([]);
+                setSelectedSuggestion(null);
+                toast.success(`Switched to ${personaConfig[suggestedPersona].name}`);
+              }}
+            >
+              Move to {personaConfig[suggestedPersona].name}
+            </Button>
+          </div>
+        )}
 
 
         {/* Messages */}
@@ -496,23 +530,23 @@ const ContactChatPage = () => {
         </div>
 
         {/* Generate + Status */}
-        <div className="flex gap-2 mb-3 items-center">
+        <div className="flex flex-wrap gap-2 mb-3 items-center">
           <Button
             onClick={() => generateSuggestions(persona)}
             disabled={loading || messages.filter((m) => m.persona === persona).length === 0}
             variant="outline"
             size="sm"
-            className={persona === "friend"
+            className={`shrink-0 ${persona === "friend"
               ? "border-secondary/30 text-secondary hover:bg-secondary/10"
               : persona === "streamer"
                 ? "border-info/30 text-info hover:bg-info/10"
-                : "border-primary/30 text-primary hover:bg-primary/10"
-            }
+                : "border-primary/30 text-primary hover:bg-primary/10"}`}
           >
             {config.emoji} Get {config.name} Reply
           </Button>
-          <div className="flex-1" />
+          <div className="hidden sm:block flex-1" />
           <select
+            aria-label="Lead status"
             value={contact?.status || "new"}
             onChange={async (e) => {
               const newStatus = e.target.value;
@@ -522,16 +556,16 @@ const ContactChatPage = () => {
                 guestStorage.contacts.update(contactId, { status: newStatus });
               }
               setContact((prev) => prev ? { ...prev, status: newStatus } : prev);
-              toast.success(`Status: ${newStatus.replace(/_/g, " ")}`);
+              toast.success(`Status: ${getLeadStatus(newStatus).label}`);
             }}
-            className="text-xs bg-muted border border-border rounded-md px-2 py-1 text-foreground"
+            className="text-xs bg-muted border border-border rounded-md px-2 py-1.5 text-foreground max-w-full flex-1 sm:flex-none sm:w-auto"
           >
-            <option value="new">👋 New friend request</option>
-            <option value="in_conversation">💬 In conversation</option>
-            <option value="ready_to_pitch">🎯 Ready to pitch</option>
-            <option value="converted">✅ Converted</option>
+            {LEAD_STATUSES.map((s) => (
+              <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>
+            ))}
           </select>
         </div>
+
 
         {/* Input */}
         <div className="flex gap-2 items-end">

@@ -12,8 +12,33 @@ export type KnowledgeEntry = {
   insights?: Insight[] | unknown;
 };
 
+// Built-in starter playbook — always available even before the user uploads anything.
+export const DEFAULT_OBJECTIONS: string[] = [
+  `Objection: "Is this a bot?" / "Are you automated?" → Response: Break pattern instantly with something no bot would say — reference one specific detail from their last stream (game, a clip, their schedule), keep it lowercase and casual, and joke about it lightly. e.g. "lol nah, real person. saw your last <game> run, that clutch was nasty."`,
+  `Objection: "I don't have budget right now." → Response: Never push price. Agree, remove pressure, stay in their world: acknowledge budget is tight for most streamers, offer the free/low-lift option first (audit, tips, a small test run), and ask when a better time would be. Keep the door open instead of closing.`,
+  `Objection: "Send me proof or past work." → Response: Confident, no defensiveness. Offer concrete evidence — before/after viewer numbers, a channel you helped, screenshots — and offer a small paid or free test so they judge results themselves. e.g. "yeah fair, here's what a channel your size did after 2 weeks..." then ask if they want the same setup.`,
+  `Objection: "How much does it cost?" / "What are your packages?" → Response: This is a buying signal. Answer straight, no waffle, anchor value first in one short line, then give the number and a next step. Never dodge the price question.`,
+  `Objection: "I'll think about it." → Response: Don't chase. Make it easy: name the one thing they're probably unsure about, answer it in a sentence, and set a soft follow-up time.`,
+  `Objection: "I already work with someone." → Response: Respect it, stay friendly, ask what's working for them, and position yourself as the backup/extra channel for when they want more reach.`,
+];
+
+export const DEFAULT_OBJECTION_BLOCK = `\n\n## BUILT-IN STARTER OBJECTION PLAYBOOK (always available baseline)\n${DEFAULT_OBJECTIONS.map((o) => `- ${o}`).join("\n")}`;
+
+// Hard voice rules — every generated outreach/reply message must obey these.
+export const HUMAN_VOICE_RULES = `\n\n## HOW YOU MUST WRITE (non-negotiable)
+- You are a real human typing on Discord. Never sound like an AI, assistant, agency, or salesperson.
+- 1-3 short sentences. Hard max ~45 words. If it feels like a paragraph, cut it.
+- Casual lowercase typing. Contractions. Natural gamer/Discord slang ("yo", "ngl", "fr", "bro", "lowkey", "clean", "nasty", "w"). Don't overdo slang — 1-2 per message.
+- Zero corporate/marketing words. Banned: "leverage", "synergy", "utilize", "reach out", "circle back", "I hope this message finds you", "as an AI", "solutions", "elevate", "unlock", "furthermore", "additionally", "I'd love to discuss", "kindly".
+- No bullet points, no headings, no markdown, no emoji spam (0-1 emoji max, only if it fits).
+- No exclamation-mark stacking, no hype-bot energy. Real enthusiasm only about something specific they did.
+- Always reference something concrete about THEM (their game, a moment, their viewer count, their schedule) when the conversation gives you it.
+- End in a way that's easy to reply to — a short question or an open line, not a pitch wall.`;
+
 const isObjectionCategory = (c?: string) =>
   typeof c === "string" && c.toLowerCase().includes("objection");
+
+
 
 export function buildKnowledgeContext(entries: KnowledgeEntry[]): {
   knowledgeContext: string;
@@ -56,9 +81,12 @@ export function buildKnowledgeContext(entries: KnowledgeEntry[]): {
     ? `\n\n## KNOWLEDGE BASE (reference material — use these strategies, scripts and facts when relevant to the conversation):\n${knowledgeBlocks.join("\n\n")}`
     : "";
 
-  const objectionContext = objectionLines.length
-    ? `\n\n## OBJECTION HANDLING PLAYBOOK (the user's own proven responses)\nWhen the person you're replying to raises a hesitation, doubt, or push-back, FIRST scan this list for the closest matching objection and base your reply on the paired response. Adapt the wording naturally to the conversation — don't paste it verbatim. The goal is to overcome the objection and move toward converting the buyer.\n\n${[...new Set(objectionLines)].slice(0, 40).join("\n")}`
+  const userObjections = objectionLines.length
+    ? `\n\n## YOUR SAVED OBJECTION RESPONSES (highest priority — these beat the built-ins)\n${[...new Set(objectionLines)].slice(0, 40).join("\n")}`
     : "";
+
+  const objectionContext = `\n\n## OBJECTION HANDLING PLAYBOOK\nWhen the person you're replying to raises a hesitation, doubt, or push-back, FIRST scan these playbooks for the closest matching objection and base your reply on the paired response. Adapt the wording naturally — never paste it verbatim. The goal is to overcome the objection and move the streamer toward converting.${userObjections}${DEFAULT_OBJECTION_BLOCK}`;
+
 
   return { knowledgeContext, objectionContext };
 }
