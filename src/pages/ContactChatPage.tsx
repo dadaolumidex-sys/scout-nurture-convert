@@ -335,6 +335,17 @@ const ContactChatPage = () => {
 
   const config = personaConfig[persona];
 
+  // Smart auto-transition: read the streamer's latest incoming message for intent signals.
+  const lastIncoming = [...messages].reverse().find((m) => m.role === "user")?.content?.toLowerCase() || "";
+  const pricingSignal = /\b(price|pricing|cost|how much|package|packages|rate|rates|budget|pay|payment|quote)\b/.test(lastIncoming);
+  const warmSignal = /\b(yeah|yea|yes|sure|sounds good|interested|tell me more|i'm down|im down|lets|let's|ok cool|okay cool|why not|go on|how does it work)\b/.test(lastIncoming);
+  const suggestedPersona: Persona | null = pricingSignal && persona !== "streamer"
+    ? "streamer"
+    : warmSignal && persona === "friend"
+      ? "promoter"
+      : null;
+
+
 
   if (!contact) {
     return (
