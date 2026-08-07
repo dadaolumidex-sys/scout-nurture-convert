@@ -344,11 +344,19 @@ export function ObjectionHandling() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
           Your Playbook — <span className="text-foreground font-medium">{totalObjections}</span> objection responses
         </p>
+        <Button variant="outline" size="sm" onClick={handleSeedDefaults} disabled={saving}
+          className="border-primary/30 text-primary hover:bg-primary/10">
+          <Plus className="h-3.5 w-3.5 mr-1" /> Add starter playbook
+        </Button>
       </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        The AI already uses a built-in baseline for "is this a bot?", "no budget" and "send me proof" — your own saved responses always take priority.
+      </p>
+
 
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
