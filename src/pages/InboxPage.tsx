@@ -33,12 +33,9 @@ type Contact = {
 
 type ConversationType = "new_prospect" | "existing_chat" | "re_engage";
 
-const conversationStages: Record<string, { label: string; emoji: string; className: string }> = {
-  new: { label: "New", emoji: "👋", className: "bg-primary/15 text-primary border-primary/30" },
-  in_conversation: { label: "In conversation", emoji: "💬", className: "bg-secondary/15 text-secondary border-secondary/30" },
-  ready_to_pitch: { label: "Ready to pitch", emoji: "🎯", className: "bg-warning/15 text-warning border-warning/30" },
-  converted: { label: "Converted", emoji: "✅", className: "bg-success/15 text-success border-success/30" },
-};
+const conversationStages: Record<string, { label: string; emoji: string; className: string }> =
+  Object.fromEntries(LEAD_STATUSES.map((s) => [s.id, { label: s.label, emoji: s.emoji, className: s.className }]));
+
 
 const conversationTypes: Record<ConversationType, { label: string; description: string; icon: React.ReactNode }> = {
   new_prospect: { label: "New Prospect", description: "Cold outreach — start fresh", icon: <UserPlus className="h-6 w-6" /> },
