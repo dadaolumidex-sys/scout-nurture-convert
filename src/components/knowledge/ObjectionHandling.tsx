@@ -222,7 +222,28 @@ export function ObjectionHandling() {
     setSaving(false);
   };
 
+  const handleSeedDefaults = async () => {
+    setSaving(true);
+    const insights = DEFAULT_OBJECTION_PAIRS.map((p) => ({
+      category: "Objection Handling",
+      insight: `Objection: ${p.objection} → Response: ${p.response}`,
+    }));
+    const ok = await saveEntry({
+      title: "Starter playbook — common streamer objections",
+      content: insights.map((i) => i.insight).join("\n\n"),
+      source_type: "manual",
+      source_url: null,
+      insights,
+    });
+    if (ok) {
+      toast.success("Starter playbook added");
+      fetchEntries();
+    }
+    setSaving(false);
+  };
+
   const handleDelete = async (id: string) => {
+
     if (user) {
       const { error } = await supabase.from("knowledge_entries").delete().eq("id", id);
       if (error) { toast.error("Failed to delete"); return; }
