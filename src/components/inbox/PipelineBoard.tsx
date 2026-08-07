@@ -16,12 +16,13 @@ export type PipelineContact = {
   last_message: string | null;
 };
 
-const COLUMNS: { id: string; label: string; emoji: string; accent: string }[] = [
-  { id: "new", label: "New", emoji: "👋", accent: "border-primary/30 bg-primary/5" },
-  { id: "in_conversation", label: "In Chat", emoji: "💬", accent: "border-secondary/30 bg-secondary/5" },
-  { id: "ready_to_pitch", label: "Ready to pitch", emoji: "🎯", accent: "border-yellow-500/30 bg-yellow-500/5" },
-  { id: "converted", label: "Converted", emoji: "✅", accent: "border-green-500/30 bg-green-500/5" },
-];
+const COLUMNS: { id: string; label: string; emoji: string; accent: string }[] = LEAD_STATUSES.map((s) => ({
+  id: s.id,
+  label: s.id === "new" ? "New" : s.id === "in_conversation" ? "In Chat" : s.label,
+  emoji: s.emoji,
+  accent: s.accent,
+}));
+
 
 export function PipelineBoard({ contacts, onRefresh }: { contacts: PipelineContact[]; onRefresh: () => void }) {
   const navigate = useNavigate();
