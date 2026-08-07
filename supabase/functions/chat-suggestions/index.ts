@@ -192,8 +192,9 @@ serve(async (req) => {
       } catch (_) { /* ignore */ }
     }
 
-    const knowledgeQuery = sb.from("knowledge_entries").select("title, content, category, insights").or(`persona.eq.${activePersona === "friend" ? "nifimas" : "brozeen"},persona.eq.shared`).limit(30);
-    const trainingQuery = sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", activePersona === "friend" ? "nifimas" : "brozeen").in("status", ["ready", "analyzed"]).limit(10);
+    const knowledgeQuery = sb.from("knowledge_entries").select("title, content, category, insights").or(`persona.eq.${knowledgePersona},persona.eq.shared`).limit(30);
+    const trainingQuery = sb.from("training_conversations").select("title, content, style_analysis, persona").eq("persona", knowledgePersona).in("status", ["ready", "analyzed"]).limit(10);
+
     if (userId) {
       knowledgeQuery.eq("user_id", userId);
       trainingQuery.eq("user_id", userId);
