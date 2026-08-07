@@ -81,9 +81,12 @@ export function buildKnowledgeContext(entries: KnowledgeEntry[]): {
     ? `\n\n## KNOWLEDGE BASE (reference material — use these strategies, scripts and facts when relevant to the conversation):\n${knowledgeBlocks.join("\n\n")}`
     : "";
 
-  const objectionContext = objectionLines.length
-    ? `\n\n## OBJECTION HANDLING PLAYBOOK (the user's own proven responses)\nWhen the person you're replying to raises a hesitation, doubt, or push-back, FIRST scan this list for the closest matching objection and base your reply on the paired response. Adapt the wording naturally to the conversation — don't paste it verbatim. The goal is to overcome the objection and move toward converting the buyer.\n\n${[...new Set(objectionLines)].slice(0, 40).join("\n")}`
+  const userObjections = objectionLines.length
+    ? `\n\n## YOUR SAVED OBJECTION RESPONSES (highest priority — these beat the built-ins)\n${[...new Set(objectionLines)].slice(0, 40).join("\n")}`
     : "";
+
+  const objectionContext = `\n\n## OBJECTION HANDLING PLAYBOOK\nWhen the person you're replying to raises a hesitation, doubt, or push-back, FIRST scan these playbooks for the closest matching objection and base your reply on the paired response. Adapt the wording naturally — never paste it verbatim. The goal is to overcome the objection and move the streamer toward converting.${userObjections}${DEFAULT_OBJECTION_BLOCK}`;
+
 
   return { knowledgeContext, objectionContext };
 }
