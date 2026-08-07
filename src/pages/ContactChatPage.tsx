@@ -381,6 +381,27 @@ const ContactChatPage = () => {
           />
         )}
 
+        {suggestedPersona && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+            <p className="text-xs sm:text-sm text-foreground flex-1 min-w-[180px]">
+              {suggestedPersona === "streamer"
+                ? "💰 They're asking about pricing — time for the closer."
+                : "🔥 They replied warm — time to add value."}
+            </p>
+            <Button
+              size="sm"
+              className="gradient-primary text-primary-foreground h-8"
+              onClick={() => {
+                setPersona(suggestedPersona);
+                setSuggestions([]);
+                setSelectedSuggestion(null);
+                toast.success(`Switched to ${personaConfig[suggestedPersona].name}`);
+              }}
+            >
+              Move to {personaConfig[suggestedPersona].name}
+            </Button>
+          </div>
+        )}
 
 
         {/* Messages */}
