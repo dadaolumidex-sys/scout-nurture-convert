@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { LEAD_STATUSES } from "@/lib/leadStatus";
+
 
 export type PipelineContact = {
   id: string;
@@ -50,7 +52,7 @@ export function PipelineBoard({ contacts, onRefresh }: { contacts: PipelineConta
   };
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3" role="list" aria-label="Lead pipeline columns">
+    <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 sm:gap-3" role="list" aria-label="Lead pipeline columns">
       {COLUMNS.map((col, colIndex) => {
         const items = contacts.filter(c => (c.status || "new") === col.id);
         return (
