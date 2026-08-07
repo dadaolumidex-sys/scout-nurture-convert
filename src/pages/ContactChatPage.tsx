@@ -14,6 +14,8 @@ import { SuggestionCards } from "@/components/chat/SuggestionCards";
 import { DiscordPanel } from "@/components/inbox/DiscordPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage, readFileAsDataUrl } from "@/lib/guestStorage";
+import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
+
 
 
 type Contact = {
