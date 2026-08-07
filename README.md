@@ -1,73 +1,215 @@
-# Welcome to your Lovable project
+# Stream Scout Pro
 
-## Project info
+Build a full-stack web application called StreamScout AI.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Purpose:
+StreamScout AI is a personal AI assistant that helps a promoter scout Twitch and Kick streamers, analyze their channels, manage conversations, and generate replies that convert them into promotion clients.
 
-## How can I edit this code?
+The app must function as a workspace dashboard where the user can analyze streamer channels, store conversations, and generate AI replies using two personas: a friendly scout and a professional promoter.
 
-There are several ways of editing your application.
+MAIN FEATURES
 
-**Use Lovable**
+Streamer Channel Analyzer
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+The app must allow the user to paste a Twitch or Kick channel link.
 
-Changes made via Lovable will be committed automatically to this repo.
+When a link is submitted, the system should:
 
-**Use your preferred IDE**
+• Extract the channel username
+• Analyze the channel’s performance
+• Estimate key metrics such as:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+follower count
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+average viewers
 
-Follow these steps:
+stream consistency
+
+engagement level
+
+growth potential
+
+The AI should then generate a detailed but easy-to-read analysis including:
+
+• Current growth stage (new streamer, small creator, affiliate-level, etc.)
+• Main problems slowing growth
+• Opportunities for improvement
+• Why the streamer would benefit from promotion and audience growth services
+
+The analysis must end with suggested outreach messages.
+
+AI Conversation Assistant
+
+The app must include an AI chat assistant that helps the user respond to streamers.
+
+User workflow:
+• User pastes conversation messages from Discord, Twitch, or Kick.
+• AI reads the conversation.
+• AI suggests the best reply.
+
+The assistant must continue conversations naturally and help move the conversation toward a promotion opportunity.
+
+Dual Persona Mode
+
+The assistant must have a persona switcher with two modes.
+
+Mode 1: Friend Mode (Nifimas)
+
+Tone:
+• friendly
+• casual
+• supportive
+• curious
+
+Goal:
+Build trust with the streamer and understand their struggles.
+
+Typical behavior:
+• ask about their streaming journey
+• show genuine interest
+• discuss growth challenges
+• avoid sounding salesy
+
+Mode 2: Promoter Mode (Brozeen)
+
+Tone:
+• confident
+• professional
+• knowledgeable
+
+Goal:
+Present promotion services and convert the streamer into a client.
+
+Typical behavior:
+• explain growth problems
+• position promotion as a solution
+• highlight benefits of increased viewers and discoverability
+• suggest next steps for working together
+
+Conversation Inbox
+
+The app should include a conversation management system.
+
+Users should be able to:
+
+• create a new streamer contact
+• attach their Twitch or Kick channel link
+• store conversation history
+• reopen conversations later
+
+Each conversation page should show:
+
+• streamer name
+• platform
+• channel link
+• previous messages
+• AI reply suggestions
+
+Re-engagement Assistant
+
+If a streamer stops replying, the AI should suggest follow-up messages.
+
+Examples:
+
+• friendly check-ins
+• asking about their latest stream
+• offering quick tips
+• restarting the conversation naturally
+
+Knowledge Base
+
+The app must include a knowledge base where the user can store:
+
+• outreach scripts
+• conversion strategies
+• objection handling
+• growth tips for streamers
+
+The AI should reference this knowledge base when generating replies.
+
+USER INTERFACE
+
+Design a modern dashboard layout.
+
+Sections:
+
+Dashboard
+Streamer Analyzer
+Conversation Inbox
+AI Chat Assistant
+Knowledge Base
+Settings
+
+Design style:
+
+• dark theme
+• clean modern interface
+• sidebar navigation
+• workspace style similar to productivity tools
+
+STREAMER ANALYSIS OUTPUT FORMAT
+
+When analyzing a streamer channel, show:
+
+Streamer Overview
+
+Followers:
+Estimated Average Viewers:
+Streaming Frequency:
+Growth Stage:
+
+Channel Strengths
+
+Channel Weaknesses
+
+Growth Opportunities
+
+Promotion Potential
+
+Suggested Message (Friend Mode)
+
+Suggested Message (Promoter Mode)
+
+AI BEHAVIOR
+
+The assistant must always:
+
+• be helpful
+• generate clear and natural messages
+• adapt to the selected persona
+• help move conversations toward collaboration or promotion opportunities
+
+GOAL OF THE APP
+
+StreamScout AI should help the user:
+
+• scout streamers faster
+• analyze their channels instantly
+• manage outreach conversations
+• generate replies that build trust
+• convert streamers into promotion clients
+
+Create this as a responsive full-stack web application with a clean dashboard interface and integrated AI assistant.
+
+This project was built with [Lovable](https://lovable.dev).
+
+**Live app**: https://scout-nurture-convert.lovable.app
+
+## Build with Lovable
+
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/f4505cf5-a65a-4552-903a-2683b302803f).
+
+- **Ship faster**: describe what you want to build and Lovable handles the code.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+
+## Development
+
+Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
+git clone <this-repository-url>
+cd <repository-name>
 npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
