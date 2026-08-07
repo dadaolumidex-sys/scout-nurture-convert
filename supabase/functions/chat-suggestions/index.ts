@@ -166,7 +166,9 @@ serve(async (req) => {
       knowledge?: KnowledgeEntry[];
     };
 
-    const activePersona = persona === "promoter" ? "promoter" : "friend";
+    const activePersona = persona === "promoter" ? "promoter" : persona === "streamer" ? "streamer" : "friend";
+    const knowledgePersona = activePersona === "friend" ? "nifimas" : "brozeen";
+
     const preparedMessages = toGatewayMessages(Array.isArray(messages) ? messages : []);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
