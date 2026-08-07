@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { RemindersPanel } from "@/components/inbox/RemindersPanel";
 import { PipelineBoard } from "@/components/inbox/PipelineBoard";
+import { LEAD_STATUSES } from "@/lib/leadStatus";
+
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
