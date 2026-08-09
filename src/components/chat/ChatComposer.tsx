@@ -25,6 +25,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
   ({ variant, loading, hasPendingImages, onSend, onPickImage }, ref) => {
     const [text, setText] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const enterDraftRef = useRef<{ value: string; start: number; end: number } | null>(null);
 
     useImperativeHandle(ref, () => ({
       setText: (t: string) => {
@@ -50,11 +51,21 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
       const target = e.currentTarget;
       const start = target.selectionStart;
       const end = target.selectionEnd;
+      enterDraftRef.current = { value: text, start, end };
       setText((current) => `${current.slice(0, start)}\n${current.slice(end)}`);
       window.requestAnimationFrame(() => {
         target.selectionStart = start + 1;
         target.selectionEnd = start + 1;
       });
+    };
+
+    const preserveNewLine = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key !== "Enter") return;
+      const draft = enterDraftRef.current;
+      enterDraftRef.current = null;
+      if (!draft || text.includes("\n")) return;
+      const restored = `${draft.value.slice(0, draft.start)}\n${draft.value.slice(draft.end)}`;
+      setText(restored);
     };
 
     if (variant === "mobile") {
@@ -70,6 +81,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDownCapture={addNewLine}
+              onKeyUp={preserveNewLine}
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5"
               rows={1}
             />
@@ -90,6 +102,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDownCapture={addNewLine}
+            onKeyUp={preserveNewLine}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-10 min-h-[72px]"
             rows={3}
           />
