@@ -13,8 +13,9 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SuggestionCards } from "@/components/chat/SuggestionCards";
 import { DiscordPanel } from "@/components/inbox/DiscordPanel";
 import { useAuth } from "@/hooks/useAuth";
-import { guestStorage, readFileAsDataUrl } from "@/lib/guestStorage";
+import { guestStorage } from "@/lib/guestStorage";
 import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
+import { compressImageFile } from "@/lib/imageCompress";
 
 
 
@@ -118,7 +119,7 @@ const ContactChatPage = () => {
 
     setUploading(true);
     try {
-      const imageUrl = await readFileAsDataUrl(file);
+      const imageUrl = await compressImageFile(file);
 
       if (user) {
         await (supabase.from("contact_messages" as any).insert({
@@ -584,15 +585,24 @@ const ContactChatPage = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[44px] max-h-[120px]"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
+            rows={2}
+            onKeyDownCapture={(e) => {
+              if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const target = e.currentTarget;
+              const start = target.selectionStart;
+              const end = target.selectionEnd;
+              setInput((current) => `${current.slice(0, start)}\n${current.slice(end)}`);
+              window.requestAnimationFrame(() => {
+                target.selectionStart = start + 1;
+                target.selectionEnd = start + 1;
+              });
             }}
           />
           <Button
-            onClick={handleSend}
+            type="button"
+            onClick={(e) => { if (e.detail > 0) void handleSend(); }}
             disabled={!input.trim()}
             className="gradient-primary text-primary-foreground h-10 w-10 p-0 shrink-0"
           >

@@ -25,6 +25,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
   ({ variant, loading, hasPendingImages, onSend, onPickImage }, ref) => {
     const [text, setText] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const enterDraftRef = useRef<{ value: string; start: number; end: number } | null>(null);
 
     useImperativeHandle(ref, () => ({
       setText: (t: string) => {
@@ -41,14 +42,31 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
       setText("");
     };
 
-    const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        submit();
-      }
+    const disabled = loading || (!text.trim() && !hasPendingImages);
+
+    const addNewLine = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const target = e.currentTarget;
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      enterDraftRef.current = { value: text, start, end };
+      setText((current) => `${current.slice(0, start)}\n${current.slice(end)}`);
+      window.requestAnimationFrame(() => {
+        target.selectionStart = start + 1;
+        target.selectionEnd = start + 1;
+      });
     };
 
-    const disabled = loading || (!text.trim() && !hasPendingImages);
+    const preserveNewLine = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key !== "Enter") return;
+      const draft = enterDraftRef.current;
+      enterDraftRef.current = null;
+      if (!draft || text.includes("\n")) return;
+      const restored = `${draft.value.slice(0, draft.start)}\n${draft.value.slice(draft.end)}`;
+      setText(restored);
+    };
 
     if (variant === "mobile") {
       return (
@@ -62,12 +80,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
               placeholder="Ask anything..."
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onKeyDownCapture={addNewLine}
+              onKeyUp={preserveNewLine}
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5"
-              onKeyDown={onKeyDown}
               rows={1}
             />
           </div>
-          <Button onClick={submit} disabled={disabled} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
+          <Button type="button" onClick={(e) => { if (e.detail > 0) submit(); }} disabled={disabled} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
             <Send className="h-4 w-4" />
           </Button>
         </div>
@@ -82,14 +101,16 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
             placeholder="Type your message or upload a conversation screenshot..."
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onKeyDownCapture={addNewLine}
+            onKeyUp={preserveNewLine}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-10 min-h-[72px]"
-            onKeyDown={onKeyDown}
+            rows={3}
           />
           <Button variant="ghost" size="icon" className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" onClick={onPickImage} type="button">
             <ImagePlus className="h-4 w-4" />
           </Button>
         </div>
-        <Button onClick={submit} disabled={disabled} className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0">
+        <Button type="button" onClick={(e) => { if (e.detail > 0) submit(); }} disabled={disabled} className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0">
           <Send className="h-4 w-4" />
         </Button>
       </div>
