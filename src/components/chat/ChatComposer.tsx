@@ -43,6 +43,20 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
 
     const disabled = loading || (!text.trim() && !hasPendingImages);
 
+    const addNewLine = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key !== "Enter" || e.isDefaultPrevented() || e.nativeEvent.isComposing) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const target = e.currentTarget;
+      const start = target.selectionStart;
+      const end = target.selectionEnd;
+      setText((current) => `${current.slice(0, start)}\n${current.slice(end)}`);
+      window.requestAnimationFrame(() => {
+        target.selectionStart = start + 1;
+        target.selectionEnd = start + 1;
+      });
+    };
+
     if (variant === "mobile") {
       return (
         <div className="flex items-end gap-2 p-2">
@@ -55,6 +69,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
               placeholder="Ask anything..."
               value={text}
               onChange={(e) => setText(e.target.value)}
+              onKeyDown={addNewLine}
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5"
               rows={1}
             />
@@ -74,6 +89,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
             placeholder="Type your message or upload a conversation screenshot..."
             value={text}
             onChange={(e) => setText(e.target.value)}
+            onKeyDown={addNewLine}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-10 min-h-[72px]"
             rows={3}
           />

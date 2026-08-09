@@ -586,6 +586,19 @@ const ContactChatPage = () => {
             onChange={(e) => setInput(e.target.value)}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[44px] max-h-[120px]"
             rows={2}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter" || e.isDefaultPrevented() || e.nativeEvent.isComposing) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const target = e.currentTarget;
+              const start = target.selectionStart;
+              const end = target.selectionEnd;
+              setInput((current) => `${current.slice(0, start)}\n${current.slice(end)}`);
+              window.requestAnimationFrame(() => {
+                target.selectionStart = start + 1;
+                target.selectionEnd = start + 1;
+              });
+            }}
           />
           <Button
             onClick={handleSend}
