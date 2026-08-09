@@ -602,7 +602,7 @@ const ContactChatPage = () => {
           />
           <Button
             type="button"
-            onClick={handleSend}
+            onClick={(e) => { if (e.detail > 0) void handleSend(); }}
             disabled={!input.trim()}
             className="gradient-primary text-primary-foreground h-10 w-10 p-0 shrink-0"
           >

@@ -74,7 +74,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
               rows={1}
             />
           </div>
-          <Button type="button" onClick={submit} disabled={disabled} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
+          <Button type="button" onClick={(e) => { if (e.detail > 0) submit(); }} disabled={disabled} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
             <Send className="h-4 w-4" />
           </Button>
         </div>
@@ -97,7 +97,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
             <ImagePlus className="h-4 w-4" />
           </Button>
         </div>
-        <Button type="button" onClick={submit} disabled={disabled} className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0">
+        <Button type="button" onClick={(e) => { if (e.detail > 0) submit(); }} disabled={disabled} className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0">
           <Send className="h-4 w-4" />
         </Button>
       </div>
