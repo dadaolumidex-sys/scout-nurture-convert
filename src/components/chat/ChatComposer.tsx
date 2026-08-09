@@ -44,7 +44,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
     const disabled = loading || (!text.trim() && !hasPendingImages);
 
     const addNewLine = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key !== "Enter" || e.isDefaultPrevented() || e.nativeEvent.isComposing) return;
+      if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
       e.preventDefault();
       e.stopPropagation();
       const target = e.currentTarget;

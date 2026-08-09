@@ -587,7 +587,7 @@ const ContactChatPage = () => {
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[44px] max-h-[120px]"
             rows={2}
             onKeyDownCapture={(e) => {
-              if (e.key !== "Enter" || e.isDefaultPrevented() || e.nativeEvent.isComposing) return;
+              if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
               e.preventDefault();
               e.stopPropagation();
               const target = e.currentTarget;
