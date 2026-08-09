@@ -32,7 +32,7 @@ async function streamChat({
   messages, persona, deepResearch, memory, knowledge, onDelta, onDone, onError,
 }: {
   messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[]; knowledge?: unknown[];
-  onDelta: (text: string) => void; onDone: () => void; onError: (msg: string, code?: string) => void;
+  onDelta: (text: string) => void; onDone: () => void | Promise<void>; onError: (msg: string, code?: string) => void;
 }) {
   // Only the most recent user turn keeps its images. Re-uploading every old
   // screenshot on every turn is what made replies crawl (especially on phones).
@@ -63,11 +63,19 @@ async function streamChat({
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-  const resp = await fetch(CHAT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-    body: JSON.stringify({ messages: apiMessages, persona, deepResearch, memory: memory || [], knowledge: knowledge || [] }),
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 120_000);
+  let resp: Response;
+  try {
+    resp = await fetch(CHAT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+      body: JSON.stringify({ messages: apiMessages, persona, deepResearch, memory: memory || [], knowledge: knowledge || [] }),
+      signal: controller.signal,
+    });
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
 
   // Error responses come back as JSON (even with HTTP 200) — detect and surface them.
@@ -93,7 +101,7 @@ async function streamChat({
       if (line.endsWith("\r")) line = line.slice(0, -1);
       if (!line.startsWith("data: ")) continue;
       const json = line.slice(6).trim();
-      if (json === "[DONE]") { onDone(); return; }
+      if (json === "[DONE]") { await onDone(); return; }
       try {
         const parsed = JSON.parse(json);
         const content = parsed.choices?.[0]?.delta?.content;
@@ -104,7 +112,7 @@ async function streamChat({
       }
     }
   }
-  onDone();
+  await onDone();
 }
 
 function formatTime(date?: Date) {
@@ -176,8 +184,8 @@ const ChatPage = () => {
   const config = personaConfig[persona];
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    messagesEndRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth" });
+  }, [messages, loading]);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -187,15 +195,19 @@ const ChatPage = () => {
 
     setImageLoading(true);
     try {
-      for (const file of list) {
+      const accepted = list.slice(0, 10);
+      if (list.length > accepted.length) toast.info("You can analyze up to 10 images at once");
+      const prepared: string[] = [];
+      for (const file of accepted) {
         if (file.size > 20 * 1024 * 1024) { toast.error(`${file.name} is over 20MB`); continue; }
         try {
           const compressed = await compressImageFile(file);
-          setPendingImages((prev) => [...prev, compressed]);
+          prepared.push(compressed);
         } catch {
           toast.error(`Couldn't read ${file.name}`);
         }
       }
+      if (prepared.length > 0) setPendingImages((prev) => [...prev, ...prepared].slice(0, 10));
     } finally {
       setImageLoading(false);
     }
@@ -253,18 +265,31 @@ const ChatPage = () => {
     setLoading(true);
     setAiError(null);
     let assistantSoFar = "";
-    const unlock = () => { sendLockRef.current = false; setLoading(false); };
+    let lastPaint = 0;
+    let paintTimer: number | null = null;
+    const unlock = () => {
+      if (paintTimer !== null) window.clearTimeout(paintTimer);
+      sendLockRef.current = false;
+      setLoading(false);
+    };
     // Only touch on-screen state while THIS conversation is still the active one.
     const isStillActive = () => activeIdRef.current === convoId;
 
-    const upsertAssistant = (chunk: string) => {
-      assistantSoFar += chunk;
+    const paintAssistant = () => {
+      paintTimer = null;
       if (!isStillActive()) return; // user switched chats mid-stream — don't bleed into another chat
       setMessages((prev) => {
         const last = prev[prev.length - 1];
         if (last?.role === "assistant") return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantSoFar } : m);
         return [...prev, { role: "assistant", content: assistantSoFar }];
       });
+      lastPaint = Date.now();
+    };
+
+    const upsertAssistant = (chunk: string) => {
+      assistantSoFar += chunk;
+      if (Date.now() - lastPaint >= 80) paintAssistant();
+      else if (paintTimer === null) paintTimer = window.setTimeout(paintAssistant, 80);
     };
 
     const memoryPayload = memoryEnabled ? memories.map((m) => m.content) : [];
@@ -278,17 +303,25 @@ const ChatPage = () => {
         knowledge: guestKnowledge,
         onDelta: upsertAssistant,
         onDone: async () => {
-          if (assistantSoFar) {
-            // Always persist to the conversation the reply belongs to.
-            await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
-            if (isStillActive()) setMsgTimestamps(prev => [...prev, new Date()]);
-            void captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
+          try {
+            if (assistantSoFar) {
+              paintAssistant();
+              // Always persist to the conversation the reply belongs to.
+              await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
+              if (isStillActive()) setMsgTimestamps(prev => [...prev, new Date()]);
+              void captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
+            }
+          } finally {
+            unlock();
           }
-          unlock();
         },
         onError: (msg, code) => { if (isStillActive()) { setAiError({ msg, code }); } toast.error(msg); unlock(); },
       });
-    } catch (e) { console.error(e); toast.error("Failed to get AI response"); unlock(); }
+    } catch (e) {
+      console.error(e);
+      toast.error(e instanceof DOMException && e.name === "AbortError" ? "The reply took too long. Please try again." : "Failed to get AI response");
+      unlock();
+    }
   };
 
   const handleSend = async (rawText: string) => {

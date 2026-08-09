@@ -8,8 +8,8 @@
  */
 export async function compressImageFile(
   file: File,
-  maxDimension = 1280,
-  quality = 0.72
+  maxDimension = 960,
+  quality = 0.62
 ): Promise<string> {
   const dataUrl = await readFileAsDataUrl(file);
 

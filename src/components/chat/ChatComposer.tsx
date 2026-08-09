@@ -41,13 +41,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
       setText("");
     };
 
-    const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        submit();
-      }
-    };
-
     const disabled = loading || (!text.trim() && !hasPendingImages);
 
     if (variant === "mobile") {
@@ -63,7 +56,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
               value={text}
               onChange={(e) => setText(e.target.value)}
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5"
-              onKeyDown={onKeyDown}
               rows={1}
             />
           </div>
@@ -83,7 +75,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
             value={text}
             onChange={(e) => setText(e.target.value)}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-10 min-h-[72px]"
-            onKeyDown={onKeyDown}
+            rows={3}
           />
           <Button variant="ghost" size="icon" className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" onClick={onPickImage} type="button">
             <ImagePlus className="h-4 w-4" />

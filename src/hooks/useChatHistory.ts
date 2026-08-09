@@ -144,7 +144,10 @@ function readCachedMessages(userId: string, convoId: string) {
 }
 
 function writeCachedMessages(userId: string, convoId: string, items: StoredMessage[]) {
-  writeLS(getUserMessageCacheKey(userId, convoId), sortStoredMessages(items));
+  // Never place base64 image data in localStorage. A handful of phone photos
+  // can exceed its quota and make every chat render/type operation block.
+  const textOnly = items.map((item) => ({ ...item, images: undefined }));
+  writeLS(getUserMessageCacheKey(userId, convoId), sortStoredMessages(textOnly));
 }
 
 function toChatMessages(records: StoredMessage[]): ChatMessage[] {
@@ -273,13 +276,15 @@ export function useChatHistory() {
     writeActiveConversation(user?.id, convoId);
 
     if (user) {
-      // Show cached messages instantly so switching chats feels snappy.
-      const cached = readCachedMessages(user.id, convoId);
+      // Legacy caches may contain many megabytes of base64 screenshots. Drop
+      // that cache before reading it, then rebuild a lightweight text cache.
+      removeLS(getUserMessageCacheKey(user.id, convoId));
+      const cached: StoredMessage[] = [];
       if (cached.length > 0) setMessages(toChatMessages(cached));
 
       const { data, error } = await supabase
         .from("ai_messages")
-        .select("*")
+        .select("id, conversation_id, role, content, created_at, updated_at")
         .eq("conversation_id", convoId)
         .order("created_at", { ascending: true });
 
@@ -295,7 +300,7 @@ export function useChatHistory() {
           conversation_id: message.conversation_id,
           role: message.role as "user" | "assistant",
           content: message.content,
-          images: message.images?.length ? message.images : undefined,
+          images: undefined,
           created_at: message.created_at,
           updated_at: message.updated_at,
         }))
@@ -378,14 +383,17 @@ export function useChatHistory() {
 
   const saveMessage = useCallback(async (convoId: string, msg: ChatMessage) => {
     const now = nowIso();
-    const storedMessage = toStoredMessage(convoId, msg, now);
+    // Images are sent to the model for this turn but are intentionally not
+    // persisted as base64. Persisting large batches was freezing the browser.
+    const persistedMessage: ChatMessage = { role: msg.role, content: msg.content };
+    const storedMessage = toStoredMessage(convoId, persistedMessage, now);
 
     if (user) {
       await supabase.from("ai_messages").insert({
         conversation_id: convoId,
         role: msg.role,
         content: msg.content,
-        images: msg.images || [],
+        images: [],
         created_at: now,
         updated_at: now,
       });

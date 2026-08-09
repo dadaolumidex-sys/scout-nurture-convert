@@ -15,6 +15,7 @@ import { DiscordPanel } from "@/components/inbox/DiscordPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage, readFileAsDataUrl } from "@/lib/guestStorage";
 import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
+import { compressImageFile } from "@/lib/imageCompress";
 
 
 
@@ -118,7 +119,7 @@ const ContactChatPage = () => {
 
     setUploading(true);
     try {
-      const imageUrl = await readFileAsDataUrl(file);
+      const imageUrl = await compressImageFile(file);
 
       if (user) {
         await (supabase.from("contact_messages" as any).insert({
@@ -584,12 +585,7 @@ const ContactChatPage = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[44px] max-h-[120px]"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
+            rows={2}
           />
           <Button
             onClick={handleSend}
