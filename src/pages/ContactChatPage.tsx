@@ -13,7 +13,7 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SuggestionCards } from "@/components/chat/SuggestionCards";
 import { DiscordPanel } from "@/components/inbox/DiscordPanel";
 import { useAuth } from "@/hooks/useAuth";
-import { guestStorage, readFileAsDataUrl } from "@/lib/guestStorage";
+import { guestStorage } from "@/lib/guestStorage";
 import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
 import { compressImageFile } from "@/lib/imageCompress";
 

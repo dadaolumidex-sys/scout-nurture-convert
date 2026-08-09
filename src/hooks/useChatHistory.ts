@@ -124,11 +124,18 @@ function writeGuestConversations(items: Conversation[]) {
 }
 
 function readGuestMessages() {
-  return sortStoredMessages(readLS<StoredMessage>(GUEST_MSGS_KEY, GUEST_MSGS_BACKUP_KEY));
+  const stored = sortStoredMessages(readLS<StoredMessage>(GUEST_MSGS_KEY, GUEST_MSGS_BACKUP_KEY));
+  const hasEmbeddedImages = stored.some((message) => message.images?.length);
+  if (!hasEmbeddedImages) return stored;
+
+  const textOnly = stored.map((message) => ({ ...message, images: undefined }));
+  writeGuestMessages(textOnly);
+  return textOnly;
 }
 
 function writeGuestMessages(items: StoredMessage[]) {
-  writeLS(GUEST_MSGS_KEY, sortStoredMessages(items), GUEST_MSGS_BACKUP_KEY);
+  const textOnly = items.map((item) => ({ ...item, images: undefined }));
+  writeLS(GUEST_MSGS_KEY, sortStoredMessages(textOnly), GUEST_MSGS_BACKUP_KEY);
 }
 
 function readCachedConversations(userId: string) {
