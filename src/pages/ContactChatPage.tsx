@@ -586,7 +586,7 @@ const ContactChatPage = () => {
             onChange={(e) => setInput(e.target.value)}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[44px] max-h-[120px]"
             rows={2}
-            onKeyDown={(e) => {
+            onKeyDownCapture={(e) => {
               if (e.key !== "Enter" || e.isDefaultPrevented() || e.nativeEvent.isComposing) return;
               e.preventDefault();
               e.stopPropagation();
@@ -601,6 +601,7 @@ const ContactChatPage = () => {
             }}
           />
           <Button
+            type="button"
             onClick={handleSend}
             disabled={!input.trim()}
             className="gradient-primary text-primary-foreground h-10 w-10 p-0 shrink-0"

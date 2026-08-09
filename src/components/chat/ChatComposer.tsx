@@ -69,12 +69,12 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
               placeholder="Ask anything..."
               value={text}
               onChange={(e) => setText(e.target.value)}
-              onKeyDown={addNewLine}
+              onKeyDownCapture={addNewLine}
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5"
               rows={1}
             />
           </div>
-          <Button onClick={submit} disabled={disabled} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
+          <Button type="button" onClick={submit} disabled={disabled} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
             <Send className="h-4 w-4" />
           </Button>
         </div>
@@ -89,7 +89,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
             placeholder="Type your message or upload a conversation screenshot..."
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={addNewLine}
+            onKeyDownCapture={addNewLine}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-10 min-h-[72px]"
             rows={3}
           />
@@ -97,7 +97,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
             <ImagePlus className="h-4 w-4" />
           </Button>
         </div>
-        <Button onClick={submit} disabled={disabled} className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0">
+        <Button type="button" onClick={submit} disabled={disabled} className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0">
           <Send className="h-4 w-4" />
         </Button>
       </div>
