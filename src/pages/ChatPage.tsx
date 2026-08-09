@@ -29,9 +29,10 @@ const personaConfig = {
 };
 
 async function streamChat({
-  messages, persona, deepResearch, memory, knowledge, onDelta, onDone, onError,
+  messages, persona, deepResearch, memory, knowledge, signal, onDelta, onDone, onError,
 }: {
   messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[]; knowledge?: unknown[];
+  signal?: AbortSignal;
   onDelta: (text: string) => void; onDone: () => void | Promise<void>; onError: (msg: string, code?: string) => void;
 }) {
   // Only the most recent user turn keeps its images. Re-uploading every old
@@ -64,6 +65,8 @@ async function streamChat({
   const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
   const controller = new AbortController();
+  const abortFromCaller = () => controller.abort();
+  signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeout = window.setTimeout(() => controller.abort(), 120_000);
   let resp: Response;
   try {
@@ -73,8 +76,10 @@ async function streamChat({
       body: JSON.stringify({ messages: apiMessages, persona, deepResearch, memory: memory || [], knowledge: knowledge || [] }),
       signal: controller.signal,
     });
-  } finally {
+  } catch (error) {
     window.clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
+    throw error;
   }
 
 
@@ -82,10 +87,17 @@ async function streamChat({
   const contentType = resp.headers.get("content-type") || "";
   if (!resp.ok || contentType.includes("application/json")) {
     const err = await resp.json().catch(() => ({ error: "Request failed" }));
+    window.clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
     onError(err.error || `Error ${resp.status}`, err.code);
     return;
   }
-  if (!resp.body) { onError("No response stream"); return; }
+  if (!resp.body) {
+    window.clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
+    onError("No response stream");
+    return;
+  }
 
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
@@ -101,7 +113,12 @@ async function streamChat({
       if (line.endsWith("\r")) line = line.slice(0, -1);
       if (!line.startsWith("data: ")) continue;
       const json = line.slice(6).trim();
-      if (json === "[DONE]") { await onDone(); return; }
+      if (json === "[DONE]") {
+        window.clearTimeout(timeout);
+        signal?.removeEventListener("abort", abortFromCaller);
+        await onDone();
+        return;
+      }
       try {
         const parsed = JSON.parse(json);
         const content = parsed.choices?.[0]?.delta?.content;
@@ -112,6 +129,8 @@ async function streamChat({
       }
     }
   }
+  window.clearTimeout(timeout);
+  signal?.removeEventListener("abort", abortFromCaller);
   await onDone();
 }
 
@@ -168,6 +187,7 @@ const ChatPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<ChatComposerHandle>(null);
   const sendLockRef = useRef(false);
+  const requestAbortRef = useRef<AbortController | null>(null);
 
   const {
     conversations, activeId, messages, setMessages,
@@ -217,6 +237,10 @@ const ChatPage = () => {
   const removePendingImage = (index: number) => setPendingImages((prev) => prev.filter((_, i) => i !== index));
 
   const handleNewChat = () => {
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
+    sendLockRef.current = false;
+    setLoading(false);
     activeIdRef.current = null;
     startNewChat();
     composerRef.current?.setText("");
@@ -227,6 +251,10 @@ const ChatPage = () => {
   };
 
   const handleSelectConversation = (id: string) => {
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
+    sendLockRef.current = false;
+    setLoading(false);
     activeIdRef.current = id;
     setAiError(null);
     loadMessages(id);
@@ -261,6 +289,9 @@ const ChatPage = () => {
   };
 
   const sendMessagesStream = async (convoId: string, msgs: ChatMessage[]) => {
+    requestAbortRef.current?.abort();
+    const requestController = new AbortController();
+    requestAbortRef.current = requestController;
     sendLockRef.current = true;
     setLoading(true);
     setAiError(null);
@@ -269,6 +300,7 @@ const ChatPage = () => {
     let paintTimer: number | null = null;
     const unlock = () => {
       if (paintTimer !== null) window.clearTimeout(paintTimer);
+      if (requestAbortRef.current === requestController) requestAbortRef.current = null;
       sendLockRef.current = false;
       setLoading(false);
     };
@@ -301,6 +333,7 @@ const ChatPage = () => {
         messages: msgs, persona, deepResearch,
         memory: memoryPayload,
         knowledge: guestKnowledge,
+        signal: requestController.signal,
         onDelta: upsertAssistant,
         onDone: async () => {
           try {
@@ -319,7 +352,9 @@ const ChatPage = () => {
       });
     } catch (e) {
       console.error(e);
-      toast.error(e instanceof DOMException && e.name === "AbortError" ? "The reply took too long. Please try again." : "Failed to get AI response");
+      if (!requestController.signal.aborted || requestAbortRef.current === requestController) {
+        toast.error(e instanceof DOMException && e.name === "AbortError" ? "The reply took too long. Please try again." : "Failed to get AI response");
+      }
       unlock();
     }
   };
