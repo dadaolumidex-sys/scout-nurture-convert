@@ -147,8 +147,17 @@ function writeCachedConversations(userId: string, items: Conversation[]) {
 }
 
 function readCachedMessages(userId: string, convoId: string) {
-  return sortStoredMessages(readLS<StoredMessage>(getUserMessageCacheKey(userId, convoId)));
+  const key = getUserMessageCacheKey(userId, convoId);
+  const raw = typeof window === "undefined" ? null : window.localStorage.getItem(key);
+  // Legacy caches could hold megabytes of base64 screenshots — drop those.
+  if (raw && raw.length > 500_000) {
+    removeLS(key);
+    return [] as StoredMessage[];
+  }
+  const stored = sortStoredMessages(readLS<StoredMessage>(key));
+  return stored.map((item) => ({ ...item, images: undefined }));
 }
+
 
 function writeCachedMessages(userId: string, convoId: string, items: StoredMessage[]) {
   // Never place base64 image data in localStorage. A handful of phone photos
@@ -283,10 +292,8 @@ export function useChatHistory() {
     writeActiveConversation(user?.id, convoId);
 
     if (user) {
-      // Legacy caches may contain many megabytes of base64 screenshots. Drop
-      // that cache before reading it, then rebuild a lightweight text cache.
-      removeLS(getUserMessageCacheKey(user.id, convoId));
-      const cached: StoredMessage[] = [];
+      // Text-only cache: instant restore of past messages while the DB loads.
+      const cached = readCachedMessages(user.id, convoId);
       if (cached.length > 0) setMessages(toChatMessages(cached));
 
       const { data, error } = await supabase
@@ -313,9 +320,16 @@ export function useChatHistory() {
         }))
       );
 
+      // Never wipe a visible conversation because of an empty/partial read.
+      if (storedMessages.length === 0 && cached.length > 0) {
+        setMessages(toChatMessages(cached));
+        return;
+      }
+
       writeCachedMessages(user.id, convoId, storedMessages);
       if (token !== loadTokenRef.current) return;
       setMessages(toChatMessages(storedMessages));
+
     } else {
       const guestMessages = readGuestMessages().filter((message) => message.conversation_id === convoId);
       if (token !== loadTokenRef.current) return;
@@ -331,9 +345,13 @@ export function useChatHistory() {
   useEffect(() => {
     if (loadingHistory || activeId || conversations.length === 0) return;
     const persistedId = readActiveConversation(user?.id);
-    if (!persistedId || !conversations.some((conversation) => conversation.id === persistedId)) return;
-    void loadMessages(persistedId);
+    if (persistedId === "new") return; // user deliberately opened a blank chat
+    const target = persistedId && conversations.some((c) => c.id === persistedId)
+      ? persistedId
+      : conversations[0].id; // fall back to the most recent chat so history is never lost
+    void loadMessages(target);
   }, [activeId, conversations, loadMessages, loadingHistory, user]);
+
 
   const createConversation = useCallback(async (persona: string, deepResearch: boolean): Promise<string> => {
     loadTokenRef.current++;
@@ -396,7 +414,7 @@ export function useChatHistory() {
     const storedMessage = toStoredMessage(convoId, persistedMessage, now);
 
     if (user) {
-      await supabase.from("ai_messages").insert({
+      const { error: insertError } = await supabase.from("ai_messages").insert({
         conversation_id: convoId,
         role: msg.role,
         content: msg.content,
@@ -404,6 +422,8 @@ export function useChatHistory() {
         created_at: now,
         updated_at: now,
       });
+      if (insertError) console.error("Failed to save chat message:", insertError.message);
+
 
       const currentConversation = conversations.find((conversation) => conversation.id === convoId);
       const shouldRename = msg.role === "user" && (!currentConversation || currentConversation.title === "New Chat");
@@ -547,7 +567,8 @@ export function useChatHistory() {
     loadTokenRef.current++;
     setActiveId(null);
 
-    writeActiveConversation(user?.id, null);
+    writeActiveConversation(user?.id, "new");
+
     setMessages([]);
   }, [user]);
 
