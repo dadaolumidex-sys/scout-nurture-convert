@@ -263,37 +263,44 @@ const InboxPage = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    {selectedType === "new_prospect" && (
-                      <div>
-                        <Label className="text-foreground text-sm">Channel URL</Label>
-                        <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
-                      </div>
-                    )}
-                    {(selectedType === "existing_chat" || selectedType === "re_engage") && (
-                      <div>
-                        <Label className="text-foreground text-sm">Channel URL <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                        <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
-                      </div>
-                    )}
+                    <div>
+                      <Label className="text-foreground text-sm">Conversation style</Label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
+                        Which voice is this chat coming from? The AI writes every reply in that persona.
+                      </p>
+                      <Select value={newPersona} onValueChange={(v) => setNewPersona(v as "friend" | "promoter" | "streamer")}>
+                        <SelectTrigger className="bg-muted border-border text-foreground"><SelectValue /></SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          <SelectItem value="friend">🤝 Nifimas — Friend (build friendship, connect them to the expert)</SelectItem>
+                          <SelectItem value="promoter">💼 Brozeen — Promoter (spot gaps, give value, pitch)</SelectItem>
+                          <SelectItem value="streamer">🎤 Big Streamer — Direct closer (proposal & pricing)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                    {/* Chat history paste area for Existing Chat & Re-engage */}
-                     {(selectedType === "existing_chat" || selectedType === "re_engage") && (
-                      <div className="space-y-3">
-                        <div>
-                          <Label className="text-foreground text-sm flex items-center gap-1.5">
-                            <Upload className="h-3.5 w-3.5" />
-                            Paste Previous Chat
-                          </Label>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
-                            Paste your Discord/DM conversation so the AI knows the context
-                          </p>
-                          <Textarea
-                            value={chatHistory}
-                            onChange={(e) => setChatHistory(e.target.value)}
-                            placeholder={"Example:\nYou: Hey bro, love your streams!\nStreamer: Thanks man!\nYou: I've got something that could help grow your channel..."}
-                            className="bg-muted border-border text-foreground min-h-[100px] text-sm"
-                          />
-                        </div>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-foreground text-sm flex items-center gap-1.5">
+                          <Upload className="h-3.5 w-3.5" />
+                          {selectedType === "new_prospect"
+                            ? "Their reply to your first message"
+                            : selectedType === "re_engage"
+                              ? "Paste the chat that went quiet"
+                              : "Paste your chat so far"}
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
+                          {selectedType === "new_prospect"
+                            ? "Paste what they replied after your welcome message — the AI writes the next message for you. Leave empty to start cold."
+                            : "Paste the Discord/DM conversation so the AI knows exactly where you left off."}
+                        </p>
+                        <Textarea
+                          value={chatHistory}
+                          onChange={(e) => setChatHistory(e.target.value)}
+                          placeholder={"Example:\nYou: yo that last clutch was nasty\nThem: haha thanks man appreciate it"}
+                          className="bg-muted border-border text-foreground min-h-[100px] text-sm"
+                        />
+                      </div>
+
                         <div>
                           <Label className="text-foreground text-sm flex items-center gap-1.5">
                             <ImagePlus className="h-3.5 w-3.5" />
