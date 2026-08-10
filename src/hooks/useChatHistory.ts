@@ -147,8 +147,17 @@ function writeCachedConversations(userId: string, items: Conversation[]) {
 }
 
 function readCachedMessages(userId: string, convoId: string) {
-  return sortStoredMessages(readLS<StoredMessage>(getUserMessageCacheKey(userId, convoId)));
+  const key = getUserMessageCacheKey(userId, convoId);
+  const raw = typeof window === "undefined" ? null : window.localStorage.getItem(key);
+  // Legacy caches could hold megabytes of base64 screenshots — drop those.
+  if (raw && raw.length > 500_000) {
+    removeLS(key);
+    return [] as StoredMessage[];
+  }
+  const stored = sortStoredMessages(readLS<StoredMessage>(key));
+  return stored.map((item) => ({ ...item, images: undefined }));
 }
+
 
 function writeCachedMessages(userId: string, convoId: string, items: StoredMessage[]) {
   // Never place base64 image data in localStorage. A handful of phone photos
