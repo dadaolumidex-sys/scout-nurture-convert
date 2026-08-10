@@ -89,7 +89,7 @@ const InboxPage = () => {
     setDialogStep("type");
     setSelectedType(null);
     setNewName("");
-    setNewUrl("");
+    setNewPersona("friend");
     setChatHistory("");
     setChatImages([]);
   };
@@ -104,16 +104,25 @@ const InboxPage = () => {
       existing_chat: "in_conversation",
       re_engage: "new",
     };
+    const contextLabel =
+      selectedType === "new_prospect"
+        ? "Their reply to my first message"
+        : selectedType === "re_engage"
+          ? "Our chat so far (they went quiet)"
+          : "Our chat so far";
+
     const baseContact = {
       username: newName.toLowerCase().replace(/\s+/g, ""),
       display_name: newName,
       platform: newPlatform,
-      channel_url: newUrl || (selectedType === "new_prospect" ? `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}` : null),
+      channel_url: null,
       conversation_type: selectedType,
       status: statusMap[selectedType || "new_prospect"],
     };
 
     try {
+      let newId: string | null = null;
+
       if (user) {
         const { data, error } = await (supabase.from("streamer_contacts" as any).insert({
           ...baseContact,
@@ -121,25 +130,26 @@ const InboxPage = () => {
         }).select().single() as any);
 
         if (error) throw error;
+        newId = data?.id ?? null;
 
-        if (chatHistory.trim() && data?.id) {
+        if (chatHistory.trim() && newId) {
           await (supabase.from("contact_messages" as any).insert({
-            contact_id: data.id,
-            content: `📋 Previous chat history:\n\n${chatHistory}`,
-            role: "context",
-            persona: "nifimas",
+            contact_id: newId,
+            content: `${contextLabel}:\n\n${chatHistory.trim()}`,
+            role: "user",
+            persona: newPersona,
             user_id: user.id,
           }) as any);
         }
 
-        if (chatImages.length > 0 && data?.id) {
+        if (chatImages.length > 0 && newId) {
           for (const file of chatImages) {
             const imageUrl = await readFileAsDataUrl(file);
             await (supabase.from("contact_messages" as any).insert({
-              contact_id: data.id,
-              content: "📸 Chat screenshot uploaded for context",
-              role: "context",
-              persona: "nifimas",
+              contact_id: newId,
+              content: `${contextLabel} (screenshot)`,
+              role: "user",
+              persona: newPersona,
               image_url: imageUrl,
               user_id: user.id,
             }) as any);
@@ -147,13 +157,14 @@ const InboxPage = () => {
         }
       } else {
         const contact = guestStorage.contacts.insert(baseContact);
+        newId = contact.id;
 
         if (chatHistory.trim()) {
           guestStorage.messages.insert({
             contact_id: contact.id,
-            content: `📋 Previous chat history:\n\n${chatHistory}`,
-            role: "context",
-            persona: "nifimas",
+            content: `${contextLabel}:\n\n${chatHistory.trim()}`,
+            role: "user",
+            persona: newPersona,
             image_url: null,
             selected: false,
           });
@@ -163,19 +174,22 @@ const InboxPage = () => {
           const imageUrl = await readFileAsDataUrl(file);
           guestStorage.messages.insert({
             contact_id: contact.id,
-            content: "📸 Chat screenshot uploaded for context",
-            role: "context",
-            persona: "nifimas",
+            content: `${contextLabel} (screenshot)`,
+            role: "user",
+            persona: newPersona,
             image_url: imageUrl,
             selected: false,
           });
         }
       }
 
+      const shouldAutogen = chatHistory.trim().length > 0 || chatImages.length > 0;
       toast.success(user ? "Contact added!" : "Contact added in guest mode!");
+      const persona = newPersona;
       resetDialog();
       setDialogOpen(false);
       loadContacts();
+      if (newId) navigate(`/inbox/${newId}?persona=${persona}${shouldAutogen ? "&autogen=1" : ""}`);
     } catch (error) {
       toast.error("Failed to add contact");
       console.error(error);
