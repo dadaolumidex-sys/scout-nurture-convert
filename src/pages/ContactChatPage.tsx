@@ -78,12 +78,23 @@ const ContactChatPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const autogenRef = useRef(searchParams.get("autogen") === "1");
+
   useEffect(() => {
     if (contactId) {
       loadContact();
       loadMessages();
     }
   }, [contactId, user?.id]);
+
+  // Auto-generate the first suggestion when arriving from the New Chat flow with pasted context.
+  useEffect(() => {
+    if (!autogenRef.current || !contact) return;
+    if (messages.filter((m) => m.persona === persona).length === 0) return;
+    autogenRef.current = false;
+    void generateSuggestions(persona);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contact, messages, persona]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
