@@ -348,8 +348,8 @@ const InboxPage = () => {
                             </div>
                           )}
                         </div>
-                      </div>
-                    )}
+                    </div>
+
 
                     <div className="flex gap-2 pt-1">
                       <Button variant="outline" onClick={() => setDialogStep("type")} className="flex-1 border-border text-muted-foreground hover:text-foreground">Back</Button>
