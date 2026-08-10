@@ -207,7 +207,7 @@ export function TrainingMemory() {
             <Card className="bg-card border-border">
               <CardContent className="p-8 text-center text-muted-foreground">
                 <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                <p>No training data for {personaTab === "nifimas" ? "Nifimas" : "Brozeen"} yet</p>
+                <p>No training data for {personaTab === "nifimas" ? "Nifimas" : personaTab === "bigstreamer" ? "Big Streamer" : "Brozeen"} yet</p>
               </CardContent>
             </Card>
           ) : (
