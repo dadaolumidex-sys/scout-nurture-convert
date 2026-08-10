@@ -56,11 +56,10 @@ const InboxPage = () => {
   const [selectedType, setSelectedType] = useState<ConversationType | null>(null);
   const [newName, setNewName] = useState("");
   const [newPlatform, setNewPlatform] = useState<"twitch" | "kick">("twitch");
-  const [newUrl, setNewUrl] = useState("");
+  const [newPersona, setNewPersona] = useState<"friend" | "promoter" | "streamer">("friend");
   const [chatHistory, setChatHistory] = useState("");
   const [chatImages, setChatImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
-  const imageInputRef = useState<HTMLInputElement | null>(null);
 
   useEffect(() => {
     loadContacts();
