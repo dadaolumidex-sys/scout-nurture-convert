@@ -159,15 +159,23 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages = [], persona, contactContext, knowledge: guestKnowledge } = await req.json() as {
+    const { messages = [], persona, contactContext, conversationType, knowledge: guestKnowledge } = await req.json() as {
       messages?: IncomingMessage[];
       persona?: string;
       contactContext?: string;
+      conversationType?: string;
       knowledge?: KnowledgeEntry[];
     };
 
     const activePersona = persona === "promoter" ? "promoter" : persona === "streamer" ? "streamer" : "friend";
-    const knowledgePersona = activePersona === "friend" ? "nifimas" : "brozeen";
+    const knowledgePersona = activePersona === "friend" ? "nifimas" : activePersona === "streamer" ? "bigstreamer" : "brozeen";
+
+    const MODE_RULES: Record<string, string> = {
+      new_prospect: `\n\n## CONVERSATION MODE: NEW PROSPECT\nThis is the very start. They just replied to my first message. Keep it light, react to what they actually said, and open a loop that makes replying easy. No pitching yet unless the persona is Big Streamer.`,
+      existing_chat: `\n\n## CONVERSATION MODE: CONTINUE EXISTING CHAT\nRead the pasted chat carefully, work out where it stalled or what they last asked, and continue naturally from that exact point. Never restart or re-introduce myself.`,
+      re_engage: `\n\n## CONVERSATION MODE: RE-ENGAGE (they went quiet)\nThey saw the message and didn't reply, or fell off. Do NOT guilt them, do NOT say "just following up", do NOT repeat the old message. Come back with a fresh hook: something new about their channel/game, a quick useful observation, or a low-pressure one-liner that is easy to answer. One short message only.`,
+    };
+    const modeRules = MODE_RULES[conversationType || ""] || "";
 
     const preparedMessages = toGatewayMessages(Array.isArray(messages) ? messages : []);
 
