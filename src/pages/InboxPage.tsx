@@ -56,11 +56,10 @@ const InboxPage = () => {
   const [selectedType, setSelectedType] = useState<ConversationType | null>(null);
   const [newName, setNewName] = useState("");
   const [newPlatform, setNewPlatform] = useState<"twitch" | "kick">("twitch");
-  const [newUrl, setNewUrl] = useState("");
+  const [newPersona, setNewPersona] = useState<"friend" | "promoter" | "streamer">("friend");
   const [chatHistory, setChatHistory] = useState("");
   const [chatImages, setChatImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
-  const imageInputRef = useState<HTMLInputElement | null>(null);
 
   useEffect(() => {
     loadContacts();
@@ -90,7 +89,7 @@ const InboxPage = () => {
     setDialogStep("type");
     setSelectedType(null);
     setNewName("");
-    setNewUrl("");
+    setNewPersona("friend");
     setChatHistory("");
     setChatImages([]);
   };
@@ -105,16 +104,25 @@ const InboxPage = () => {
       existing_chat: "in_conversation",
       re_engage: "new",
     };
+    const contextLabel =
+      selectedType === "new_prospect"
+        ? "Their reply to my first message"
+        : selectedType === "re_engage"
+          ? "Our chat so far (they went quiet)"
+          : "Our chat so far";
+
     const baseContact = {
       username: newName.toLowerCase().replace(/\s+/g, ""),
       display_name: newName,
       platform: newPlatform,
-      channel_url: newUrl || (selectedType === "new_prospect" ? `https://${newPlatform === "twitch" ? "twitch.tv" : "kick.com"}/${newName.toLowerCase()}` : null),
+      channel_url: null,
       conversation_type: selectedType,
       status: statusMap[selectedType || "new_prospect"],
     };
 
     try {
+      let newId: string | null = null;
+
       if (user) {
         const { data, error } = await (supabase.from("streamer_contacts" as any).insert({
           ...baseContact,
@@ -122,25 +130,26 @@ const InboxPage = () => {
         }).select().single() as any);
 
         if (error) throw error;
+        newId = data?.id ?? null;
 
-        if (chatHistory.trim() && data?.id) {
+        if (chatHistory.trim() && newId) {
           await (supabase.from("contact_messages" as any).insert({
-            contact_id: data.id,
-            content: `📋 Previous chat history:\n\n${chatHistory}`,
-            role: "context",
-            persona: "nifimas",
+            contact_id: newId,
+            content: `${contextLabel}:\n\n${chatHistory.trim()}`,
+            role: "user",
+            persona: newPersona,
             user_id: user.id,
           }) as any);
         }
 
-        if (chatImages.length > 0 && data?.id) {
+        if (chatImages.length > 0 && newId) {
           for (const file of chatImages) {
             const imageUrl = await readFileAsDataUrl(file);
             await (supabase.from("contact_messages" as any).insert({
-              contact_id: data.id,
-              content: "📸 Chat screenshot uploaded for context",
-              role: "context",
-              persona: "nifimas",
+              contact_id: newId,
+              content: `${contextLabel} (screenshot)`,
+              role: "user",
+              persona: newPersona,
               image_url: imageUrl,
               user_id: user.id,
             }) as any);
@@ -148,13 +157,14 @@ const InboxPage = () => {
         }
       } else {
         const contact = guestStorage.contacts.insert(baseContact);
+        newId = contact.id;
 
         if (chatHistory.trim()) {
           guestStorage.messages.insert({
             contact_id: contact.id,
-            content: `📋 Previous chat history:\n\n${chatHistory}`,
-            role: "context",
-            persona: "nifimas",
+            content: `${contextLabel}:\n\n${chatHistory.trim()}`,
+            role: "user",
+            persona: newPersona,
             image_url: null,
             selected: false,
           });
@@ -164,19 +174,22 @@ const InboxPage = () => {
           const imageUrl = await readFileAsDataUrl(file);
           guestStorage.messages.insert({
             contact_id: contact.id,
-            content: "📸 Chat screenshot uploaded for context",
-            role: "context",
-            persona: "nifimas",
+            content: `${contextLabel} (screenshot)`,
+            role: "user",
+            persona: newPersona,
             image_url: imageUrl,
             selected: false,
           });
         }
       }
 
+      const shouldAutogen = chatHistory.trim().length > 0 || chatImages.length > 0;
       toast.success(user ? "Contact added!" : "Contact added in guest mode!");
+      const persona = newPersona;
       resetDialog();
       setDialogOpen(false);
       loadContacts();
+      if (newId) navigate(`/inbox/${newId}?persona=${persona}${shouldAutogen ? "&autogen=1" : ""}`);
     } catch (error) {
       toast.error("Failed to add contact");
       console.error(error);
@@ -250,37 +263,44 @@ const InboxPage = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    {selectedType === "new_prospect" && (
-                      <div>
-                        <Label className="text-foreground text-sm">Channel URL</Label>
-                        <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
-                      </div>
-                    )}
-                    {(selectedType === "existing_chat" || selectedType === "re_engage") && (
-                      <div>
-                        <Label className="text-foreground text-sm">Channel URL <span className="text-muted-foreground font-normal">(optional)</span></Label>
-                        <Input value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://twitch.tv/username" className="bg-muted border-border text-foreground mt-1" />
-                      </div>
-                    )}
+                    <div>
+                      <Label className="text-foreground text-sm">Conversation style</Label>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
+                        Which voice is this chat coming from? The AI writes every reply in that persona.
+                      </p>
+                      <Select value={newPersona} onValueChange={(v) => setNewPersona(v as "friend" | "promoter" | "streamer")}>
+                        <SelectTrigger className="bg-muted border-border text-foreground"><SelectValue /></SelectTrigger>
+                        <SelectContent className="bg-card border-border">
+                          <SelectItem value="friend">🤝 Nifimas — Friend (build friendship, connect them to the expert)</SelectItem>
+                          <SelectItem value="promoter">💼 Brozeen — Promoter (spot gaps, give value, pitch)</SelectItem>
+                          <SelectItem value="streamer">🎤 Big Streamer — Direct closer (proposal & pricing)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                    {/* Chat history paste area for Existing Chat & Re-engage */}
-                     {(selectedType === "existing_chat" || selectedType === "re_engage") && (
-                      <div className="space-y-3">
-                        <div>
-                          <Label className="text-foreground text-sm flex items-center gap-1.5">
-                            <Upload className="h-3.5 w-3.5" />
-                            Paste Previous Chat
-                          </Label>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
-                            Paste your Discord/DM conversation so the AI knows the context
-                          </p>
-                          <Textarea
-                            value={chatHistory}
-                            onChange={(e) => setChatHistory(e.target.value)}
-                            placeholder={"Example:\nYou: Hey bro, love your streams!\nStreamer: Thanks man!\nYou: I've got something that could help grow your channel..."}
-                            className="bg-muted border-border text-foreground min-h-[100px] text-sm"
-                          />
-                        </div>
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-foreground text-sm flex items-center gap-1.5">
+                          <Upload className="h-3.5 w-3.5" />
+                          {selectedType === "new_prospect"
+                            ? "Their reply to your first message"
+                            : selectedType === "re_engage"
+                              ? "Paste the chat that went quiet"
+                              : "Paste your chat so far"}
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
+                          {selectedType === "new_prospect"
+                            ? "Paste what they replied after your welcome message — the AI writes the next message for you. Leave empty to start cold."
+                            : "Paste the Discord/DM conversation so the AI knows exactly where you left off."}
+                        </p>
+                        <Textarea
+                          value={chatHistory}
+                          onChange={(e) => setChatHistory(e.target.value)}
+                          placeholder={"Example:\nYou: yo that last clutch was nasty\nThem: haha thanks man appreciate it"}
+                          className="bg-muted border-border text-foreground min-h-[100px] text-sm"
+                        />
+                      </div>
+
                         <div>
                           <Label className="text-foreground text-sm flex items-center gap-1.5">
                             <ImagePlus className="h-3.5 w-3.5" />
@@ -328,8 +348,8 @@ const InboxPage = () => {
                             </div>
                           )}
                         </div>
-                      </div>
-                    )}
+                    </div>
+
 
                     <div className="flex gap-2 pt-1">
                       <Button variant="outline" onClick={() => setDialogStep("type")} className="flex-1 border-border text-muted-foreground hover:text-foreground">Back</Button>

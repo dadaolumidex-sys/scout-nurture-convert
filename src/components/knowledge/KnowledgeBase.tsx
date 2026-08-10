@@ -31,6 +31,7 @@ const personas = [
   { value: "shared", label: "Both Personas" },
   { value: "nifimas", label: "🤝 Nifimas (Friend)" },
   { value: "brozeen", label: "💼 Brozeen (Promoter)" },
+  { value: "bigstreamer", label: "🎤 Big Streamer (Closer)" },
 ];
 
 const ANALYZE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-knowledge`;
@@ -190,7 +191,30 @@ export function KnowledgeBase() {
 
   return (
     <div className="space-y-4">
+      <Card className="bg-card border-border">
+        <CardContent className="p-4 space-y-2">
+          <h2 className="text-sm font-bold text-foreground">What is the Knowledge Base for?</h2>
+          <p className="text-sm text-muted-foreground">
+            This is your AI's brain for <span className="text-foreground font-medium">what to say and why it works</span>. Every reply
+            generated in the Conversation Inbox is checked against what you put here first.
+          </p>
+          <ul className="text-sm text-muted-foreground space-y-1 list-disc pl-5">
+            <li><span className="text-foreground font-medium">Sales psychology & closing frameworks</span> — paste articles, notes, or a YouTube/blog link.</li>
+            <li><span className="text-foreground font-medium">Objection handling</span> — "is this a bot?", "no budget", "send proof" (use the Objection Handling tab for pairs).</li>
+            <li><span className="text-foreground font-medium">Your offer details</span> — what promotion you sell, packages, pricing, turnaround, proof/results.</li>
+            <li><span className="text-foreground font-medium">Winning DMs & hooks</span> — messages that actually got replies or payments.</li>
+            <li><span className="text-foreground font-medium">Niche facts</span> — Twitch/Kick growth tips, retention, overlays, clip strategy.</li>
+          </ul>
+          <p className="text-xs text-muted-foreground">
+            Assign each entry to a persona so it only affects that voice: Nifimas (friendship), Brozeen (value + pitch), Big Streamer
+            (proposal + pricing), or Both. Use <span className="text-foreground font-medium">Training Memory</span> instead when you want to
+            teach the AI <em>how you type</em>, not what to say.
+          </p>
+        </CardContent>
+      </Card>
+
       <div className="flex gap-2 flex-wrap">
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button

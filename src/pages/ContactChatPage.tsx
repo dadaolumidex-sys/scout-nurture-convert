@@ -78,12 +78,23 @@ const ContactChatPage = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const autogenRef = useRef(searchParams.get("autogen") === "1");
+
   useEffect(() => {
     if (contactId) {
       loadContact();
       loadMessages();
     }
   }, [contactId, user?.id]);
+
+  // Auto-generate the first suggestion when arriving from the New Chat flow with pasted context.
+  useEffect(() => {
+    if (!autogenRef.current || !contact) return;
+    if (messages.filter((m) => m.persona === persona).length === 0) return;
+    autogenRef.current = false;
+    void generateSuggestions(persona);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contact, messages, persona]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -231,7 +242,7 @@ const ContactChatPage = () => {
           Authorization: `Bearer ${token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ messages: recentMessages, persona: targetPersona, contactContext, knowledge: user ? [] : guestStorage.knowledge.list() }),
+        body: JSON.stringify({ messages: recentMessages, persona: targetPersona, contactContext, conversationType: contact?.conversation_type || "new_prospect", knowledge: user ? [] : guestStorage.knowledge.list() }),
       });
 
       if (!resp.ok) {
@@ -281,12 +292,10 @@ const ContactChatPage = () => {
       if (user) {
         await (supabase.from("streamer_contacts" as any).update({
           last_message: suggestion.message.slice(0, 100),
-          conversation_type: suggestionsPersona === "friend" ? "friend_chat" : "promotion",
         }).eq("id", contactId) as any);
       } else if (contactId) {
         guestStorage.contacts.update(contactId, {
           last_message: suggestion.message.slice(0, 100),
-          conversation_type: suggestionsPersona === "friend" ? "friend_chat" : "promotion",
         });
       }
       toast.success("Reply selected! Copy it and send to the streamer.");
