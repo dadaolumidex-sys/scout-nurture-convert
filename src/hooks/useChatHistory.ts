@@ -345,9 +345,13 @@ export function useChatHistory() {
   useEffect(() => {
     if (loadingHistory || activeId || conversations.length === 0) return;
     const persistedId = readActiveConversation(user?.id);
-    if (!persistedId || !conversations.some((conversation) => conversation.id === persistedId)) return;
-    void loadMessages(persistedId);
+    if (persistedId === "new") return; // user deliberately opened a blank chat
+    const target = persistedId && conversations.some((c) => c.id === persistedId)
+      ? persistedId
+      : conversations[0].id; // fall back to the most recent chat so history is never lost
+    void loadMessages(target);
   }, [activeId, conversations, loadMessages, loadingHistory, user]);
+
 
   const createConversation = useCallback(async (persona: string, deepResearch: boolean): Promise<string> => {
     loadTokenRef.current++;
