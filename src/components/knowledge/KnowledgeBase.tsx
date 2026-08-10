@@ -31,6 +31,7 @@ const personas = [
   { value: "shared", label: "Both Personas" },
   { value: "nifimas", label: "🤝 Nifimas (Friend)" },
   { value: "brozeen", label: "💼 Brozeen (Promoter)" },
+  { value: "bigstreamer", label: "🎤 Big Streamer (Closer)" },
 ];
 
 const ANALYZE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-knowledge`;
