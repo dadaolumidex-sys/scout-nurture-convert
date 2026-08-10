@@ -410,7 +410,7 @@ export function useChatHistory() {
     const storedMessage = toStoredMessage(convoId, persistedMessage, now);
 
     if (user) {
-      await supabase.from("ai_messages").insert({
+      const { error: insertError } = await supabase.from("ai_messages").insert({
         conversation_id: convoId,
         role: msg.role,
         content: msg.content,
@@ -418,6 +418,8 @@ export function useChatHistory() {
         created_at: now,
         updated_at: now,
       });
+      if (insertError) console.error("Failed to save chat message:", insertError.message);
+
 
       const currentConversation = conversations.find((conversation) => conversation.id === convoId);
       const shouldRename = msg.role === "user" && (!currentConversation || currentConversation.title === "New Chat");
