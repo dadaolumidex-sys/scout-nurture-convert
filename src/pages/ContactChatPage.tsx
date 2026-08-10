@@ -242,7 +242,7 @@ const ContactChatPage = () => {
           Authorization: `Bearer ${token}`,
           apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
-        body: JSON.stringify({ messages: recentMessages, persona: targetPersona, contactContext, knowledge: user ? [] : guestStorage.knowledge.list() }),
+        body: JSON.stringify({ messages: recentMessages, persona: targetPersona, contactContext, conversationType: contact?.conversation_type || "new_prospect", knowledge: user ? [] : guestStorage.knowledge.list() }),
       });
 
       if (!resp.ok) {
