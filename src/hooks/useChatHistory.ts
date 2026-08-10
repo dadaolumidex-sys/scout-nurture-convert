@@ -283,10 +283,8 @@ export function useChatHistory() {
     writeActiveConversation(user?.id, convoId);
 
     if (user) {
-      // Legacy caches may contain many megabytes of base64 screenshots. Drop
-      // that cache before reading it, then rebuild a lightweight text cache.
-      removeLS(getUserMessageCacheKey(user.id, convoId));
-      const cached: StoredMessage[] = [];
+      // Text-only cache: instant restore of past messages while the DB loads.
+      const cached = readCachedMessages(user.id, convoId);
       if (cached.length > 0) setMessages(toChatMessages(cached));
 
       const { data, error } = await supabase
@@ -313,9 +311,16 @@ export function useChatHistory() {
         }))
       );
 
+      // Never wipe a visible conversation because of an empty/partial read.
+      if (storedMessages.length === 0 && cached.length > 0) {
+        setMessages(toChatMessages(cached));
+        return;
+      }
+
       writeCachedMessages(user.id, convoId, storedMessages);
       if (token !== loadTokenRef.current) return;
       setMessages(toChatMessages(storedMessages));
+
     } else {
       const guestMessages = readGuestMessages().filter((message) => message.conversation_id === convoId);
       if (token !== loadTokenRef.current) return;
