@@ -292,12 +292,10 @@ const ContactChatPage = () => {
       if (user) {
         await (supabase.from("streamer_contacts" as any).update({
           last_message: suggestion.message.slice(0, 100),
-          conversation_type: suggestionsPersona === "friend" ? "friend_chat" : "promotion",
         }).eq("id", contactId) as any);
       } else if (contactId) {
         guestStorage.contacts.update(contactId, {
           last_message: suggestion.message.slice(0, 100),
-          conversation_type: suggestionsPersona === "friend" ? "friend_chat" : "promotion",
         });
       }
       toast.success("Reply selected! Copy it and send to the streamer.");
