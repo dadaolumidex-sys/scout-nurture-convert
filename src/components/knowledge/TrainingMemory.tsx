@@ -186,12 +186,15 @@ export function TrainingMemory() {
 
       {/* Persona tabs */}
       <Tabs value={personaTab} onValueChange={setPersonaTab}>
-         <TabsList className="bg-muted border border-border">
+         <TabsList className="bg-muted border border-border flex-wrap h-auto">
           <TabsTrigger value="nifimas" className="data-[state=active]:bg-secondary/10 data-[state=active]:text-secondary">
             🤝 Nifimas (Friend)
           </TabsTrigger>
           <TabsTrigger value="brozeen" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
             💼 Brozeen (Promoter)
+          </TabsTrigger>
+          <TabsTrigger value="bigstreamer" className="data-[state=active]:bg-info/10 data-[state=active]:text-info">
+            🎤 Big Streamer
           </TabsTrigger>
         </TabsList>
 
