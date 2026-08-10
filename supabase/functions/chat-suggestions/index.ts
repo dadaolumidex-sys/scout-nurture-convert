@@ -233,7 +233,7 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + KNOWLEDGE_GUARDRAIL;
+    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + modeRules + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + KNOWLEDGE_GUARDRAIL;
 
     const response = await callAI({
       model: "google/gemini-3-flash-preview",
