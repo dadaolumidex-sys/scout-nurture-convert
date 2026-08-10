@@ -567,7 +567,8 @@ export function useChatHistory() {
     loadTokenRef.current++;
     setActiveId(null);
 
-    writeActiveConversation(user?.id, null);
+    writeActiveConversation(user?.id, "new");
+
     setMessages([]);
   }, [user]);
 
