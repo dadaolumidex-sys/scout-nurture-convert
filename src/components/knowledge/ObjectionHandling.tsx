@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
 import { DEFAULT_OBJECTION_PAIRS } from "@/lib/defaultObjections";
+import { callEdgeFunction } from "@/lib/edgeFunction";
 
 
 type Insight = { category: string; insight: string };
@@ -34,8 +35,6 @@ const personas = [
   { value: "nifimas", label: "🤝 Nifimas (Friend)" },
   { value: "brozeen", label: "💼 Brozeen (Promoter)" },
 ];
-
-const ANALYZE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-knowledge`;
 
 export function ObjectionHandling() {
   const { user } = useAuth();
@@ -159,27 +158,15 @@ export function ObjectionHandling() {
     let extracted = content;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      const resp = await fetch(ANALYZE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-        body: JSON.stringify({
-          content: mode === "url" ? "" : content,
-          url: mode === "url" ? url : undefined,
-          fileData: mode === "file" && fileData ? fileData : undefined,
-          fileName: mode === "file" && fileData ? fileName : undefined,
-          fileMime: mode === "file" && fileData ? fileMime : undefined,
-          type: "objection",
-          persona,
-        }),
+      const data = await callEdgeFunction<{ result?: string; extractedContent?: string }>("analyze-knowledge", {
+        content: mode === "url" ? "" : content,
+        url: mode === "url" ? url : undefined,
+        fileData: mode === "file" && fileData ? fileData : undefined,
+        fileName: mode === "file" && fileData ? fileName : undefined,
+        fileMime: mode === "file" && fileData ? fileMime : undefined,
+        type: "objection",
+        persona,
       });
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        toast.error(data.error || "Couldn't analyze that source");
-        setSaving(false);
-        return;
-      }
       if (data.extractedContent) extracted = data.extractedContent;
       try {
         const cleaned = String(data.result || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -194,7 +181,7 @@ export function ObjectionHandling() {
       }
     } catch (e) {
       console.error(e);
-      toast.error("Analysis failed");
+      toast.error(e instanceof Error ? e.message : "Analysis failed");
       setSaving(false);
       return;
     }

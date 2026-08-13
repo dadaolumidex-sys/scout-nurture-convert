@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
+import { callEdgeFunction } from "@/lib/edgeFunction";
 
 type TrainingConvo = {
   id: string;
@@ -22,8 +23,6 @@ type TrainingConvo = {
   status: string;
   created_at: string;
 };
-
-const ANALYZE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-knowledge`;
 
 export function TrainingMemory() {
   const { user } = useAuth();
@@ -67,24 +66,21 @@ export function TrainingMemory() {
     let styleAnalysis: string | null = null;
 
     try {
-      const resp = await fetch(ANALYZE_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: JSON.stringify({ content, type: "training", persona: personaTab }),
+      const data = await callEdgeFunction<{ result?: string }>("analyze-knowledge", {
+        content,
+        type: "training",
+        persona: personaTab,
       });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        styleAnalysis = data.result || null;
-      }
+      styleAnalysis = data.result?.trim() || null;
+      if (!styleAnalysis) throw new Error("The AI returned no style analysis. Please try again.");
     } catch (e) {
       console.error("Analysis error:", e);
+      toast.error(e instanceof Error ? e.message : "Couldn't analyze this conversation");
+      setAnalyzing(false);
+      return;
     }
 
-    const nextStatus = styleAnalysis ? "ready" : "pending";
+    const nextStatus = "ready";
     const { error } = user
       ? await supabase.from("training_conversations").insert({
           title,

@@ -60,12 +60,15 @@ const InboxPage = () => {
   const [chatHistory, setChatHistory] = useState("");
   const [chatImages, setChatImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     loadContacts();
   }, [user?.id]);
 
   const loadContacts = async () => {
+    setLoading(true);
+    setLoadError(null);
     if (!user) {
       setContacts(guestStorage.contacts.list());
       setLoading(false);
@@ -75,6 +78,8 @@ const InboxPage = () => {
     const { data, error } = await (supabase.from("streamer_contacts" as any).select("*").order("created_at", { ascending: false }) as any);
     if (error) {
       console.error("Failed to load contacts:", error);
+      setLoadError(error.message || "The inbox could not be loaded.");
+      toast.error(error.message || "Failed to load inbox");
     } else {
       setContacts(data || []);
     }
@@ -363,6 +368,19 @@ const InboxPage = () => {
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Reminders */}
+        {loadError && (
+          <Card className="border-destructive/40 bg-destructive/5">
+            <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-destructive">Inbox could not load</p>
+                <p className="text-xs text-muted-foreground mt-1">{loadError}</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadContacts}>Try again</Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Reminders */}
         <RemindersPanel contacts={contacts.map(c => ({ id: c.id, username: c.username, display_name: c.display_name }))} />

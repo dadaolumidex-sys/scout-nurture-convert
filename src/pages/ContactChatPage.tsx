@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
 import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
 import { compressImageFile } from "@/lib/imageCompress";
+import { callEdgeFunction } from "@/lib/edgeFunction";
 
 
 
@@ -50,8 +51,6 @@ type ChatMessage = {
 type Persona = "friend" | "promoter" | "streamer";
 type Suggestion = { message: string; reason: string; approach: string };
 
-const SUGGESTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-suggestions`;
-
 const personaConfig = {
   friend: { name: "Nifimas", emoji: "🤝", label: "Friend", badgeClass: "border-secondary/50 bg-secondary/10 text-secondary" },
   promoter: { name: "Brozeen", emoji: "💼", label: "Promoter", badgeClass: "border-primary/50 bg-primary/10 text-primary" },
@@ -75,6 +74,7 @@ const ContactChatPage = () => {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(null);
   const [suggestionsPersona, setSuggestionsPersona] = useState<Persona | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -102,13 +102,19 @@ const ContactChatPage = () => {
 
   const loadContact = async () => {
     if (!contactId) return;
+    setLoadError(null);
 
     if (!user) {
       setContact(guestStorage.contacts.get(contactId) as Contact | null);
       return;
     }
 
-    const { data } = await (supabase.from("streamer_contacts" as any).select("*").eq("id", contactId).single() as any);
+    const { data, error } = await (supabase.from("streamer_contacts" as any).select("*").eq("id", contactId).single() as any);
+    if (error) {
+      console.error("Failed to load contact:", error);
+      setLoadError(error.message || "This conversation could not be loaded.");
+      return;
+    }
     if (data) setContact(data);
   };
 
@@ -120,7 +126,12 @@ const ContactChatPage = () => {
       return;
     }
 
-    const { data } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
+    const { data, error } = await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any);
+    if (error) {
+      console.error("Failed to load conversation messages:", error);
+      setLoadError(error.message || "Conversation messages could not be loaded.");
+      return;
+    }
     if (data) setMessages(data);
   };
 
@@ -232,31 +243,19 @@ const ContactChatPage = () => {
       : "";
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-      const resp = await fetch(SUGGESTIONS_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({ messages: recentMessages, persona: targetPersona, contactContext, conversationType: contact?.conversation_type || "new_prospect", knowledge: user ? [] : guestStorage.knowledge.list() }),
+      const data = await callEdgeFunction<{ suggestions?: Suggestion[] }>("chat-suggestions", {
+        messages: recentMessages,
+        persona: targetPersona,
+        contactContext,
+        conversationType: contact?.conversation_type || "new_prospect",
+        knowledge: user ? [] : guestStorage.knowledge.list(),
       });
-
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({ error: "Request failed" }));
-        toast.error(err.error || `Error ${resp.status}`);
-        setLoading(false);
-        return;
-      }
-
-      const data = await resp.json();
-      setSuggestions(data.suggestions || []);
+      const nextSuggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
+      if (nextSuggestions.length === 0) throw new Error("The AI returned no reply suggestions. Please try again.");
+      setSuggestions(nextSuggestions);
     } catch (e) {
       console.error(e);
-      toast.error("Failed to generate suggestions");
+      toast.error(e instanceof Error ? e.message : "Failed to generate suggestions");
     }
     setLoading(false);
   };
@@ -362,7 +361,20 @@ const ContactChatPage = () => {
   if (!contact) {
     return (
       <DashboardLayout>
-        <div className="flex items-center justify-center h-full text-muted-foreground">Loading...</div>
+        <div className="flex flex-col items-center justify-center h-full text-center gap-3 px-4">
+          {loadError ? (
+            <>
+              <p className="font-semibold text-destructive">Conversation could not load</p>
+              <p className="text-sm text-muted-foreground max-w-lg">{loadError}</p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => navigate("/inbox")}>Back to inbox</Button>
+                <Button onClick={() => { void loadContact(); void loadMessages(); }}>Try again</Button>
+              </div>
+            </>
+          ) : (
+            <div className="text-muted-foreground">Loading...</div>
+          )}
+        </div>
       </DashboardLayout>
     );
   }

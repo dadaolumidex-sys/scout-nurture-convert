@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
+import { callEdgeFunction } from "@/lib/edgeFunction";
 
 type Insight = { category: string; insight: string };
 type KnowledgeEntry = {
@@ -33,8 +34,6 @@ const personas = [
   { value: "brozeen", label: "💼 Brozeen (Promoter)" },
   { value: "bigstreamer", label: "🎤 Big Streamer (Closer)" },
 ];
-
-const ANALYZE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-knowledge`;
 
 export function KnowledgeBase() {
   const { user } = useAuth();
@@ -88,29 +87,12 @@ export function KnowledgeBase() {
     let entryContent = dialogMode === "url" ? `URL: ${url}` : content;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-      const resp = await fetch(ANALYZE_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({
-          content: dialogMode === "url" ? "" : content,
-          url: dialogMode === "url" ? url : undefined,
-          type: "knowledge",
-          persona,
-        }),
+      const data = await callEdgeFunction<{ result?: string; extractedContent?: string }>("analyze-knowledge", {
+        content: dialogMode === "url" ? "" : content,
+        url: dialogMode === "url" ? url : undefined,
+        type: "knowledge",
+        persona,
       });
-
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok) {
-        toast.error(data.error || "Couldn't analyze that source");
-        setAnalyzing(false);
-        return;
-      }
       if (data.extractedContent) entryContent = data.extractedContent;
       try {
         const cleaned = String(data.result || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
@@ -118,8 +100,14 @@ export function KnowledgeBase() {
       } catch {
         console.warn("Could not parse insights:", data.result);
       }
+      if (insights.length === 0) {
+        throw new Error("The AI returned no usable insights. Please try again or paste more detailed text.");
+      }
     } catch (e) {
       console.error("Analysis error:", e);
+      toast.error(e instanceof Error ? e.message : "Couldn't analyze that source");
+      setAnalyzing(false);
+      return;
     }
 
 
