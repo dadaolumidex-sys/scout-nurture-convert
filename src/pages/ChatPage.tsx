@@ -67,7 +67,7 @@ async function streamChat({
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
-  const timeout = window.setTimeout(() => controller.abort(), 120_000);
+  const timeout = window.setTimeout(() => controller.abort(), deepResearch ? 90_000 : 55_000);
   let resp: Response;
   try {
     resp = await fetch(CHAT_URL, {
@@ -215,19 +215,19 @@ const ChatPage = () => {
 
     setImageLoading(true);
     try {
-      const accepted = list.slice(0, 10);
-      if (list.length > accepted.length) toast.info("You can analyze up to 10 images at once");
+      const accepted = list.slice(0, 3);
+      if (list.length > accepted.length) toast.info("You can analyze up to 3 images at once");
       const prepared: string[] = [];
       for (const file of accepted) {
         if (file.size > 20 * 1024 * 1024) { toast.error(`${file.name} is over 20MB`); continue; }
         try {
           const compressed = await compressImageFile(file);
           prepared.push(compressed);
-        } catch {
-          toast.error(`Couldn't read ${file.name}`);
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : `Couldn't read ${file.name}`);
         }
       }
-      if (prepared.length > 0) setPendingImages((prev) => [...prev, ...prepared].slice(0, 10));
+      if (prepared.length > 0) setPendingImages((prev) => [...prev, ...prepared].slice(0, 3));
     } finally {
       setImageLoading(false);
     }

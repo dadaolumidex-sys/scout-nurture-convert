@@ -40,7 +40,8 @@ const DEEP_RESEARCH_SUFFIX = `
 
 IMPORTANT: Deep Research mode is ON. Provide an extremely thorough, detailed answer with multiple perspectives, examples, step-by-step breakdowns, and actionable recommendations.`;
 
-const MAX_CONTEXT_MESSAGES = 60;
+const MAX_CONTEXT_MESSAGES = 30;
+const PROVIDER_TIMEOUT_MS = 18_000;
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
@@ -81,6 +82,7 @@ async function callLovable(body: Record<string, unknown>, key: string) {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
 }
 
@@ -89,6 +91,7 @@ async function callOpenAI(body: Record<string, unknown>, key: string, deep: bool
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ ...body, model: deep ? "gpt-4o" : "gpt-4o-mini" }),
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
 }
 
@@ -98,6 +101,7 @@ async function callGemini(body: Record<string, unknown>, key: string, model: str
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ ...body, model: geminiModel }),
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
 }
 
@@ -113,6 +117,7 @@ async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({ ...body, model: m }),
+        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
       });
       if (r.ok) return { ok: true as const, response: r };
       lastErr = `${m}:${r.status}`;
@@ -160,9 +165,17 @@ serve(async (req) => {
         const token = authHeader.replace("Bearer ", "");
         const { data: { user } } = await sb.auth.getUser(token);
         if (user) {
-          const { data: settings } = await sb.from("user_settings").select("gemini_api_key, openai_api_key").eq("user_id", user.id).single();
-          if (settings?.gemini_api_key) userKeys.gemini = settings.gemini_api_key;
-          if (settings?.openai_api_key) userKeys.openai = settings.openai_api_key;
+          const { data: keyRows } = await sb.from("api_keys")
+            .select("provider, api_key")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .in("provider", ["gemini", "openai"])
+            .order("failure_count", { ascending: true })
+            .order("last_used_at", { ascending: true, nullsFirst: true });
+          for (const row of keyRows || []) {
+            if (row.provider === "gemini" && !userKeys.gemini && row.api_key?.trim()) userKeys.gemini = row.api_key.trim();
+            if (row.provider === "openai" && !userKeys.openai && row.api_key?.trim()) userKeys.openai = row.api_key.trim();
+          }
           const { data: kn } = await sb.from("knowledge_entries")
             .select("title, content, category, insights")
             .eq("user_id", user.id)
@@ -195,16 +208,15 @@ serve(async (req) => {
     let response: Response | null = null;
     let lastErr = "";
 
-    // 1. Lovable AI
-    if (LOVABLE_API_KEY) {
-      try {
-        const r = await callLovable(body, LOVABLE_API_KEY);
-        if (r.ok) response = r;
-        else { lastErr = `Lovable ${r.status}`; await r.body?.cancel(); console.log("Lovable failed:", r.status); }
-      } catch (e) { console.error("Lovable err:", e); }
+    // 1. Prefer the user's Gemini key: Flash is the fastest path and supports images.
+    const geminiKey = userKeys.gemini || ENV_GEMINI_KEY;
+    if (geminiKey) {
+      const result = await tryGeminiWithFallbacks(body, geminiKey, model);
+      if (result.ok) response = result.response;
+      else lastErr = `Gemini ${result.error}`;
     }
 
-    // 2. OpenAI fallback
+    // 2. User OpenAI fallback.
     if (!response && userKeys.openai) {
       try {
         const r = await callOpenAI(body, userKeys.openai, isDeepResearch);
@@ -213,12 +225,14 @@ serve(async (req) => {
       } catch (e) { console.error("OpenAI err:", e); }
     }
 
-    // 3. Gemini fallback (with model fallback chain)
-    const geminiKey = userKeys.gemini || ENV_GEMINI_KEY;
-    if (!response && geminiKey) {
-      const result = await tryGeminiWithFallbacks(body, geminiKey, model);
-      if (result.ok) response = result.response;
-      else lastErr = `Gemini ${result.error}`;
+    // 3. Shared Lovable gateway is the last fallback, so a slow shared
+    // allowance never delays users who supplied their own provider key.
+    if (!response && LOVABLE_API_KEY) {
+      try {
+        const r = await callLovable(body, LOVABLE_API_KEY);
+        if (r.ok) response = r;
+        else { lastErr = `Lovable ${r.status}`; await r.body?.cancel(); console.log("Lovable failed:", r.status); }
+      } catch (e) { console.error("Lovable err:", e); lastErr = "Lovable timeout"; }
     }
 
     if (!response) {

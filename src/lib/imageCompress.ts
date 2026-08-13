@@ -8,13 +8,16 @@
  */
 export async function compressImageFile(
   file: File,
-  maxDimension = 768,
-  quality = 0.56
+  maxDimension = 640,
+  quality = 0.5
 ): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error("Unsupported image file");
+  if (/heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)) {
+    throw new Error("HEIC images are not supported. Use JPG, PNG, or WebP.");
+  }
   const dataUrl = await readFileAsDataUrl(file);
 
-  // Non-raster formats (svg, heic fallbacks) just pass through.
-  if (!file.type.startsWith("image/") || file.type === "image/svg+xml") return dataUrl;
+  if (file.type === "image/svg+xml") throw new Error("SVG images are not supported. Use JPG, PNG, or WebP.");
 
   try {
     const img = await loadImage(dataUrl);
@@ -26,13 +29,13 @@ export async function compressImageFile(
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return dataUrl;
+    if (!ctx) throw new Error("Could not prepare image");
     ctx.drawImage(img, 0, 0, width, height);
 
     const out = canvas.toDataURL("image/jpeg", quality);
     return out.length < dataUrl.length ? out : dataUrl;
-  } catch {
-    return dataUrl;
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("Could not prepare image");
   }
 }
 
