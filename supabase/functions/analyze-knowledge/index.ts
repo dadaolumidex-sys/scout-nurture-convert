@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,6 +10,112 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-3-flash-preview": "gemini-2.5-flash",
 };
 const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"];
+const YOUTUBE_TRANSCRIPT_ACTOR = "api-ninja~youtube-transcript-scraper";
+
+type ApifyCandidate = { id: string | null; key: string };
+
+function isYouTubeUrl(value: string): boolean {
+  try {
+    const host = new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+    return host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com");
+  } catch {
+    return false;
+  }
+}
+
+async function loadApifyCandidates(req: Request): Promise<ApifyCandidate[]> {
+  const candidates: ApifyCandidate[] = [];
+  try {
+    const authHeader = req.headers.get("authorization");
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (authHeader && supabaseUrl && serviceKey) {
+      const admin = createClient(supabaseUrl, serviceKey);
+      const token = authHeader.replace(/^Bearer\s+/i, "");
+      const { data: { user } } = await admin.auth.getUser(token);
+      if (user) {
+        const { data: rows, error } = await admin
+          .from("api_keys")
+          .select("id, api_key")
+          .eq("user_id", user.id)
+          .eq("provider", "apify")
+          .eq("is_active", true)
+          .order("failure_count", { ascending: true })
+          .order("last_used_at", { ascending: true, nullsFirst: true });
+        if (error) console.error("Could not load saved Apify keys:", error.message);
+        for (const row of rows || []) {
+          if (row.api_key?.trim()) candidates.push({ id: row.id, key: row.api_key.trim() });
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Could not authenticate saved Apify keys:", error);
+  }
+
+  const envKey = Deno.env.get("APIFY_API_KEY")?.trim();
+  if (envKey && !candidates.some((candidate) => candidate.key === envKey)) {
+    candidates.push({ id: null, key: envKey });
+  }
+  return candidates;
+}
+
+function transcriptFromItem(item: Record<string, unknown>): string {
+  const directFields = ["transcriptText", "transcript", "text", "content", "captions"];
+  for (const field of directFields) {
+    const value = item[field];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (Array.isArray(value)) {
+      const lines = value.map((part) => {
+        if (typeof part === "string") return part;
+        if (part && typeof part === "object") {
+          const row = part as Record<string, unknown>;
+          return String(row.text || row.content || row.caption || "").trim();
+        }
+        return "";
+      }).filter(Boolean);
+      if (lines.length) return lines.join(" ");
+    }
+  }
+  return "";
+}
+
+async function fetchYouTubeTranscript(req: Request, videoUrl: string): Promise<string> {
+  const candidates = await loadApifyCandidates(req);
+  if (candidates.length === 0) {
+    throw new Error("Add an active Apify key in Settings → API & Connections to extract YouTube transcripts.");
+  }
+
+  const failures: string[] = [];
+  for (const candidate of candidates) {
+    try {
+      const endpoint = `https://api.apify.com/v2/acts/${YOUTUBE_TRANSCRIPT_ACTOR}/run-sync-get-dataset-items?token=${encodeURIComponent(candidate.key)}&timeout=35`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls: [videoUrl], language: "en" }),
+      });
+      if (!response.ok) {
+        failures.push(`${response.status}`);
+        console.error("YouTube transcript actor failed", candidate.id, response.status, (await response.text()).slice(0, 300));
+        continue;
+      }
+
+      const items = await response.json();
+      const item = Array.isArray(items) ? items[0] : items;
+      if (item && typeof item === "object") {
+        const transcript = transcriptFromItem(item as Record<string, unknown>);
+        if (transcript) {
+          const title = String((item as Record<string, unknown>).title || "YouTube video");
+          return `Title: ${title}\n\nTranscript:\n${transcript}`.slice(0, 24000);
+        }
+      }
+      failures.push("empty transcript");
+    } catch (error) {
+      failures.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  throw new Error(`YouTube transcript extraction failed (${failures.join(", ")}). Check that the video has captions and try again.`);
+}
 
 async function callAI(body: Record<string, unknown>): Promise<Response> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -115,9 +222,21 @@ serve(async (req) => {
     // If a URL was provided, fetch its content first.
     let sourceText: string = typeof content === "string" ? content : "";
     if (typeof url === "string" && url.trim()) {
-      const fetched = await fetchUrlContent(url.trim());
+      const normalizedUrl = url.trim();
+      let fetched = "";
+      if (isYouTubeUrl(normalizedUrl)) {
+        try {
+          fetched = await fetchYouTubeTranscript(req, normalizedUrl);
+        } catch (error) {
+          return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "YouTube extraction failed." }), {
+            status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } else {
+        fetched = await fetchUrlContent(normalizedUrl);
+      }
       if (fetched) {
-        sourceText = `${sourceText ? sourceText + "\n\n" : ""}Source URL: ${url}\n\n${fetched}`;
+        sourceText = `${sourceText ? sourceText + "\n\n" : ""}Source URL: ${normalizedUrl}\n\n${fetched}`;
       } else if (!sourceText) {
         return new Response(
           JSON.stringify({
