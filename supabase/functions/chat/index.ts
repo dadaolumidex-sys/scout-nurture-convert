@@ -41,16 +41,16 @@ const DEEP_RESEARCH_SUFFIX = `
 IMPORTANT: Deep Research mode is ON. Provide an extremely thorough, detailed answer with multiple perspectives, examples, step-by-step breakdowns, and actionable recommendations.`;
 
 const MAX_CONTEXT_MESSAGES = 30;
-const PROVIDER_TIMEOUT_MS = 18_000;
+const PROVIDER_TIMEOUT_MS = 10_000;
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
+type ProviderKey = { id: string | null; key: string; provider: "gemini" | "openai" };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-3-flash-preview": "gemini-2.5-flash",
   "google/gemini-2.5-pro": "gemini-2.5-pro",
 };
-const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"];
 
 function normalizeMessages(rawMessages: unknown): ChatMessage[] {
   if (!Array.isArray(rawMessages)) return [];
@@ -95,18 +95,9 @@ async function callOpenAI(body: Record<string, unknown>, key: string, deep: bool
   });
 }
 
-async function callGemini(body: Record<string, unknown>, key: string, model: string) {
-  const geminiModel = GEMINI_MODEL_MAP[model] || "gemini-2.5-flash";
-  return await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ ...body, model: geminiModel }),
-    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
-  });
-}
-
 async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string) {
-  const models = [GEMINI_MODEL_MAP[primaryModel] || "gemini-2.5-flash", ...GEMINI_FALLBACK_MODELS];
+  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-2.5-flash";
+  const models = primary.includes("pro") ? [primary, "gemini-2.5-flash"] : [primary];
   const tried = new Set<string>();
   let lastErr = "";
   for (const m of models) {
@@ -153,28 +144,30 @@ serve(async (req) => {
     }
 
     // Get user's API keys (fallback chain) and their saved knowledge / objection playbook.
-    let userKeys: { gemini?: string; openai?: string } = {};
+    const userKeys: { gemini: ProviderKey[]; openai: ProviderKey[] } = { gemini: [], openai: [] };
+    let adminClient: ReturnType<typeof createClient> | null = null;
     let dbKnowledge: KnowledgeEntry[] = [];
     const personaKey = persona === "promoter" ? "brozeen" : "nifimas";
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const sb = createClient(supabaseUrl, supabaseKey);
+      adminClient = sb;
       const authHeader = req.headers.get("authorization");
       if (authHeader) {
         const token = authHeader.replace("Bearer ", "");
         const { data: { user } } = await sb.auth.getUser(token);
         if (user) {
           const { data: keyRows } = await sb.from("api_keys")
-            .select("provider, api_key")
+            .select("id, provider, api_key")
             .eq("user_id", user.id)
             .eq("is_active", true)
             .in("provider", ["gemini", "openai"])
             .order("failure_count", { ascending: true })
             .order("last_used_at", { ascending: true, nullsFirst: true });
           for (const row of keyRows || []) {
-            if (row.provider === "gemini" && !userKeys.gemini && row.api_key?.trim()) userKeys.gemini = row.api_key.trim();
-            if (row.provider === "openai" && !userKeys.openai && row.api_key?.trim()) userKeys.openai = row.api_key.trim();
+            if (row.provider === "gemini" && row.api_key?.trim()) userKeys.gemini.push({ id: row.id, key: row.api_key.trim(), provider: "gemini" });
+            if (row.provider === "openai" && row.api_key?.trim()) userKeys.openai.push({ id: row.id, key: row.api_key.trim(), provider: "openai" });
           }
           const { data: kn } = await sb.from("knowledge_entries")
             .select("title, content, category, insights")
@@ -208,21 +201,61 @@ serve(async (req) => {
     let response: Response | null = null;
     let lastErr = "";
 
-    // 1. Prefer the user's Gemini key: Flash is the fastest path and supports images.
-    const geminiKey = userKeys.gemini || ENV_GEMINI_KEY;
-    if (geminiKey) {
-      const result = await tryGeminiWithFallbacks(body, geminiKey, model);
-      if (result.ok) response = result.response;
-      else lastErr = `Gemini ${result.error}`;
+    const recordKeyResult = async (candidate: ProviderKey, ok: boolean, error = "") => {
+      if (!adminClient || !candidate.id) return;
+      try {
+        if (ok) {
+          await adminClient.from("api_keys").update({
+            failure_count: 0, last_error: null, last_used_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+          }).eq("id", candidate.id);
+          return;
+        }
+        const { data } = await adminClient.from("api_keys").select("failure_count").eq("id", candidate.id).single();
+        const failures = Number(data?.failure_count || 0) + 1;
+        await adminClient.from("api_keys").update({
+          failure_count: failures,
+          last_error: error.slice(0, 300),
+          updated_at: new Date().toISOString(),
+        }).eq("id", candidate.id);
+      } catch (updateError) {
+        console.error("Could not update API key health:", updateError);
+      }
+    };
+
+    // 1. Rotate through every active Gemini key. The healthiest/least recently
+    // used key is first because the database query above orders it that way.
+    const geminiCandidates: ProviderKey[] = [...userKeys.gemini];
+    if (ENV_GEMINI_KEY && !geminiCandidates.some((candidate) => candidate.key === ENV_GEMINI_KEY)) {
+      geminiCandidates.push({ id: null, key: ENV_GEMINI_KEY, provider: "gemini" });
+    }
+    for (const candidate of geminiCandidates) {
+      const result = await tryGeminiWithFallbacks(body, candidate.key, model);
+      if (result.ok) {
+        response = result.response;
+        await recordKeyResult(candidate, true);
+        break;
+      }
+      lastErr = `Gemini ${result.error}`;
+      await recordKeyResult(candidate, false, lastErr);
     }
 
-    // 2. User OpenAI fallback.
-    if (!response && userKeys.openai) {
+    // 2. Rotate through every active OpenAI key.
+    for (const candidate of response ? [] : userKeys.openai) {
       try {
-        const r = await callOpenAI(body, userKeys.openai, isDeepResearch);
-        if (r.ok) response = r;
-        else { lastErr = `OpenAI ${r.status}`; await r.body?.cancel(); }
-      } catch (e) { console.error("OpenAI err:", e); }
+        const r = await callOpenAI(body, candidate.key, isDeepResearch);
+        if (r.ok) {
+          response = r;
+          await recordKeyResult(candidate, true);
+          break;
+        }
+        lastErr = `OpenAI ${r.status}`;
+        await r.body?.cancel();
+        await recordKeyResult(candidate, false, lastErr);
+      } catch (e) {
+        lastErr = "OpenAI timeout";
+        console.error("OpenAI err:", e);
+        await recordKeyResult(candidate, false, lastErr);
+      }
     }
 
     // 3. Shared Lovable gateway is the last fallback, so a slow shared
@@ -236,7 +269,7 @@ serve(async (req) => {
     }
 
     if (!response) {
-      const hasUserKey = Boolean(userKeys.openai || userKeys.gemini);
+      const hasUserKey = userKeys.openai.length > 0 || userKeys.gemini.length > 0;
       const isCredit = lastErr.includes("402") || lastErr.includes("429");
       const isRejected = lastErr.includes("401") || lastErr.includes("403");
       // code lets the UI show an actionable banner (add-key CTA)
