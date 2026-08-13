@@ -38,9 +38,9 @@ Your job:
 
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-3-flash-preview": "gemini-2.5-flash",
+  "google/gemini-3.6-flash": "gemini-3.6-flash",
 };
-const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"];
+const GEMINI_FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
 
 async function callOpenAISuggestions(body: Record<string, unknown>, openaiKey: string): Promise<Response> {
   return await fetch("https://api.openai.com/v1/chat/completions", {
@@ -82,8 +82,8 @@ async function callAI(body: Record<string, unknown>, keys: { gemini?: string; op
   // 3. Try Gemini
   const geminiKey = keys.gemini || Deno.env.get("GEMINI_API_KEY");
   if (geminiKey) {
-    const lovableModel = (body.model as string) || "google/gemini-3-flash-preview";
-    const models = [GEMINI_MODEL_MAP[lovableModel] || "gemini-2.5-flash", ...GEMINI_FALLBACK_MODELS];
+    const lovableModel = (body.model as string) || "google/gemini-3.6-flash";
+    const models = [GEMINI_MODEL_MAP[lovableModel] || "gemini-3.6-flash", ...GEMINI_FALLBACK_MODELS];
     const tried = new Set<string>();
     let lastResponse: Response | null = null;
     for (const geminiModel of models) {
@@ -236,7 +236,7 @@ serve(async (req) => {
     const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + modeRules + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + KNOWLEDGE_GUARDRAIL;
 
     const response = await callAI({
-      model: "google/gemini-3-flash-preview",
+      model: "google/gemini-3.6-flash",
       messages: [
         { role: "system", content: systemPrompt },
         ...preparedMessages,

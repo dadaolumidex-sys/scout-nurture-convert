@@ -28,7 +28,7 @@ async function callGemini(body: Record<string, unknown>, key: string) {
   return await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ ...body, model: "gemini-2.5-flash" }),
+    body: JSON.stringify({ ...body, model: "gemini-3.6-flash" }),
   });
 }
 
@@ -75,7 +75,7 @@ serve(async (req) => {
     const lovable = Deno.env.get("LOVABLE_API_KEY");
     const envGemini = Deno.env.get("GEMINI_API_KEY");
 
-    const body = { messages, model: "google/gemini-3-flash-preview", response_format: { type: "json_object" } };
+    const body = { messages, model: "google/gemini-3.6-flash", response_format: { type: "json_object" } };
     let text = "";
     let r: Response | null = null;
     if (lovable) {

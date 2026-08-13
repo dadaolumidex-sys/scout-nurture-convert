@@ -41,15 +41,16 @@ const DEEP_RESEARCH_SUFFIX = `
 IMPORTANT: Deep Research mode is ON. Provide an extremely thorough, detailed answer with multiple perspectives, examples, step-by-step breakdowns, and actionable recommendations.`;
 
 const MAX_CONTEXT_MESSAGES = 30;
-const PROVIDER_TIMEOUT_MS = 10_000;
+const PROVIDER_TIMEOUT_MS = 15_000;
+const CHAT_FUNCTION_VERSION = "gemini-3-rotation-v3";
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
 type ProviderKey = { id: string | null; key: string; provider: "gemini" | "openai" };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
-  "google/gemini-3-flash-preview": "gemini-2.5-flash",
-  "google/gemini-2.5-pro": "gemini-2.5-pro",
+  "google/gemini-3.6-flash": "gemini-3.6-flash",
+  "google/gemini-3.5-flash": "gemini-3.5-flash",
 };
 
 function normalizeMessages(rawMessages: unknown): ChatMessage[] {
@@ -96,8 +97,11 @@ async function callOpenAI(body: Record<string, unknown>, key: string, deep: bool
 }
 
 async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string) {
-  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-2.5-flash";
-  const models = primary.includes("pro") ? [primary, "gemini-2.5-flash"] : [primary];
+  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.6-flash";
+  // Current stable multimodal models first. The latest alias and 2.5 are kept
+  // only as compatibility fallbacks for projects whose Google account has not
+  // received the newest model rollout yet.
+  const models = [primary, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
   const tried = new Set<string>();
   let lastErr = "";
   for (const m of models) {
@@ -190,7 +194,7 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const ENV_GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
-    const model = isDeepResearch ? "google/gemini-2.5-pro" : "google/gemini-3-flash-preview";
+    const model = isDeepResearch ? "google/gemini-3.5-flash" : "google/gemini-3.6-flash";
 
     const body = {
       model,
@@ -298,7 +302,7 @@ serve(async (req) => {
     }
 
     return new Response(response.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-StreamScout-Chat-Version": CHAT_FUNCTION_VERSION },
     });
   } catch (e) {
     console.error("chat error:", e);

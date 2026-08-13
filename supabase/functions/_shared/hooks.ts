@@ -65,7 +65,7 @@ async function callModel(body: Record<string, unknown>): Promise<Response | null
   }
   const geminiKey = Deno.env.get("GEMINI_API_KEY");
   if (geminiKey) {
-    for (const model of ["gemini-2.5-flash", "gemini-flash-latest"]) {
+    for (const model of ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"]) {
       try {
         const r = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
           method: "POST",
@@ -96,7 +96,7 @@ Opportunities: ${stats.opportunities.join("; ") || "none noted"}`;
 
   try {
     const response = await callModel({
-      model: "google/gemini-3-flash-preview",
+      model: "google/gemini-3.6-flash",
       messages: [
         { role: "system", content: SYSTEM },
         {
