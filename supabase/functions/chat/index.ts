@@ -75,7 +75,29 @@ function normalizeMessages(rawMessages: unknown): ChatMessage[] {
       return null;
     })
     .filter(Boolean) as ChatMessage[];
-  return normalized.slice(-MAX_CONTEXT_MESSAGES);
+  const recent = normalized.slice(-MAX_CONTEXT_MESSAGES);
+
+  // Re-sending every historical base64 screenshot makes each later request
+  // progressively larger and can cause image chats to appear stuck or time out.
+  // Keep visual data only on the newest user message that contains an image;
+  // older screenshots remain represented by their accompanying text.
+  let newestImageMessage = -1;
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const message = recent[i];
+    if (message.role === "user" && Array.isArray(message.content) && message.content.some((part) => part.type === "image_url")) {
+      newestImageMessage = i;
+      break;
+    }
+  }
+
+  return recent.map((message, index) => {
+    if (!Array.isArray(message.content) || index === newestImageMessage) return message;
+    const textParts = message.content.filter((part) => part.type === "text");
+    return {
+      ...message,
+      content: textParts.length ? textParts : [{ type: "text", text: "[Earlier screenshot omitted]" }],
+    };
+  });
 }
 
 async function callLovable(body: Record<string, unknown>, key: string) {
@@ -200,6 +222,7 @@ serve(async (req) => {
       model,
       messages: [{ role: "system", content: systemPrompt }, ...safeMessages],
       stream: true,
+      max_tokens: isDeepResearch ? 3000 : 900,
     };
 
     let response: Response | null = null;
