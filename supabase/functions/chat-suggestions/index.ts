@@ -41,74 +41,75 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-3.6-flash": "gemini-3.6-flash",
 };
 const GEMINI_FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
+const PROVIDER_TIMEOUT_MS = 12_000;
+
+type ProviderKey = { id: string | null; key: string; provider: "gemini" | "openai" };
 
 async function callOpenAISuggestions(body: Record<string, unknown>, openaiKey: string): Promise<Response> {
   return await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${openaiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ ...body, model: "gpt-4o-mini" }),
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
   });
 }
 
-async function callAI(body: Record<string, unknown>, keys: { gemini?: string; openai?: string }): Promise<Response> {
+async function callAI(body: Record<string, unknown>, keys: { gemini: ProviderKey[]; openai: ProviderKey[] }): Promise<Response> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-  // 1. Try Lovable AI
-  if (LOVABLE_API_KEY && !keys.openai && !keys.gemini) {
-    try {
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (response.status !== 402 && response.status !== 429) return response;
-      console.log(`Lovable AI returned ${response.status}, falling back...`);
-    } catch (e) {
-      console.error("Lovable AI failed:", e);
+  // Try every active Gemini key. Models are the outer loop so an unavailable
+  // model is skipped consistently while quota/auth failures rotate keys.
+  const envGemini = Deno.env.get("GEMINI_API_KEY")?.trim();
+  const geminiKeys = [...keys.gemini];
+  if (envGemini && !geminiKeys.some((candidate) => candidate.key === envGemini)) {
+    geminiKeys.push({ id: null, key: envGemini, provider: "gemini" });
+  }
+  const requestedModel = (body.model as string) || "google/gemini-3.6-flash";
+  const models = [GEMINI_MODEL_MAP[requestedModel] || "gemini-3.6-flash", ...GEMINI_FALLBACK_MODELS];
+  const triedModels = new Set<string>();
+  let lastResponse: Response | null = null;
+  for (const geminiModel of models) {
+    if (triedModels.has(geminiModel)) continue;
+    triedModels.add(geminiModel);
+    for (const candidate of geminiKeys) {
+      try {
+        lastResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${candidate.key}` },
+          body: JSON.stringify({ ...body, model: geminiModel }),
+          signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        });
+        if (lastResponse.ok) return lastResponse;
+        await lastResponse.body?.cancel();
+      } catch (error) {
+        console.error("Gemini suggestion request failed:", candidate.id, geminiModel, error);
+      }
     }
   }
 
-  // 2. Try OpenAI
-  if (keys.openai) {
+  // Then rotate through OpenAI keys.
+  for (const candidate of keys.openai) {
     try {
-      const resp = await callOpenAISuggestions(body, keys.openai);
+      const resp = await callOpenAISuggestions(body, candidate.key);
       if (resp.ok) return resp;
-      await resp.text();
+      await resp.body?.cancel();
     } catch (e) {
       console.error("OpenAI error:", e);
     }
   }
 
-  // 3. Try Gemini
-  const geminiKey = keys.gemini || Deno.env.get("GEMINI_API_KEY");
-  if (geminiKey) {
-    const lovableModel = (body.model as string) || "google/gemini-3.6-flash";
-    const models = [GEMINI_MODEL_MAP[lovableModel] || "gemini-3.6-flash", ...GEMINI_FALLBACK_MODELS];
-    const tried = new Set<string>();
-    let lastResponse: Response | null = null;
-    for (const geminiModel of models) {
-      if (tried.has(geminiModel)) continue;
-      tried.add(geminiModel);
-      lastResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${geminiKey}` },
-        body: JSON.stringify({ ...body, model: geminiModel }),
-      });
-      if (lastResponse.ok) return lastResponse;
-    }
-    if (lastResponse) return lastResponse;
-  }
-
-  // 4. Last resort Lovable
+  // Shared Lovable AI is the final fallback.
   if (LOVABLE_API_KEY) {
     return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
     });
   }
 
-  throw new Error("No AI API key available. Please add an API key in Settings.");
+  if (lastResponse) return lastResponse;
+  throw new Error("No working AI API key is available. Check API & Connections in Settings.");
 }
 
 type IncomingMessage = {
@@ -184,7 +185,7 @@ serve(async (req) => {
     const sb = createClient(supabaseUrl, supabaseKey);
 
     // Get user's API keys
-    let userKeys: { gemini?: string; openai?: string } = {};
+    const userKeys: { gemini: ProviderKey[]; openai: ProviderKey[] } = { gemini: [], openai: [] };
     let userId: string | null = null;
     const authHeader = req.headers.get("authorization");
     if (authHeader) {
@@ -193,9 +194,24 @@ serve(async (req) => {
         const { data: { user } } = await sb.auth.getUser(token);
         if (user) {
           userId = user.id;
-          const { data: settings } = await sb.from("user_settings").select("gemini_api_key, openai_api_key").eq("user_id", user.id).single();
-          if (settings?.gemini_api_key) userKeys.gemini = settings.gemini_api_key;
-          if (settings?.openai_api_key) userKeys.openai = settings.openai_api_key;
+          const { data: keyRows } = await sb.from("api_keys")
+            .select("id, provider, api_key")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .in("provider", ["gemini", "openai"])
+            .order("failure_count", { ascending: true })
+            .order("last_used_at", { ascending: true, nullsFirst: true });
+          for (const row of keyRows || []) {
+            if (row.provider === "gemini" && row.api_key?.trim()) userKeys.gemini.push({ id: row.id, key: row.api_key.trim(), provider: "gemini" });
+            if (row.provider === "openai" && row.api_key?.trim()) userKeys.openai.push({ id: row.id, key: row.api_key.trim(), provider: "openai" });
+          }
+
+          // Backward compatibility for accounts saved before multi-key support.
+          if (userKeys.gemini.length === 0 && userKeys.openai.length === 0) {
+            const { data: settings } = await sb.from("user_settings").select("gemini_api_key, openai_api_key").eq("user_id", user.id).single();
+            if (settings?.gemini_api_key?.trim()) userKeys.gemini.push({ id: null, key: settings.gemini_api_key.trim(), provider: "gemini" });
+            if (settings?.openai_api_key?.trim()) userKeys.openai.push({ id: null, key: settings.openai_api_key.trim(), provider: "openai" });
+          }
         }
       } catch (_) { /* ignore */ }
     }
