@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Plus, Link2, FileText, Trash2, ChevronDown, Loader2, BookOpen } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, Link2, FileText, FileUp, Trash2, ChevronDown, Loader2, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,13 +40,17 @@ export function KnowledgeBase() {
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [dialogMode, setDialogMode] = useState<"text" | "url">("text");
+  const [dialogMode, setDialogMode] = useState<"text" | "url" | "file">("text");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [url, setUrl] = useState("");
   const [persona, setPersona] = useState("shared");
   const [analyzing, setAnalyzing] = useState(false);
   const [expandedInsights, setExpandedInsights] = useState<Record<string, boolean>>({});
+  const [fileData, setFileData] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [fileMime, setFileMime] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchEntries();
@@ -75,10 +79,27 @@ export function KnowledgeBase() {
     setLoading(false);
   };
 
+  const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { toast.error("File must be under 20MB"); return; }
+    if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ""));
+    const isText = file.type.startsWith("text/") || /\.(txt|md|csv|text|json|log)$/i.test(file.name);
+    const reader = new FileReader();
+    reader.onerror = () => toast.error("Couldn't read that file");
+    if (isText) {
+      reader.onload = () => { setContent(String(reader.result || "")); setFileData(""); setFileName(""); setFileMime(""); };
+      reader.readAsText(file);
+    } else {
+      reader.onload = () => { setContent(""); setFileData(String(reader.result || "")); setFileName(file.name); setFileMime(file.type || "application/octet-stream"); };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleAdd = async () => {
-    const hasSource = dialogMode === "url" ? url.trim() : content.trim();
+    const hasSource = dialogMode === "url" ? url.trim() : (content.trim() || fileData);
     if (!title.trim() || !hasSource) {
-      toast.error(dialogMode === "url" ? "Title and URL are required" : "Title and content are required");
+      toast.error(dialogMode === "url" ? "Title and URL are required" : "Title and content or file are required");
       return;
     }
 
@@ -90,6 +111,9 @@ export function KnowledgeBase() {
       const data = await callEdgeFunction<{ result?: string; extractedContent?: string }>("analyze-knowledge", {
         content: dialogMode === "url" ? "" : content,
         url: dialogMode === "url" ? url : undefined,
+        fileData: dialogMode === "file" && fileData ? fileData : undefined,
+        fileName: dialogMode === "file" && fileData ? fileName : undefined,
+        fileMime: dialogMode === "file" && fileData ? fileMime : undefined,
         type: "knowledge",
         persona,
       });
@@ -143,6 +167,8 @@ export function KnowledgeBase() {
       setTitle("");
       setContent("");
       setUrl("");
+      setFileData(""); setFileName(""); setFileMime("");
+      if (fileRef.current) fileRef.current.value = "";
       setDialogOpen(false);
       fetchEntries();
     }
@@ -220,10 +246,13 @@ export function KnowledgeBase() {
           >
             <Link2 className="h-4 w-4 mr-2" /> Add URL
           </Button>
+          <Button variant="outline" className="border-border text-foreground" onClick={() => { setDialogMode("file"); setDialogOpen(true); }}>
+            <FileUp className="h-4 w-4 mr-2" /> Upload File
+          </Button>
           <DialogContent className="bg-card border-border">
             <DialogHeader>
               <DialogTitle className="text-foreground">
-                {dialogMode === "url" ? "Add URL Source" : "Add Text Content"}
+                {dialogMode === "url" ? "Add URL Source" : dialogMode === "file" ? "Upload Knowledge File" : "Add Text Content"}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4 mt-2">
@@ -245,6 +274,13 @@ export function KnowledgeBase() {
                     placeholder="https://youtube.com/watch?v=..."
                     className="bg-muted border-border text-foreground"
                   />
+                </div>
+              ) : dialogMode === "file" ? (
+                <div>
+                  <Label className="text-foreground">Upload a file (PDF, Word, text, image — up to 20MB)</Label>
+                  <Input ref={fileRef} type="file" accept=".txt,.md,.csv,.text,.json,.log,.pdf,.doc,.docx,text/*,application/pdf,image/*" onChange={handleFile} className="bg-muted border-border text-foreground" />
+                  {content && <p className="text-xs text-muted-foreground mt-1">{content.length} characters loaded.</p>}
+                  {fileData && <p className="text-xs text-muted-foreground mt-1">📎 {fileName} attached — the AI will read it.</p>}
                 </div>
               ) : (
                 <div>

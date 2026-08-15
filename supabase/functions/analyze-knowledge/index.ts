@@ -117,9 +117,51 @@ async function fetchYouTubeTranscript(req: Request, videoUrl: string): Promise<s
   throw new Error(`YouTube transcript extraction failed (${failures.join(", ")}). Check that the video has captions and try again.`);
 }
 
-async function callAI(body: Record<string, unknown>): Promise<Response> {
+async function loadUserGeminiKeys(req: Request): Promise<string[]> {
+  const authHeader = req.headers.get("authorization");
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!authHeader || !supabaseUrl || !serviceKey) return [];
+
+  try {
+    const admin = createClient(supabaseUrl, serviceKey);
+    const token = authHeader.replace(/^Bearer\s+/i, "");
+    const { data: { user } } = await admin.auth.getUser(token);
+    if (!user) return [];
+    const { data } = await admin
+      .from("api_keys")
+      .select("api_key")
+      .eq("user_id", user.id)
+      .eq("provider", "gemini")
+      .eq("is_active", true)
+      .order("failure_count", { ascending: true })
+      .order("last_used_at", { ascending: true, nullsFirst: true });
+    return (data || []).map((row) => String(row.api_key || "").trim()).filter(Boolean);
+  } catch (error) {
+    console.error("Could not load user Gemini keys:", error);
+    return [];
+  }
+}
+
+async function callGemini(body: Record<string, unknown>, key: string): Promise<Response> {
+  const lovableModel = (body.model as string) || "google/gemini-3.6-flash";
+  const models = [GEMINI_MODEL_MAP[lovableModel] || "gemini-3.6-flash", ...GEMINI_FALLBACK_MODELS];
+  let lastResponse: Response | null = null;
+  for (const geminiModel of new Set(models)) {
+    lastResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${key}` },
+      body: JSON.stringify({ ...body, model: geminiModel }),
+    });
+    if (lastResponse.ok) return lastResponse;
+  }
+  return lastResponse!;
+}
+
+async function callAI(body: Record<string, unknown>, userGeminiKeys: string[]): Promise<Response> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  let lastResponse: Response | null = null;
 
   if (LOVABLE_API_KEY) {
     try {
@@ -131,35 +173,27 @@ async function callAI(body: Record<string, unknown>): Promise<Response> {
         },
         body: JSON.stringify(body),
       });
-      if (response.status !== 402 && response.status !== 429) return response;
-      console.log(`Lovable AI returned ${response.status}, falling back to Gemini API`);
+      if (response.ok) return response;
+      lastResponse = response;
+      console.log(`Lovable AI returned ${response.status}, falling back to saved Gemini keys`);
     } catch (e) {
       console.error("Lovable AI failed, falling back to Gemini:", e);
     }
   }
 
-  if (!GEMINI_API_KEY) {
-    throw new Error("No AI API key available.");
+  const keys = [...userGeminiKeys];
+  if (GEMINI_API_KEY && !keys.includes(GEMINI_API_KEY)) keys.push(GEMINI_API_KEY);
+  for (const key of keys) {
+    try {
+      const response = await callGemini(body, key);
+      if (response.ok) return response;
+      lastResponse = response;
+    } catch (error) {
+      console.error("Gemini fallback failed:", error);
+    }
   }
-
-  const lovableModel = (body.model as string) || "google/gemini-3.6-flash";
-  const models = [GEMINI_MODEL_MAP[lovableModel] || "gemini-3.6-flash", ...GEMINI_FALLBACK_MODELS];
-  const tried = new Set<string>();
-  let lastResponse: Response | null = null;
-  for (const geminiModel of models) {
-    if (tried.has(geminiModel)) continue;
-    tried.add(geminiModel);
-    lastResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${GEMINI_API_KEY}`,
-      },
-      body: JSON.stringify({ ...body, model: geminiModel }),
-    });
-    if (lastResponse.ok) return lastResponse;
-  }
-  return lastResponse!;
+  if (lastResponse) return lastResponse;
+  throw new Error("No AI key is available for extraction.");
 }
 
 // Strip HTML down to readable text for URL sources.
@@ -321,7 +355,7 @@ Only return the JSON array, nothing else.`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
       ],
-    });
+    }, await loadUserGeminiKeys(req));
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -334,9 +368,9 @@ Only return the JSON array, nothing else.`;
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const t = await response.text();
-      console.error("AI error:", response.status, t);
-      throw new Error("AI service error");
+      const detail = (await response.text()).slice(0, 500);
+      console.error("AI error:", response.status, detail);
+      throw new Error(`AI service error (${response.status}). ${detail || "Check your active Gemini keys and try again."}`);
     }
 
     const data = await response.json();

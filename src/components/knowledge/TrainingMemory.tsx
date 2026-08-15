@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Upload, Trash2, Loader2, MessageSquare } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Upload, FileUp, Link2, Type, Trash2, Loader2, MessageSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,12 @@ export function TrainingMemory() {
   const [personaTab, setPersonaTab] = useState("nifimas");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [sourceMode, setSourceMode] = useState<"text" | "file" | "url">("text");
+  const [url, setUrl] = useState("");
+  const [fileData, setFileData] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [fileMime, setFileMime] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
   const [analyzing, setAnalyzing] = useState(false);
 
   useEffect(() => {
@@ -56,9 +62,27 @@ export function TrainingMemory() {
     setLoading(false);
   };
 
+  const handleFile = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { toast.error("File must be under 20MB"); return; }
+    if (!title.trim()) setTitle(file.name.replace(/\.[^.]+$/, ""));
+    const isText = file.type.startsWith("text/") || /\.(txt|md|csv|text|json|log)$/i.test(file.name);
+    const reader = new FileReader();
+    reader.onerror = () => toast.error("Couldn't read that file");
+    if (isText) {
+      reader.onload = () => { setContent(String(reader.result || "")); setFileData(""); setFileName(""); setFileMime(""); };
+      reader.readAsText(file);
+    } else {
+      reader.onload = () => { setContent(""); setFileData(String(reader.result || "")); setFileName(file.name); setFileMime(file.type || "application/octet-stream"); };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleAdd = async () => {
-    if (!title.trim() || !content.trim()) {
-      toast.error("Title and conversation content are required");
+    const hasSource = sourceMode === "url" ? url.trim() : (content.trim() || fileData);
+    if (!title.trim() || !hasSource) {
+      toast.error(sourceMode === "url" ? "Title and URL are required" : "Title and conversation content are required");
       return;
     }
 
@@ -66,8 +90,12 @@ export function TrainingMemory() {
     let styleAnalysis: string | null = null;
 
     try {
-      const data = await callEdgeFunction<{ result?: string }>("analyze-knowledge", {
-        content,
+      const data = await callEdgeFunction<{ result?: string; extractedContent?: string }>("analyze-knowledge", {
+        content: sourceMode === "url" ? "" : content,
+        url: sourceMode === "url" ? url : undefined,
+        fileData: sourceMode === "file" && fileData ? fileData : undefined,
+        fileName: sourceMode === "file" && fileData ? fileName : undefined,
+        fileMime: sourceMode === "file" && fileData ? fileMime : undefined,
         type: "training",
         persona: personaTab,
       });
@@ -85,8 +113,8 @@ export function TrainingMemory() {
       ? await supabase.from("training_conversations").insert({
           title,
           persona: personaTab,
-          source_type: "text",
-          content,
+          source_type: sourceMode,
+          content: data.extractedContent || content || `Uploaded file: ${fileName}`,
           style_analysis: styleAnalysis,
           status: nextStatus,
           user_id: user.id,
@@ -97,8 +125,8 @@ export function TrainingMemory() {
       guestStorage.training.insert({
         title,
         persona: personaTab,
-        source_type: "text",
-        content,
+        source_type: sourceMode,
+        content: data.extractedContent || content || `Uploaded file: ${fileName}`,
         style_analysis: styleAnalysis,
         status: nextStatus,
       });
@@ -110,6 +138,8 @@ export function TrainingMemory() {
       toast.success("Training data added!");
       setTitle("");
       setContent("");
+      setUrl(""); setFileData(""); setFileName(""); setFileMime("");
+      if (fileRef.current) fileRef.current.value = "";
       fetchConvos();
     }
     setAnalyzing(false);
@@ -148,6 +178,13 @@ export function TrainingMemory() {
           <p className="text-sm text-muted-foreground">
             Upload past conversations, PDFs, or screenshots. The AI will extract your style fingerprint and match it in every reply.
           </p>
+          <Tabs value={sourceMode} onValueChange={(value) => setSourceMode(value as typeof sourceMode)}>
+            <TabsList className="bg-muted border border-border flex-wrap h-auto">
+              <TabsTrigger value="text"><Type className="h-3.5 w-3.5 mr-1" /> Paste Text</TabsTrigger>
+              <TabsTrigger value="file"><FileUp className="h-3.5 w-3.5 mr-1" /> Upload File</TabsTrigger>
+              <TabsTrigger value="url"><Link2 className="h-3.5 w-3.5 mr-1" /> From Link</TabsTrigger>
+            </TabsList>
+          </Tabs>
           <div>
             <Label className="text-foreground">Title</Label>
             <Input
@@ -157,15 +194,25 @@ export function TrainingMemory() {
               className="bg-muted border-border text-foreground"
             />
           </div>
-          <div>
-            <Label className="text-foreground">Paste conversation logs here...</Label>
-            <Textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={"You: Hey! I saw your post about...\nThem: Thanks! Yeah I've been struggling with...\nYou: I totally get that, I was in the same spot..."}
-              className="bg-muted border-border text-foreground min-h-[120px]"
-            />
-          </div>
+          {sourceMode === "url" ? (
+            <div>
+              <Label className="text-foreground">Link to a conversation, article, or video</Label>
+              <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://youtube.com/watch?v=..." className="bg-muted border-border text-foreground" />
+              <p className="text-xs text-muted-foreground mt-1">YouTube links use one of your active Apify keys to retrieve a transcript.</p>
+            </div>
+          ) : sourceMode === "file" ? (
+            <div>
+              <Label className="text-foreground">Upload a conversation, PDF, Word file, or screenshot (up to 20MB)</Label>
+              <Input ref={fileRef} type="file" accept=".txt,.md,.csv,.text,.json,.log,.pdf,.doc,.docx,text/*,application/pdf,image/*" onChange={handleFile} className="bg-muted border-border text-foreground" />
+              {content && <p className="text-xs text-muted-foreground mt-1">{content.length} characters loaded.</p>}
+              {fileData && <p className="text-xs text-muted-foreground mt-1">📎 {fileName} attached — the AI will read it.</p>}
+            </div>
+          ) : (
+            <div>
+              <Label className="text-foreground">Paste conversation logs here...</Label>
+              <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder={"You: Hey! I saw your post about...\nThem: Thanks! Yeah I've been struggling with...\nYou: I totally get that, I was in the same spot..."} className="bg-muted border-border text-foreground min-h-[120px]" />
+            </div>
+          )}
           <Button
             onClick={handleAdd}
             disabled={analyzing}
