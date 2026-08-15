@@ -40,6 +40,14 @@ export async function callEdgeFunction<T>(
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("The AI request took too long. Please try again.");
     }
+
+    // Lovable Cloud can be unavailable while local development is still running.
+    // Keep this fallback strictly local so production never exposes a provider key
+    // to the browser.
+    if (functionName === "analyze-knowledge" && import.meta.env.DEV && window.location.hostname === "localhost") {
+      const { analyzeKnowledgeLocally } = await import("./localKnowledgeAnalysis");
+      return analyzeKnowledgeLocally(body) as Promise<T>;
+    }
     throw error;
   } finally {
     window.clearTimeout(timeout);
