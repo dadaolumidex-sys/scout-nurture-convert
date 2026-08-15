@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildKnowledgeContext, KNOWLEDGE_GUARDRAIL, type KnowledgeEntry } from "../_shared/knowledge.ts";
+import { buildLiveUrlContext } from "../_shared/urlContext.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -213,6 +214,12 @@ serve(async (req) => {
     if (knowledgeContext || objectionContext) {
       systemPrompt += knowledgeContext + objectionContext + KNOWLEDGE_GUARDRAIL;
     }
+
+    const latestUserText = [...safeMessages].reverse().find((message) => message.role === "user");
+    const linkText = typeof latestUserText?.content === "string"
+      ? latestUserText.content
+      : (latestUserText?.content || []).filter((part) => part.type === "text").map((part) => part.text || "").join(" ");
+    systemPrompt += await buildLiveUrlContext(linkText);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const ENV_GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");

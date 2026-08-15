@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildKnowledgeContext, KNOWLEDGE_GUARDRAIL, HUMAN_VOICE_RULES, type KnowledgeEntry } from "../_shared/knowledge.ts";
+import { buildLiveUrlContext } from "../_shared/urlContext.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -249,7 +250,9 @@ serve(async (req) => {
       }
     }
 
-    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + modeRules + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + KNOWLEDGE_GUARDRAIL;
+    const latestUserText = [...(Array.isArray(messages) ? messages : [])].reverse().find((message) => message.role === "user")?.content || "";
+    const liveUrlContext = await buildLiveUrlContext(latestUserText);
+    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + modeRules + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + liveUrlContext + KNOWLEDGE_GUARDRAIL;
 
     const response = await callAI({
       model: "google/gemini-3.6-flash",
