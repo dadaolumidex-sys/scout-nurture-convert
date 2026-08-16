@@ -15,6 +15,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
 import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
 import { compressImageFile } from "@/lib/imageCompress";
+import { uploadChatImage, resolveChatImage } from "@/lib/chatImageStorage";
+import { ChatImagePreview } from "@/components/chat/ChatImagePreview";
 import { callEdgeFunction } from "@/lib/edgeFunction";
 import { readDraftRecord, writeDraftRecord } from "@/lib/draftStorage";
 
@@ -225,7 +227,15 @@ const ContactChatPage = () => {
   const handleSend = async () => {
     if ((!input.trim() && !pendingImage) || loading) return;
     const messageText = input.trim() || "[Screenshot — use the attached conversation and reply direction]";
-    const attachedImage = pendingImage;
+    let attachedImage = pendingImage;
+    if (user && pendingImage) {
+      try {
+        attachedImage = await uploadChatImage(pendingImage, user.id, "inbox");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Your screenshot could not be saved.");
+        return;
+      }
+    }
     updateInboxDraft({ input: "" });
     setPendingImage(null);
     setSuggestions([]);
@@ -274,11 +284,11 @@ const ContactChatPage = () => {
     // Exported AI Chat history is background only. It must never be treated as
     // a real client message, otherwise an old line can override a new reply.
     const personaMessages = msgs.filter((m) => m.persona === targetPersona && !isPrivateAiContext(m));
-    const recentMessages = personaMessages.slice(-20).map((m) => ({
+    const recentMessages = await Promise.all(personaMessages.slice(-20).map(async (m) => ({
       role: m.role === "assistant" ? "assistant" as const : "user" as const,
       content: m.content,
-      imageUrl: m.image_url,
-    }));
+      imageUrl: m.image_url ? await resolveChatImage(m.image_url).catch(() => null) : null,
+    })));
 
     const privateNotes = msgs
       .filter((m) => m.persona === targetPersona && isPrivateAiContext(m))
@@ -574,9 +584,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
                   <div className="absolute left-0 top-2 bottom-2 w-1 rounded-full bg-secondary" />
                 )}
 
-                {msg.image_url && (
-                  <img src={msg.image_url} alt="Screenshot" className="rounded-lg mb-2 max-w-full max-h-60 object-contain" />
-                )}
+                {msg.image_url && <ChatImagePreview image={msg.image_url} />}
 
                 {editingId === msg.id ? (
                   <div className="space-y-2">

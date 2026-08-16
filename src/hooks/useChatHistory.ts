@@ -298,7 +298,7 @@ export function useChatHistory() {
 
       const { data, error } = await supabase
         .from("ai_messages")
-        .select("id, conversation_id, role, content, created_at, updated_at")
+        .select("id, conversation_id, role, content, images, created_at, updated_at")
         .eq("conversation_id", convoId)
         .order("created_at", { ascending: true });
 
@@ -314,7 +314,7 @@ export function useChatHistory() {
           conversation_id: message.conversation_id,
           role: message.role as "user" | "assistant",
           content: message.content,
-          images: undefined,
+          images: Array.isArray(message.images) ? message.images.filter((image: unknown) => typeof image === "string") : undefined,
           created_at: message.created_at,
           updated_at: message.updated_at,
         }))
@@ -408,9 +408,9 @@ export function useChatHistory() {
 
   const saveMessage = useCallback(async (convoId: string, msg: ChatMessage) => {
     const now = nowIso();
-    // Images are sent to the model for this turn but are intentionally not
-    // persisted as base64. Persisting large batches was freezing the browser.
-    const persistedMessage: ChatMessage = { role: msg.role, content: msg.content };
+    // Images are stored as small private Storage references, never as base64
+    // blobs in the local cache. That keeps chats fast while preserving proof.
+    const persistedMessage: ChatMessage = { role: msg.role, content: msg.content, images: msg.images };
     const storedMessage = toStoredMessage(convoId, persistedMessage, now);
 
     if (user) {
@@ -418,7 +418,7 @@ export function useChatHistory() {
         conversation_id: convoId,
         role: msg.role,
         content: msg.content,
-        images: [],
+        images: msg.images || [],
         created_at: now,
         updated_at: now,
       });
