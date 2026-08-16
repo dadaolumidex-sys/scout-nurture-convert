@@ -207,6 +207,7 @@ async function extractUploadedFileWithGemini(
   fileData: string,
   fileMime: string | undefined,
   keys: string[],
+  expectJson: boolean,
 ): Promise<string> {
   const match = /^data:([^;,]+)?(?:;base64)?,(.*)$/s.exec(fileData);
   if (!match) throw new Error("The uploaded file could not be read. Please choose it again and retry.");
@@ -230,7 +231,10 @@ async function extractUploadedFileWithGemini(
                 { inline_data: { mime_type: mimeType, data: fileBytes } },
               ],
             }],
-            generationConfig: { maxOutputTokens: 4096 },
+            generationConfig: {
+              maxOutputTokens: 4096,
+              ...(expectJson ? { responseMimeType: "application/json" } : {}),
+            },
           }),
         });
         if (!response.ok) {
@@ -416,7 +420,7 @@ Only return the JSON array, nothing else.`;
     const userGeminiKeys = await loadUserGeminiKeys(req);
     let result = "";
     if (hasFile && userGeminiKeys.length > 0) {
-      result = await extractUploadedFileWithGemini(systemPrompt, sourceText, fileData, fileMime, userGeminiKeys);
+      result = await extractUploadedFileWithGemini(systemPrompt, sourceText, fileData, fileMime, userGeminiKeys, type !== "training");
     } else {
       const response = await callAI({
         model: "google/gemini-3.6-flash",

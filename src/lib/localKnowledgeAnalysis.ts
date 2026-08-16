@@ -258,7 +258,10 @@ export async function analyzeKnowledgeLocally(input: LocalAnalysisInput): Promis
             headers: { "Content-Type": "application/json", "x-goog-api-key": savedKey.api_key },
             body: JSON.stringify({
               contents: [{ role: "user", parts }],
-              generationConfig: { maxOutputTokens: 4096 },
+              generationConfig: {
+                maxOutputTokens: 4096,
+                ...(type === "training" ? {} : { responseMimeType: "application/json" }),
+              },
             }),
           },
         );

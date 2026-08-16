@@ -35,6 +35,22 @@ const personas = [
   { value: "bigstreamer", label: "🎤 Expert Proof (Backup)" },
 ];
 
+function parseInsightArray(raw: unknown): Insight[] {
+  const text = String(raw || "").replace(/```(?:json)?\s*/gi, "").trim();
+  const start = text.indexOf("[");
+  const end = text.lastIndexOf("]");
+  if (start < 0 || end < start) return [];
+  try {
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    return Array.isArray(parsed)
+      ? parsed.filter((item) => item && typeof item.insight === "string" && item.insight.trim())
+        .map((item) => ({ category: String(item.category || "General"), insight: item.insight.trim() }))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export function KnowledgeBase() {
   const { user } = useAuth();
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
@@ -118,10 +134,8 @@ export function KnowledgeBase() {
         persona,
       });
       if (data.extractedContent) entryContent = data.extractedContent;
-      try {
-        const cleaned = String(data.result || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        insights = JSON.parse(cleaned);
-      } catch {
+      insights = parseInsightArray(data.result);
+      if (insights.length === 0) {
         console.warn("Could not parse insights:", data.result);
       }
       if (insights.length === 0) {

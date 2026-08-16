@@ -36,6 +36,22 @@ const personas = [
   { value: "brozeen", label: "💼 Promoter & Closer" },
 ];
 
+function parseInsightArray(raw: unknown): Insight[] {
+  const text = String(raw || "").replace(/```(?:json)?\s*/gi, "").trim();
+  const start = text.indexOf("[");
+  const end = text.lastIndexOf("]");
+  if (start < 0 || end < start) return [];
+  try {
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    return Array.isArray(parsed)
+      ? parsed.filter((item) => item && typeof item.insight === "string" && item.insight.trim())
+        .map((item) => ({ category: "Objection Handling", insight: item.insight.trim() }))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 export function ObjectionHandling() {
   const { user } = useAuth();
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -168,15 +184,8 @@ export function ObjectionHandling() {
         persona,
       });
       if (data.extractedContent) extracted = data.extractedContent;
-      try {
-        const cleaned = String(data.result || "").replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-        const parsed = JSON.parse(cleaned);
-        if (Array.isArray(parsed)) {
-          insights = parsed
-            .filter((p: any) => p && p.insight)
-            .map((p: any) => ({ category: "Objection Handling", insight: String(p.insight) }));
-        }
-      } catch {
+      insights = parseInsightArray(data.result);
+      if (insights.length === 0) {
         console.warn("Could not parse objection insights:", data.result);
       }
     } catch (e) {
