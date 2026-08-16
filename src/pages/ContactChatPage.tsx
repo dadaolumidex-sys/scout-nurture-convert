@@ -75,7 +75,7 @@ const ContactChatPage = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [pendingImage, setPendingImage] = useState<string | null>(null);
+  const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(null);
   const [suggestionsPersona, setSuggestionsPersona] = useState<Persona | null>(null);
@@ -206,15 +206,20 @@ const ContactChatPage = () => {
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const selectedFiles = Array.from(e.target.files || []);
+    const availableSlots = 3 - pendingImages.length;
+    if (!selectedFiles.length || availableSlots <= 0) {
+      toast.error("You can attach up to 3 screenshots at once.");
+      return;
+    }
+    const files = selectedFiles.slice(0, availableSlots);
 
     setUploading(true);
     try {
-      const imageUrl = await compressImageFile(file);
-      setPendingImage(imageUrl);
+      const imageUrls = await Promise.all(files.map(compressImageFile));
+      setPendingImages((current) => [...current, ...imageUrls].slice(0, 3));
       if (fileInputRef.current) fileInputRef.current.value = "";
-      toast.success("Screenshot attached. Add your instruction, then press Send when ready.");
+      toast.success(`${imageUrls.length} screenshot${imageUrls.length === 1 ? "" : "s"} attached. Add your instruction, then press Send when ready.`);
     } catch (error) {
       console.error(error);
       toast.error("Failed to upload image");
@@ -224,26 +229,33 @@ const ContactChatPage = () => {
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && !pendingImage) || loading) return;
+    if ((!input.trim() && pendingImages.length === 0) || loading) return;
     const messageText = input.trim() || "[Screenshot — use the attached conversation and reply direction]";
-    const attachedImage = pendingImage;
+    const attachedImages = pendingImages;
     updateInboxDraft({ input: "" });
-    setPendingImage(null);
+    setPendingImages([]);
     setSuggestions([]);
     setSelectedSuggestion(null);
 
-    if (user) {
-      await (supabase.from("contact_messages" as any).insert({
-        contact_id: contactId, role: "user", content: messageText, image_url: attachedImage, persona: persona, user_id: user.id,
-      }) as any);
-    } else if (contactId) {
-      guestStorage.messages.insert({
+    const messagesToSave = attachedImages.length
+      ? attachedImages.map((imageUrl, index) => ({
         contact_id: contactId,
         role: "user",
-        content: messageText,
+        content: index === 0
+          ? messageText
+          : `[Additional screenshot ${index + 1} of ${attachedImages.length} — use together with the message above.]`,
+        image_url: imageUrl,
         persona,
-        image_url: attachedImage,
-        selected: false,
+      }))
+      : [{ contact_id: contactId, role: "user", content: messageText, image_url: null, persona }];
+
+    if (user) {
+      await (supabase.from("contact_messages" as any).insert(
+        messagesToSave.map((message) => ({ ...message, user_id: user.id })),
+      ) as any);
+    } else if (contactId) {
+      messagesToSave.forEach((message) => {
+        guestStorage.messages.insert({ ...message, selected: false });
       });
     }
     await loadMessages();
@@ -723,7 +735,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           </div>
         )}
         <div className="flex gap-2 items-end">
-          <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleImageUpload} />
+          <input type="file" ref={fileInputRef} accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
           <Button
             variant="outline"
             size="sm"
@@ -756,17 +768,33 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           <Button
             type="button"
             onClick={() => void handleSend()}
-            disabled={!input.trim() && !pendingImage}
+            disabled={!input.trim() && pendingImages.length === 0}
             className="gradient-primary text-primary-foreground h-10 w-10 p-0 shrink-0"
           >
             <Send className="h-4 w-4" />
           </Button>
         </div>
-        {pendingImage && (
+        {pendingImages.length > 0 && (
           <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-muted/50 p-2">
-            <img src={pendingImage} alt="Screenshot ready to send" className="h-12 w-12 rounded object-cover" />
-            <p className="flex-1 text-xs text-muted-foreground">Screenshot attached — it will not be analyzed until you press Send.</p>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setPendingImage(null)} className="h-7 text-xs">Remove</Button>
+            <div className="flex gap-1">
+              {pendingImages.map((imageUrl, index) => (
+                <div key={imageUrl} className="relative">
+                  <img src={imageUrl} alt={`Screenshot ${index + 1} ready to send`} className="h-12 w-12 rounded object-cover" />
+                  <button
+                    type="button"
+                    aria-label={`Remove screenshot ${index + 1}`}
+                    onClick={() => setPendingImages((current) => current.filter((_, currentIndex) => currentIndex !== index))}
+                    className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background text-muted-foreground shadow hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="flex-1 text-xs text-muted-foreground">
+              {pendingImages.length} screenshot{pendingImages.length === 1 ? "" : "s"} attached — they will not be analyzed until you press Send.
+            </p>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setPendingImages([])} className="h-7 text-xs">Remove all</Button>
           </div>
         )}
       </div>
