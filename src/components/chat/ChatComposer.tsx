@@ -1,8 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { Send, ImagePlus, Mic, Square } from "lucide-react";
+import { Send, ImagePlus, Mic, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
+import { readDraft, writeDraft } from "@/lib/draftStorage";
 
 type VoiceResultEvent = Event & {
   resultIndex: number;
@@ -42,6 +43,7 @@ interface ChatComposerProps {
   variant: "mobile" | "desktop";
   loading: boolean;
   hasPendingImages: boolean;
+  draftKey: string;
   onSend: (text: string) => void;
   onPickImage: () => void;
 }
@@ -52,14 +54,26 @@ interface ChatComposerProps {
  * This is what keeps typing fast, especially on phones with long chats.
  */
 export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
-  ({ variant, loading, hasPendingImages, onSend, onPickImage }, ref) => {
+  ({ variant, loading, hasPendingImages, draftKey, onSend, onPickImage }, ref) => {
     const [text, setText] = useState("");
+    const [loadedDraftKey, setLoadedDraftKey] = useState("");
     const [listening, setListening] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const enterDraftRef = useRef<{ value: string; start: number; end: number } | null>(null);
     const recognitionRef = useRef<VoiceRecognition | null>(null);
     const voiceBaseTextRef = useRef("");
     const finalTranscriptRef = useRef("");
+
+    // Keep one private draft per conversation. This survives navigation and a
+    // browser/app restart, but is never part of the message history.
+    useEffect(() => {
+      setText(readDraft(draftKey));
+      setLoadedDraftKey(draftKey);
+    }, [draftKey]);
+
+    useEffect(() => {
+      if (loadedDraftKey === draftKey) writeDraft(draftKey, text);
+    }, [draftKey, loadedDraftKey, text]);
 
     useEffect(() => () => {
       recognitionRef.current?.abort();
@@ -195,7 +209,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
           >
             {listening ? <Square className="h-4 w-4 fill-current" /> : <Mic className="h-5 w-5" />}
           </Button>
-          <div className="flex-1">
+          <div className="flex-1 relative">
             <Textarea
               ref={textareaRef}
               placeholder="Ask anything..."
@@ -203,9 +217,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
               onChange={(e) => setText(e.target.value)}
               onKeyDownCapture={addNewLine}
               onKeyUp={preserveNewLine}
-              className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5"
+              className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5 pr-10"
               rows={1}
             />
+            {text && (
+              <Button type="button" variant="ghost" size="icon" onClick={() => setText("")} className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Clear draft" title="Clear draft">
+                <X className="h-4 w-4" />
+              </Button>
+            )}
           </div>
           <Button type="button" onClick={(e) => { if (e.detail > 0) submit(); }} disabled={disabled} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
             <Send className="h-4 w-4" />
@@ -242,6 +261,11 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
           >
             {listening ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
           </Button>
+          {text && (
+            <Button type="button" variant="ghost" size="icon" onClick={() => setText("")} className="absolute right-[4.5rem] bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Clear draft" title="Clear draft">
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
         <Button type="button" onClick={(e) => { if (e.detail > 0) submit(); }} disabled={disabled} className="gradient-primary text-primary-foreground self-end h-10 w-10 p-0">
           <Send className="h-4 w-4" />

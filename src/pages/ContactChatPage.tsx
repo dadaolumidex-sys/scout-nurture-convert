@@ -16,6 +16,7 @@ import { guestStorage } from "@/lib/guestStorage";
 import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
 import { compressImageFile } from "@/lib/imageCompress";
 import { callEdgeFunction } from "@/lib/edgeFunction";
+import { readDraftRecord, writeDraftRecord } from "@/lib/draftStorage";
 
 
 
@@ -67,6 +68,7 @@ const ContactChatPage = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [replyDirection, setReplyDirection] = useState("");
+  const [loadedDraftKey, setLoadedDraftKey] = useState("");
   const [persona, setPersona] = useState<Persona>(initialPersona);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -81,6 +83,20 @@ const ContactChatPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const autogenRef = useRef(searchParams.get("autogen") === "1");
+  const draftKey = `streamscout_inbox_draft_${user?.id || "guest"}_${contactId || "unknown"}`;
+
+  useEffect(() => {
+    const saved = readDraftRecord(draftKey, { input: "", replyDirection: "" });
+    setInput(saved.input || "");
+    setReplyDirection(saved.replyDirection || "");
+    setLoadedDraftKey(draftKey);
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (loadedDraftKey === draftKey) {
+      writeDraftRecord(draftKey, { input, replyDirection });
+    }
+  }, [draftKey, input, loadedDraftKey, replyDirection]);
 
   useEffect(() => {
     if (contactId) {
@@ -677,6 +693,13 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
           className="mb-2 bg-muted/60 border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[88px] text-sm"
           rows={1}
         />
+        {(input || replyDirection) && (
+          <div className="mb-2 flex justify-end">
+            <Button type="button" variant="ghost" size="sm" onClick={() => { setInput(""); setReplyDirection(""); }} className="h-7 text-xs text-muted-foreground hover:text-foreground">
+              Clear unsent text
+            </Button>
+          </div>
+        )}
         <div className="flex gap-2 items-end">
           <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleImageUpload} />
           <Button

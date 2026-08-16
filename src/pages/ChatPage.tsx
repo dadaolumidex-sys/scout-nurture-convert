@@ -210,6 +210,7 @@ const ChatPage = () => {
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   const config = personaConfig[persona];
+  const draftKey = `streamscout_ai_draft_${user?.id || "guest"}_${activeId || "new"}`;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth" });
@@ -251,7 +252,6 @@ const ChatPage = () => {
     setLoading(false);
     activeIdRef.current = null;
     startNewChat();
-    composerRef.current?.setText("");
     setPendingImages([]);
     setEditingIndex(null);
     setMsgTimestamps([]);
@@ -703,6 +703,7 @@ const ChatPage = () => {
         variant="mobile"
         loading={loading || imageLoading}
         hasPendingImages={pendingImages.length > 0}
+        draftKey={draftKey}
         onSend={handleSend}
         onPickImage={() => fileInputRef.current?.click()}
       />
@@ -840,6 +841,7 @@ const ChatPage = () => {
             variant="desktop"
             loading={loading || imageLoading}
             hasPendingImages={pendingImages.length > 0}
+            draftKey={draftKey}
             onSend={handleSend}
             onPickImage={() => fileInputRef.current?.click()}
           />
