@@ -89,10 +89,10 @@ Key patterns: [tone, techniques, and phrases used]`;
   }
 
   if (type === "objection") {
-    return `Read the entire supplied material deeply and extract a comprehensive objection-handling playbook. Return only a JSON array with up to 50 distinct, useful items; aim for 50 when the material supports it. Do not stop after the first examples, and do not repeat the same objection in different words. If there are fewer than 50 genuinely distinct objections, return every useful one you can find. Each item must have "category": "Objection Handling" and "insight" formatted exactly as: "Objection: <buyer words> → Response: <concise persuasive response>".`;
+    return `Read the entire supplied material deeply and extract a focused objection-handling playbook. Return only a JSON array with up to 20 distinct, high-value items; aim for 20 when the material supports it. Do not stop after the first examples, and do not repeat the same objection in different words. Each item must have "category": "Objection Handling" and "insight" formatted exactly as: "Objection: <buyer words> → Response: <concise persuasive response>".`;
   }
 
-  return `Read the entire supplied sales or marketing material deeply. Extract up to 50 distinct actionable insights for a streamer promotion business; aim for 50 when the source contains enough detail. Cover all useful sections rather than only the beginning. Do not invent facts or duplicate ideas. Return only a JSON array; each item must have "category" and "insight". Keep every insight concise and practical.`;
+  return `Read the entire supplied sales or marketing material deeply. Extract up to 20 distinct, high-value actionable insights for a streamer promotion business; aim for 20 when the source contains enough detail. Cover all useful sections rather than only the beginning. Do not invent facts or duplicate ideas. Return only a JSON array; each item must have "category" and "insight". Keep every insight concise and practical.`;
 }
 
 function filePart(fileData: string, fileMime?: string) {
@@ -139,7 +139,7 @@ export async function analyzeKnowledgeLocally(input: LocalAnalysisInput): Promis
             headers: { "Content-Type": "application/json", "x-goog-api-key": savedKey.api_key },
             body: JSON.stringify({
               contents: [{ role: "user", parts }],
-              generationConfig: { maxOutputTokens: 8192 },
+              generationConfig: { maxOutputTokens: 4096 },
             }),
           },
         );
