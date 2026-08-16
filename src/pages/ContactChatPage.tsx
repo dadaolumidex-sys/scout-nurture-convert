@@ -288,6 +288,11 @@ const ContactChatPage = () => {
 
     if (saved) {
       await loadMessages();
+      // The selected reply is now stored in the conversation. Clear the three
+      // temporary cards immediately so only the reply the user chose remains.
+      setSuggestions([]);
+      setSelectedSuggestion(null);
+      setSuggestionsPersona(null);
       if (user) {
         await (supabase.from("streamer_contacts" as any).update({
           last_message: suggestion.message.slice(0, 100),
