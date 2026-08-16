@@ -17,8 +17,6 @@ import { guestStorage } from "@/lib/guestStorage";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
 import { ChatComposer, ChatComposerHandle } from "@/components/chat/ChatComposer";
 import { compressImageFile } from "@/lib/imageCompress";
-import { uploadChatImage, resolveChatImage } from "@/lib/chatImageStorage";
-import { ChatImagePreview } from "@/components/chat/ChatImagePreview";
 import { generatePersonalChatReply } from "@/lib/personalChat";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -52,14 +50,13 @@ async function streamChat({
     return -1;
   })();
 
-  const apiMessages = await Promise.all(messages.map(async (msg, i) => {
+  const apiMessages = messages.map((msg, i) => {
     if (i === lastImageIndex && msg.images && msg.images.length > 0) {
-      const imageUrls = await Promise.all(msg.images.map((image) => resolveChatImage(image)));
       return {
         role: msg.role,
         content: [
           { type: "text" as const, text: msg.content || "Check this conversation and give me the perfect next reply" },
-          ...imageUrls.map((img) => ({ type: "image_url" as const, image_url: { url: img } })),
+          ...msg.images.map((img) => ({ type: "image_url" as const, image_url: { url: img } })),
         ],
       };
     }
@@ -67,7 +64,7 @@ async function streamChat({
       role: msg.role,
       content: msg.content || (msg.images?.length ? "[image sent earlier]" : ""),
     };
-  }));
+  });
 
 
   const { data: { session } } = await supabase.auth.getSession();
@@ -410,20 +407,10 @@ const ChatPage = () => {
     if ((!text && pendingImages.length === 0) || loading || sendLockRef.current) return;
     if (imageLoading) { toast.info("Still preparing your image…"); return; }
 
-    let savedImages = [...pendingImages];
-    if (user && pendingImages.length > 0) {
-      try {
-        savedImages = await Promise.all(pendingImages.map((image) => uploadChatImage(image, user.id, "ai")));
-      } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Your screenshots could not be saved.");
-        return;
-      }
-    }
-
     const userMsg: ChatMessage = {
       role: "user",
       content: text || (pendingImages.length > 0 ? "Check this conversation and give me the perfect next reply" : ""),
-      images: savedImages.length > 0 ? savedImages : undefined,
+      images: pendingImages.length > 0 ? [...pendingImages] : undefined,
     };
 
     let convoId = activeId;
@@ -620,7 +607,7 @@ const ChatPage = () => {
             }`}>
               {msg.images && msg.images.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-1.5">
-                  {msg.images.map((img, idx) => <ChatImagePreview key={idx} image={img} alt={`Upload ${idx + 1}`} />)}
+                  {msg.images.map((img, idx) => <img key={idx} src={img} alt={`Upload ${idx + 1}`} className="rounded-lg max-h-32 object-cover border border-border" />)}
                 </div>
               )}
               {editingIndex === i ? (

@@ -298,7 +298,7 @@ export function useChatHistory() {
 
       const { data, error } = await supabase
         .from("ai_messages")
-        .select("id, conversation_id, role, content, images, created_at, updated_at")
+        .select("id, conversation_id, role, content, created_at, updated_at")
         .eq("conversation_id", convoId)
         .order("created_at", { ascending: true });
 
@@ -314,7 +314,7 @@ export function useChatHistory() {
           conversation_id: message.conversation_id,
           role: message.role as "user" | "assistant",
           content: message.content,
-          images: Array.isArray(message.images) ? message.images.filter((image: unknown) => typeof image === "string") : undefined,
+          images: undefined,
           created_at: message.created_at,
           updated_at: message.updated_at,
         }))
@@ -408,9 +408,10 @@ export function useChatHistory() {
 
   const saveMessage = useCallback(async (convoId: string, msg: ChatMessage) => {
     const now = nowIso();
-    // Images are stored as small private Storage references, never as base64
-    // blobs in the local cache. That keeps chats fast while preserving proof.
-    const persistedMessage: ChatMessage = { role: msg.role, content: msg.content, images: msg.images };
+    // Images are used for the current AI request only and are not saved with
+    // the conversation. This keeps chats light and returns to the original
+    // temporary-attachment behavior.
+    const persistedMessage: ChatMessage = { role: msg.role, content: msg.content };
     const storedMessage = toStoredMessage(convoId, persistedMessage, now);
 
     if (user) {
@@ -418,7 +419,7 @@ export function useChatHistory() {
         conversation_id: convoId,
         role: msg.role,
         content: msg.content,
-        images: msg.images || [],
+        images: [],
         created_at: now,
         updated_at: now,
       });
