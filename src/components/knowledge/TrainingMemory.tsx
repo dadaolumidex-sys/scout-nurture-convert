@@ -88,6 +88,7 @@ export function TrainingMemory() {
 
     setAnalyzing(true);
     let styleAnalysis: string | null = null;
+    let extractedContent = content || `Uploaded file: ${fileName}`;
 
     try {
       const data = await callEdgeFunction<{ result?: string; extractedContent?: string }>("analyze-knowledge", {
@@ -100,6 +101,7 @@ export function TrainingMemory() {
         persona: personaTab,
       });
       styleAnalysis = data.result?.trim() || null;
+      extractedContent = data.extractedContent || extractedContent;
       if (!styleAnalysis) throw new Error("The AI returned no style analysis. Please try again.");
     } catch (e) {
       console.error("Analysis error:", e);
@@ -114,7 +116,7 @@ export function TrainingMemory() {
           title,
           persona: personaTab,
           source_type: sourceMode,
-          content: data.extractedContent || content || `Uploaded file: ${fileName}`,
+          content: extractedContent,
           style_analysis: styleAnalysis,
           status: nextStatus,
           user_id: user.id,
@@ -126,7 +128,7 @@ export function TrainingMemory() {
         title,
         persona: personaTab,
         source_type: sourceMode,
-        content: data.extractedContent || content || `Uploaded file: ${fileName}`,
+        content: extractedContent,
         style_analysis: styleAnalysis,
         status: nextStatus,
       });

@@ -291,7 +291,7 @@ serve(async (req) => {
     let systemPrompt = "";
 
     if (type === "training") {
-      systemPrompt = `You are analyzing a conversation to extract the communication style and personality fingerprint of a streamer outreach specialist.
+      systemPrompt = `You are analyzing a conversation to extract the communication style and personality fingerprint of a streamer outreach specialist. Read the entire supplied source before responding.
 
 Persona context: ${persona === "brozeen" ? "Brozeen (professional promoter who converts streamers into clients)" : "Nifimas (friendly, casual friend who builds trust and rapport)"}
 
@@ -304,7 +304,7 @@ Style: [your analysis]
 
 Keep it concise but insightful.`;
     } else if (type === "objection") {
-      systemPrompt = `You are extracting an OBJECTION-HANDLING PLAYBOOK from sales / persuasion / psychology content (this may be a transcript, article, script, or notes).
+      systemPrompt = `You are extracting an OBJECTION-HANDLING PLAYBOOK from sales / persuasion / psychology content (this may be a transcript, article, script, or notes). Read the entire source deeply before responding.
 
 Your job: find every objection, hesitation, or point of resistance a prospective buyer might raise, and the best way to respond to it based on the material.
 
@@ -313,14 +313,15 @@ Return a JSON array. Each item MUST have:
 - "insight": a single string formatted EXACTLY as: "Objection: <the objection in the buyer's words> → Response: <the concise, persuasive way to handle it>"
 
 Rules:
-- Extract 3-15 of the most useful, reusable objection/response pairs.
+- Extract up to 50 distinct, useful and reusable objection/response pairs; aim for 50 when the material supports it.
+- Do not stop after the first examples, do not repeat the same objection in different words, and do not invent objections that are not supported by the material.
 - Keep each response tactical and specific (mention the psychology/technique when relevant, e.g. reframing, social proof, scarcity, feel-felt-found).
 - If the content is general sales psychology (no explicit objections), infer the common objections it helps overcome and write pairs for them.
 - Only return the JSON array, nothing else.`;
     } else {
-      systemPrompt = `You are extracting actionable insights from sales/marketing content for a streamer promotion business.
+      systemPrompt = `You are extracting actionable insights from sales/marketing content for a streamer promotion business. Read the entire source deeply before responding.
 
-Extract 3-8 key insights from the content. Each insight should have:
+Extract up to 50 distinct key insights from the content; aim for 50 when the material supports it. Cover all useful sections, not just the beginning. Each insight should have:
 - A category tag (e.g., "Objection Handling", "Trust Building", "Content Creation", "Sales Strategy", "Closing Techniques", "Mindset", "Social Media Strategy", "Personal Growth")
 - A concise insight (1-2 sentences max)
 
@@ -336,7 +337,7 @@ Only return the JSON array, nothing else.`;
     if (hasFile) {
       const mime = (fileMime as string) || "application/octet-stream";
       const instruction = sourceText.trim()
-        ? sourceText.slice(0, 8000)
+        ? sourceText.slice(0, 100000)
         : "Analyze the attached file and extract the requested information from its contents.";
       const blocks: unknown[] = [{ type: "text", text: instruction }];
       if (mime.startsWith("image/")) {
@@ -346,7 +347,7 @@ Only return the JSON array, nothing else.`;
       }
       userContent = blocks;
     } else {
-      userContent = sourceText.slice(0, 12000);
+      userContent = sourceText.slice(0, 100000);
     }
 
     const response = await callAI({
@@ -377,7 +378,7 @@ Only return the JSON array, nothing else.`;
     const result = data.choices?.[0]?.message?.content || "";
 
     const extractedContent = sourceText.trim()
-      ? sourceText.slice(0, 12000)
+      ? sourceText.slice(0, 100000)
       : (hasFile ? `Uploaded file: ${(fileName as string) || "file"}` : "");
 
     return new Response(JSON.stringify({ result, extractedContent }), {

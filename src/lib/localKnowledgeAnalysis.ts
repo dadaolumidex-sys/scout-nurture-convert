@@ -13,6 +13,7 @@ type LocalAnalysisInput = {
 type LocalAnalysisResult = { result: string; extractedContent: string };
 
 const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
+const MAX_SOURCE_CHARS = 100_000;
 
 function promptFor(type: AnalysisType, persona?: string) {
   if (type === "training") {
@@ -26,10 +27,10 @@ Key patterns: [tone, techniques, and phrases used]`;
   }
 
   if (type === "objection") {
-    return `Extract an objection-handling playbook from the supplied material. Return only a JSON array with 3-15 items. Each item must have "category": "Objection Handling" and "insight" formatted exactly as: "Objection: <buyer words> → Response: <concise persuasive response>".`;
+    return `Read the entire supplied material deeply and extract a comprehensive objection-handling playbook. Return only a JSON array with up to 50 distinct, useful items; aim for 50 when the material supports it. Do not stop after the first examples, and do not repeat the same objection in different words. If there are fewer than 50 genuinely distinct objections, return every useful one you can find. Each item must have "category": "Objection Handling" and "insight" formatted exactly as: "Objection: <buyer words> → Response: <concise persuasive response>".`;
   }
 
-  return `Extract 3-8 actionable insights from the supplied sales or marketing material for a streamer promotion business. Return only a JSON array. Each item must have "category" and "insight". Keep every insight concise and practical.`;
+  return `Read the entire supplied sales or marketing material deeply. Extract up to 50 distinct actionable insights for a streamer promotion business; aim for 50 when the source contains enough detail. Cover all useful sections rather than only the beginning. Do not invent facts or duplicate ideas. Return only a JSON array; each item must have "category" and "insight". Keep every insight concise and practical.`;
 }
 
 function filePart(fileData: string, fileMime?: string) {
@@ -56,7 +57,7 @@ export async function analyzeKnowledgeLocally(input: LocalAnalysisInput): Promis
   if (!keys.length) throw new Error("Add an active Gemini key in Settings → API & Connections to analyze files locally.");
 
   const parts: Array<Record<string, unknown>> = [{ text: promptFor(type, input.persona) }];
-  if (sourceText) parts.push({ text: `\n\nSource material:\n${sourceText.slice(0, 12000)}` });
+  if (sourceText) parts.push({ text: `\n\nSource material:\n${sourceText.slice(0, MAX_SOURCE_CHARS)}` });
   if (input.fileData) parts.push(filePart(input.fileData, input.fileMime));
 
   let lastError = "";
@@ -68,7 +69,10 @@ export async function analyzeKnowledgeLocally(input: LocalAnalysisInput): Promis
           {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-goog-api-key": savedKey.api_key },
-            body: JSON.stringify({ contents: [{ role: "user", parts }] }),
+            body: JSON.stringify({
+              contents: [{ role: "user", parts }],
+              generationConfig: { maxOutputTokens: 8192 },
+            }),
           },
         );
         if (!response.ok) {
@@ -87,7 +91,7 @@ export async function analyzeKnowledgeLocally(input: LocalAnalysisInput): Promis
         await recordSuccess(savedKey.id);
         return {
           result,
-          extractedContent: sourceText || `Uploaded file analyzed locally.`,
+          extractedContent: sourceText.slice(0, MAX_SOURCE_CHARS) || `Uploaded file analyzed locally.`,
         };
       } catch (error) {
         lastError = error instanceof Error ? error.message : "Local Gemini request failed";
