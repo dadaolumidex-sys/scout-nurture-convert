@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, Search, MessageSquare, BookOpen, Bot, Settings, BarChart3, Globe } from "lucide-react";
+import { LayoutDashboard, Search, MessageSquare, BookOpen, Bot, Settings, BarChart3, Globe, LogIn, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
@@ -8,6 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const mainTabs = [
   { label: "Home", icon: LayoutDashboard, path: "/" },
@@ -26,6 +27,7 @@ const moreTabs = [
 export function MobileBottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, signOut } = useAuth();
 
   const isActive = (path: string) =>
     path === "/" ? location.pathname === "/" : location.pathname.startsWith(path);
@@ -80,6 +82,23 @@ export function MobileBottomNav() {
                 {tab.label}
               </DropdownMenuItem>
             ))}
+            {user ? (
+              <DropdownMenuItem
+                onClick={() => void signOut()}
+                className="gap-3 py-3.5 text-base text-destructive focus:text-destructive"
+              >
+                <LogOut className="h-5 w-5" />
+                Sign Out
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                onClick={() => navigate("/auth")}
+                className="gap-3 py-3.5 text-base text-primary focus:text-primary"
+              >
+                <LogIn className="h-5 w-5" />
+                Sign In / Create Account
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

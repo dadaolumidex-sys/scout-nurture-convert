@@ -8,6 +8,7 @@ import {
   Settings,
   Zap,
   LogOut,
+  LogIn,
   Globe,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
@@ -88,7 +89,7 @@ export function AppSidebar() {
             {user?.email ?? "Guest mode"}
           </p>
         )}
-        {user && (
+        {user ? (
           <Button
             variant="ghost"
             size="sm"
@@ -97,6 +98,13 @@ export function AppSidebar() {
           >
             <LogOut className="h-4 w-4 mr-2" />
             {!collapsed && "Sign Out"}
+          </Button>
+        ) : (
+          <Button asChild variant="outline" size="sm" className="w-full justify-start border-primary/40 text-primary hover:bg-primary/10">
+            <NavLink to="/auth">
+              <LogIn className="h-4 w-4 mr-2" />
+              {!collapsed && "Sign In / Create Account"}
+            </NavLink>
           </Button>
         )}
       </SidebarFooter>
