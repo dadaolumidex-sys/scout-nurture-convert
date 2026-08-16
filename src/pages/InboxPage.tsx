@@ -35,6 +35,7 @@ type Contact = {
 };
 
 type ConversationType = "new_prospect" | "existing_chat" | "re_engage";
+type InboxFilter = "all" | "active" | "finished";
 
 const conversationStages: Record<string, { label: string; emoji: string; className: string }> =
   Object.fromEntries(LEAD_STATUSES.map((s) => [s.id, { label: s.label, emoji: s.emoji, className: s.className }]));
@@ -51,6 +52,7 @@ const InboxPage = () => {
   const navigate = useNavigate();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<InboxFilter>("all");
   const [view, setView] = useState<"list" | "pipeline">("list");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogStep, setDialogStep] = useState<"type" | "details">("type");
@@ -88,9 +90,16 @@ const InboxPage = () => {
     setLoading(false);
   };
 
-  const filteredContacts = contacts.filter((c) =>
-    (c.display_name || c.username).toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredContacts = contacts.filter((c) => {
+    const matchesSearch = (c.display_name || c.username).toLowerCase().includes(search.toLowerCase());
+    const isFinished = ["converted", "not_interested", "blocked"].includes(c.status || "");
+    return matchesSearch && (filter === "all" || (filter === "finished" ? isFinished : !isFinished));
+  });
+
+  const filterCount = (next: InboxFilter) => contacts.filter((contact) => {
+    const isFinished = ["converted", "not_interested", "blocked"].includes(contact.status || "");
+    return next === "all" || (next === "finished" ? isFinished : !isFinished);
+  }).length;
 
   const resetDialog = () => {
     setDialogStep("type");
@@ -209,7 +218,7 @@ const InboxPage = () => {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold text-foreground">Conversation Inbox</h1>
-            <p className="text-muted-foreground text-xs sm:text-sm">Manage your streamer conversations</p>
+            <p className="text-muted-foreground text-xs sm:text-sm">Choose a client, paste their latest message, then get a reply.</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetDialog(); }}>
             <DialogTrigger asChild>
@@ -339,7 +348,8 @@ const InboxPage = () => {
         {/* Reminders */}
         <RemindersPanel contacts={contacts.map(c => ({ id: c.id, username: c.username, display_name: c.display_name }))} />
 
-        {/* Search + view toggle */}
+        {/* Find and focus */}
+        <div className="space-y-2">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -353,6 +363,25 @@ const InboxPage = () => {
               <LayoutGrid className="h-4 w-4" />
             </button>
           </div>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {([
+            ["all", "All"],
+            ["active", "Active"],
+            ["finished", "Finished"],
+          ] as [InboxFilter, string][]).map(([value, label]) => (
+            <Button
+              key={value}
+              type="button"
+              size="sm"
+              variant={filter === value ? "default" : "outline"}
+              onClick={() => setFilter(value)}
+              className={filter === value ? "shrink-0 gradient-primary text-primary-foreground" : "shrink-0 border-border text-muted-foreground"}
+            >
+              {label} ({filterCount(value)})
+            </Button>
+          ))}
+        </div>
         </div>
 
         {/* Pipeline view */}
@@ -400,7 +429,7 @@ const InboxPage = () => {
                         })()}
                       </div>
                       <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 truncate">
-                        {contact.avg_viewers ? `Avg viewers: ${contact.avg_viewers}` : "No analysis data yet"}
+                        {contact.last_message?.trim() || (contact.avg_viewers ? `Avg viewers: ${contact.avg_viewers}` : "Open to paste a message and get a reply")}
                       </p>
                     </div>
                   </div>

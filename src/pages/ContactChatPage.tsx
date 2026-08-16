@@ -490,7 +490,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
 
         <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">One client, one history.</span>{" "}
-          Choose their current stage above. Paste their latest Discord message, paste a full chat transcript, or upload screenshots; the AI uses it as context and drafts the next reply in the selected stage.
+          Choose the reply voice, paste their latest message or full chat, then generate a reply. Screenshots are temporary for the current reply only.
         </div>
 
         {suggestedPersona && (
@@ -695,9 +695,11 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
 
 
         {/* Input */}
+        <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="reply-direction">Reply instructions (optional)</label>
         <Textarea
+          id="reply-direction"
           aria-label="How you want the AI to reply"
-          placeholder="Optional: tell the AI how you want to reply — e.g. friendly but confident, ask about their budget, keep it very short, do not mention prices yet..."
+          placeholder="Example: friendly but confident; keep it short; do not mention price yet."
           value={replyDirection}
           onChange={(e) => updateInboxDraft({ replyDirection: e.target.value })}
           className="mb-2 bg-muted/60 border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[88px] text-sm"

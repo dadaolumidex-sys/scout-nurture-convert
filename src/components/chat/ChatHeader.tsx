@@ -41,10 +41,11 @@ export const ChatHeader = ({ contact, persona, onPersonaChange, onBack }: Props)
       <h1 className="text-lg font-bold text-foreground truncate">{contact.display_name || contact.username}</h1>
       <div className="flex items-center gap-2">
         <Badge variant="outline" className="text-xs border-primary/30 text-primary capitalize">{contact.platform}</Badge>
-        {contact.growth_stage && <Badge variant="outline" className="text-xs text-muted-foreground">{contact.growth_stage}</Badge>}
       </div>
     </div>
-    <div className="flex gap-2 flex-wrap w-full sm:w-auto" role="radiogroup" aria-label="AI persona">
+    <div className="w-full sm:w-auto">
+      <p className="mb-1 text-[11px] font-medium text-muted-foreground">Reply voice</p>
+      <div className="flex gap-2 flex-wrap" role="radiogroup" aria-label="Reply voice">
       {(Object.keys(personaConfig) as Persona[]).map((key) => (
         <Button
           key={key}
@@ -59,6 +60,7 @@ export const ChatHeader = ({ contact, persona, onPersonaChange, onBack }: Props)
           <span aria-hidden="true">{personaConfig[key].emoji}</span> {personaConfig[key].name}
         </Button>
       ))}
+      </div>
     </div>
   </div>
 );
