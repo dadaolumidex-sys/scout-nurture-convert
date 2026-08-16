@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Bot, Plus, ImagePlus, Sparkles, X, Pencil, Trash2, Copy, MoreVertical, Check, RotateCcw, ArrowLeft, Cpu, AlertTriangle, KeyRound } from "lucide-react";
+import { Send, Bot, Plus, ImagePlus, Sparkles, X, Pencil, Trash2, Copy, MoreVertical, Check, RotateCcw, ArrowLeft, Cpu, AlertTriangle, KeyRound, Inbox } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,6 +17,9 @@ import { guestStorage } from "@/lib/guestStorage";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
 import { ChatComposer, ChatComposerHandle } from "@/components/chat/ChatComposer";
 import { compressImageFile } from "@/lib/imageCompress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 
 type Persona = "friend" | "promoter";
@@ -183,6 +186,8 @@ const ChatPage = () => {
   const [editContent, setEditContent] = useState("");
   const [mobileView, setMobileView] = useState<"list" | "chat">("list");
   const [msgTimestamps, setMsgTimestamps] = useState<Date[]>([]);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -433,6 +438,100 @@ const ChatPage = () => {
 
   const activeConvo = activeId ? conversations.find(c => c.id === activeId) : null;
 
+  const exportToInbox = async () => {
+    if (!user || !activeConvo || messages.length === 0) {
+      toast.error("Open a named AI Chat with messages first");
+      return;
+    }
+    const clientName = activeConvo.title.trim();
+    if (!clientName || clientName === "New Chat") {
+      toast.error("Name this AI Chat first so it can be linked to the right client");
+      return;
+    }
+
+    setExporting(true);
+    try {
+      // Reuse a client with the same name when it already exists. Otherwise,
+      // create a new manual Inbox client. The AI chat itself is never changed.
+      let contact: { id: string } | null = null;
+      const { data: existing } = await (supabase.from("streamer_contacts" as any)
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("display_name", clientName)
+        .limit(1) as any);
+      if (existing?.[0]) {
+        contact = existing[0];
+      } else {
+        const safeSlug = clientName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "client";
+        const { data: created, error } = await (supabase.from("streamer_contacts" as any).insert({
+          user_id: user.id,
+          username: `ai-${safeSlug}-${Date.now()}`,
+          display_name: clientName,
+          platform: "manual",
+          status: "in_conversation",
+          conversation_type: "ai_chat",
+        }).select("id").single() as any);
+        if (error || !created) throw new Error(error?.message || "Couldn't create the Inbox client");
+        contact = created;
+      }
+
+      const transcript = messages.map((message) => (
+        `${message.role === "user" ? "YOU / YOUR NOTE" : "AI ADVICE"}:\n${message.content}`
+      )).join("\n\n");
+      const privateNote = `PRIVATE AI CHAT CONTEXT — not a real client message.\nUse this only to understand the client, previous advice, and where the conversation left off.\n\n${transcript}`;
+      const exportSource = `ai_chat_export:${activeConvo.id}`;
+      const { data: existingNote } = await (supabase.from("contact_messages" as any)
+        .select("id")
+        .eq("contact_id", contact.id)
+        .eq("source", exportSource)
+        .limit(1) as any);
+
+      const note = {
+        user_id: user.id,
+        contact_id: contact.id,
+        role: "assistant",
+        persona,
+        source: exportSource,
+        content: privateNote.slice(0, 60_000),
+      };
+      const { error: noteError } = existingNote?.[0]
+        ? await (supabase.from("contact_messages" as any).update({ ...note, updated_at: new Date().toISOString() }).eq("id", existingNote[0].id) as any)
+        : await (supabase.from("contact_messages" as any).insert(note) as any);
+      if (noteError) throw new Error(noteError.message || "Couldn't save the private AI context");
+
+      setExportOpen(false);
+      toast.success(`Saved ${clientName} to Inbox — your AI Chat is unchanged`);
+      navigate(`/inbox/${contact.id}`);
+    } catch (error) {
+      console.error("Inbox export failed:", error);
+      toast.error(error instanceof Error ? error.message : "Couldn't send this chat to Inbox");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportDialog = (
+    <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+      <DialogContent className="bg-card border-border">
+        <DialogHeader>
+          <DialogTitle className="text-foreground">Send this AI Chat to Inbox?</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label className="text-foreground">Client name</Label>
+            <Input value={activeConvo?.title || ""} readOnly className="bg-muted border-border text-foreground" />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            This creates or reuses this client in Inbox and saves this AI Chat as a private context note. It does not edit or remove your original AI Chat.
+          </p>
+          <Button onClick={exportToInbox} disabled={exporting || !activeConvo || messages.length === 0} className="w-full gradient-primary text-primary-foreground">
+            {exporting ? <><Bot className="h-4 w-4 mr-2 animate-pulse" /> Saving…</> : <><Inbox className="h-4 w-4 mr-2" /> Send to Inbox</>}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+
   // Shared message bubble renderer
   const renderMessages = (maxWidth: string) => (
     <>
@@ -627,6 +726,9 @@ const ChatPage = () => {
             </h1>
             <ModelBadge deepResearch={deepResearch} />
           </div>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setExportOpen(true)} aria-label="Send to Inbox" disabled={!activeConvo || messages.length === 0}>
+            <Inbox className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleNewChat}>
             <Plus className="h-4 w-4" />
           </Button>
@@ -642,6 +744,7 @@ const ChatPage = () => {
 
         {/* Input */}
         {inputBar("pb-[env(safe-area-inset-bottom)]")}
+        {exportDialog}
       </div>
     );
   }
@@ -670,6 +773,9 @@ const ChatPage = () => {
               <ModelBadge deepResearch={deepResearch} />
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={!activeConvo || messages.length === 0} className="gap-1 h-8 px-2">
+                <Inbox className="h-3.5 w-3.5" /> Send to Inbox
+              </Button>
               <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-1 h-8 px-2">
                 <Plus className="h-3.5 w-3.5" /> New
               </Button>
@@ -716,6 +822,7 @@ const ChatPage = () => {
             onPickImage={() => fileInputRef.current?.click()}
           />
         </div>
+        {exportDialog}
       </div>
     </DashboardLayout>
   );
