@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SuggestionCards } from "@/components/chat/SuggestionCards";
-import { DiscordPanel } from "@/components/inbox/DiscordPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
 import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
@@ -409,22 +408,6 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           onPersonaChange={(p) => { setPersona(p); setSuggestions([]); setSelectedSuggestion(null); }}
           onBack={() => navigate("/inbox")}
         />
-
-        {user && contactId && (
-          <DiscordPanel
-            contactId={contactId}
-            persona={persona}
-            signedIn={!!user}
-            discord={{
-              discord_channel_id: contact.discord_channel_id ?? null,
-              discord_user_id: contact.discord_user_id ?? null,
-              discord_sync_enabled: contact.discord_sync_enabled ?? false,
-              discord_persona: contact.discord_persona ?? persona,
-              discord_last_synced_at: contact.discord_last_synced_at ?? null,
-            }}
-            onChanged={async () => { await loadContact(); await loadMessages(); }}
-          />
-        )}
 
         {suggestedPersona && (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
