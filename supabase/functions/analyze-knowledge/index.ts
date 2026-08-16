@@ -196,6 +196,69 @@ async function callAI(body: Record<string, unknown>, userGeminiKeys: string[]): 
   throw new Error("No AI key is available for extraction.");
 }
 
+/**
+ * Gemini's native endpoint accepts PDFs, Word files, and images as inline
+ * data. The OpenAI-compatible route used for normal chat does not reliably
+ * support those file blocks, so uploaded knowledge files use this path first.
+ */
+async function extractUploadedFileWithGemini(
+  systemPrompt: string,
+  sourceText: string,
+  fileData: string,
+  fileMime: string | undefined,
+  keys: string[],
+): Promise<string> {
+  const match = /^data:([^;,]+)?(?:;base64)?,(.*)$/s.exec(fileData);
+  if (!match) throw new Error("The uploaded file could not be read. Please choose it again and retry.");
+
+  const mimeType = fileMime || match[1] || "application/octet-stream";
+  const fileBytes = match[2];
+  const models = Array.from(new Set(["gemini-3.6-flash", ...GEMINI_FALLBACK_MODELS]));
+  let lastReason = "";
+
+  for (const key of keys) {
+    for (const model of models) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+          body: JSON.stringify({
+            contents: [{
+              role: "user",
+              parts: [
+                { text: `${systemPrompt}\n\n${sourceText.trim().slice(0, 100000) || "Analyze the attached file and extract the requested information from its contents."}` },
+                { inline_data: { mime_type: mimeType, data: fileBytes } },
+              ],
+            }],
+            generationConfig: { maxOutputTokens: 4096 },
+          }),
+        });
+        if (!response.ok) {
+          const detail = (await response.text()).replace(/\s+/g, " ").slice(0, 240);
+          lastReason = response.status === 429
+            ? "Your Gemini key has reached its request limit. Try another active key or wait a moment."
+            : response.status === 401 || response.status === 403
+              ? "Your Gemini key was rejected. Check that it is active and valid in Settings → API & Connections."
+              : response.status === 400
+                ? `Gemini could not read this file. Try a smaller PDF, Word, image, or text file.${detail ? ` (${detail})` : ""}`
+                : `Gemini returned ${response.status}.${detail ? ` ${detail}` : ""}`;
+          continue;
+        }
+        const data = await response.json();
+        const result = (data.candidates?.[0]?.content?.parts || [])
+          .map((part: { text?: string }) => part.text || "")
+          .join("")
+          .trim();
+        if (result) return result;
+        lastReason = "Gemini returned no readable analysis for this file.";
+      } catch (error) {
+        lastReason = error instanceof Error ? error.message : "The Gemini file reader failed.";
+      }
+    }
+  }
+  throw new Error(lastReason || "Gemini could not analyze this uploaded file. Check the active Gemini keys and try again.");
+}
+
 // Strip HTML down to readable text for URL sources.
 function htmlToText(html: string): string {
   return html
@@ -350,32 +413,38 @@ Only return the JSON array, nothing else.`;
       userContent = sourceText.slice(0, 100000);
     }
 
-    const response = await callAI({
-      model: "google/gemini-3.6-flash",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userContent },
-      ],
-    }, await loadUserGeminiKeys(req));
+    const userGeminiKeys = await loadUserGeminiKeys(req);
+    let result = "";
+    if (hasFile && userGeminiKeys.length > 0) {
+      result = await extractUploadedFileWithGemini(systemPrompt, sourceText, fileData, fileMime, userGeminiKeys);
+    } else {
+      const response = await callAI({
+        model: "google/gemini-3.6-flash",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent },
+        ],
+      }, userGeminiKeys);
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (!response.ok) {
+        if (response.status === 429) {
+          return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (response.status === 402) {
+          return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits." }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        const detail = (await response.text()).slice(0, 500);
+        console.error("AI error:", response.status, detail);
+        throw new Error(`AI service error (${response.status}). ${detail || "Check your active Gemini keys and try again."}`);
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const detail = (await response.text()).slice(0, 500);
-      console.error("AI error:", response.status, detail);
-      throw new Error(`AI service error (${response.status}). ${detail || "Check your active Gemini keys and try again."}`);
+
+      const data = await response.json();
+      result = data.choices?.[0]?.message?.content || "";
     }
-
-    const data = await response.json();
-    const result = data.choices?.[0]?.message?.content || "";
 
     const extractedContent = sourceText.trim()
       ? sourceText.slice(0, 100000)
