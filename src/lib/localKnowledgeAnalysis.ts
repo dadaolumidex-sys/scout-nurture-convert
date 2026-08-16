@@ -1,4 +1,5 @@
 import { getActiveKeysForRotation, recordFailure, recordSuccess } from "@/lib/apiKeys";
+import { supabase } from "@/integrations/supabase/client";
 
 type AnalysisType = "knowledge" | "objection" | "training";
 
@@ -16,6 +17,27 @@ type LocalSuggestion = { message: string; reason: string; approach: string };
 
 const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
 const MAX_SOURCE_CHARS = 100_000;
+
+async function loadLocalReplyMemory(persona: string) {
+  const knowledgePersona = persona === "promoter" ? "brozeen" : persona === "streamer" ? "bigstreamer" : "nifimas";
+  const [knowledgeResult, trainingResult] = await Promise.all([
+    supabase.from("knowledge_entries" as any).select("title, content, category, insights")
+      .or(`persona.eq.${knowledgePersona},persona.eq.shared`).limit(20) as any,
+    supabase.from("training_conversations" as any).select("title, content, style_analysis")
+      .eq("persona", knowledgePersona).in("status", ["ready", "analyzed"]).limit(5) as any,
+  ]);
+
+  const knowledge = (knowledgeResult.data || []).map((entry: any) => {
+    const insights = Array.isArray(entry.insights) ? entry.insights
+      .slice(0, 8).map((item: any) => typeof item === "string" ? item : item?.insight || "").filter(Boolean).join("\n") : "";
+    return `Source: ${entry.title || entry.category || "Knowledge"}\n${insights || String(entry.content || "").slice(0, 1_200)}`;
+  }).filter(Boolean).join("\n\n").slice(0, 10_000);
+  const training = (trainingResult.data || []).map((entry: any) =>
+    `Style notes: ${entry.style_analysis || ""}\nExample: ${String(entry.content || "").slice(0, 900)}`,
+  ).join("\n\n").slice(0, 5_000);
+
+  return { knowledge, training };
+}
 
 function isYouTubeUrl(value: string) {
   try {
@@ -180,6 +202,13 @@ export async function generateInboxSuggestionsLocally(input: Record<string, unkn
   const persona = input.persona === "promoter" ? "Brozeen (professional promoter)"
     : input.persona === "streamer" ? "Big Streamer (direct, calm closer)"
       : "Nifimas (friendly streamer friend)";
+  const conversationType = String(input.conversationType || "new_prospect");
+  const modeRules = conversationType === "existing_chat"
+    ? "CONTINUE EXISTING CHAT: Read the whole pasted chat carefully. Work out where it stopped and what the client last said or asked. Continue from that exact point—never restart, re-introduce yourself, or answer an older message."
+    : conversationType === "re_engage"
+      ? "RE-ENGAGE: The client went quiet. Do not guilt them, do not say 'just following up', and do not repeat the old message. Use the conversation to create one fresh, low-pressure hook that is easy to answer—such as a useful observation or a relevant question."
+      : "NEW PROSPECT: This is the start. React to their real message, keep it light, and open an easy loop that makes replying natural. Do not pitch early unless the selected Big Streamer stage truly fits.";
+  const replyMemory = await loadLocalReplyMemory(String(input.persona || "friend"));
   const messages = Array.isArray(input.messages) ? input.messages : [];
   const recentMessages = messages.slice(-20);
   const conversation = recentMessages.map((message: any) =>
@@ -189,6 +218,14 @@ export async function generateInboxSuggestionsLocally(input: Record<string, unkn
   const prompt = `You are ${persona}. Write exactly 3 possible replies for the client conversation below.
 
 ${context}
+
+${modeRules}
+
+SAVED KNOWLEDGE AND PLAYBOOK (use only when relevant; saved objections take priority when the client pushes back):
+${replyMemory.knowledge || "No saved knowledge available."}
+
+TEAM WRITING STYLE (match this only when available):
+${replyMemory.training || "No saved training style available."}
 
 REAL CONVERSATION (the final CLIENT line is the newest message and must be answered directly):
 ${conversation}

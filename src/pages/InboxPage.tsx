@@ -122,6 +122,9 @@ const InboxPage = () => {
       platform: newPlatform,
       channel_url: null,
       conversation_type: selectedType,
+      // Keep the way this Inbox started even after its active reply voice
+      // changes from Nifimas to Brozeen or Big Streamer.
+      growth_stage: selectedType,
       status: statusMap[selectedType || "new_prospect"],
     };
 

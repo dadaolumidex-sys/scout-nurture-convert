@@ -118,6 +118,18 @@ const ContactChatPage = () => {
     }
     if (data) {
       setContact(data);
+      // Older Inboxes saved this source type in conversation_type. Preserve it
+      // in growth_stage the first time they are opened, before stage switching.
+      if (!data.growth_stage && ["new_prospect", "existing_chat", "re_engage"].includes(data.conversation_type || "")) {
+        const preservedType = data.conversation_type;
+        if (user) {
+          await (supabase.from("streamer_contacts" as any).update({ growth_stage: preservedType }).eq("id", contactId) as any);
+        } else if (contactId) {
+          guestStorage.contacts.update(contactId, { growth_stage: preservedType });
+        }
+        data.growth_stage = preservedType;
+        setContact({ ...data });
+      }
       if (!searchParams.get("persona") && ["friend", "promoter", "streamer"].includes(data.conversation_type || "")) {
         setPersona(data.conversation_type as Persona);
       }
@@ -300,7 +312,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
         messages: recentMessages,
         persona: targetPersona,
         contactContext,
-        conversationType: contact?.conversation_type || "new_prospect",
+        conversationType: contact?.growth_stage || contact?.conversation_type || "new_prospect",
         knowledge: user ? [] : guestStorage.knowledge.list(),
       });
       const nextSuggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
