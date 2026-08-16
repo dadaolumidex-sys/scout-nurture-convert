@@ -7,13 +7,16 @@ export async function callEdgeFunction<T>(
   body: Record<string, unknown>,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<T> {
-  // Local mode deliberately bypasses the unavailable hosted function and uses
-  // the signed-in user's own configured keys instead.
-  if (functionName === "analyze-knowledge" && import.meta.env.DEV && window.location.hostname === "localhost") {
+  // Any localhost build (including `vite preview`) deliberately bypasses the
+  // hosted function and uses the signed-in user's own configured keys instead.
+  // Keeping this hostname-only means provider keys are never exposed on the
+  // published site, while local testing does not depend on Lovable Cloud.
+  const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+  if (functionName === "analyze-knowledge" && isLocalhost) {
     const { analyzeKnowledgeLocally } = await import("./localKnowledgeAnalysis");
     return analyzeKnowledgeLocally(body) as Promise<T>;
   }
-  if (functionName === "chat-suggestions" && import.meta.env.DEV && window.location.hostname === "localhost") {
+  if (functionName === "chat-suggestions" && isLocalhost) {
     const { generateInboxSuggestionsLocally } = await import("./localKnowledgeAnalysis");
     return generateInboxSuggestionsLocally(body) as Promise<T>;
   }
