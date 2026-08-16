@@ -13,6 +13,10 @@ export async function callEdgeFunction<T>(
     const { analyzeKnowledgeLocally } = await import("./localKnowledgeAnalysis");
     return analyzeKnowledgeLocally(body) as Promise<T>;
   }
+  if (functionName === "chat-suggestions" && import.meta.env.DEV && window.location.hostname === "localhost") {
+    const { generateInboxSuggestionsLocally } = await import("./localKnowledgeAnalysis");
+    return generateInboxSuggestionsLocally(body) as Promise<T>;
+  }
 
   const { data: { session } } = await supabase.auth.getSession();
   const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;

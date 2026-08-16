@@ -12,6 +12,7 @@ type LocalAnalysisInput = {
 };
 
 type LocalAnalysisResult = { result: string; extractedContent: string };
+type LocalSuggestion = { message: string; reason: string; approach: string };
 
 const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
 const MAX_SOURCE_CHARS = 100_000;
@@ -169,4 +170,64 @@ export async function analyzeKnowledgeLocally(input: LocalAnalysisInput): Promis
   }
 
   throw new Error(`${lastError || "Gemini could not analyze this source"}. Check your active Gemini keys and try again.`);
+}
+
+/** Local equivalent of the Inbox reply function when Lovable Cloud is unavailable. */
+export async function generateInboxSuggestionsLocally(input: Record<string, unknown>): Promise<{ suggestions: LocalSuggestion[] }> {
+  const keys = await getActiveKeysForRotation("gemini");
+  if (!keys.length) throw new Error("Add an active Gemini key in Settings → API & Connections to generate Inbox replies locally.");
+
+  const persona = input.persona === "promoter" ? "Brozeen (professional promoter)"
+    : input.persona === "streamer" ? "Big Streamer (direct, calm closer)"
+      : "Nifimas (friendly streamer friend)";
+  const messages = Array.isArray(input.messages) ? input.messages : [];
+  const conversation = messages.slice(-20).map((message: any) =>
+    `${message?.role === "assistant" ? "YOUR PREVIOUS REPLY" : "CLIENT"}: ${String(message?.content || "")}`,
+  ).join("\n");
+  const context = String(input.contactContext || "").slice(0, 14_000);
+  const prompt = `You are ${persona}. Write exactly 3 possible replies for the client conversation below.
+
+${context}
+
+REAL CONVERSATION (the final CLIENT line is the newest message and must be answered directly):
+${conversation}
+
+Return only valid JSON in this shape:
+{"suggestions":[{"message":"...","reason":"...","approach":"..."}]}
+
+Rules: each message must be 1-3 short, natural Discord sentences (45 words maximum). Do not answer private notes. Do not invent a client message. If the newest message is only a greeting, reply naturally to the greeting and do not jump into a sales pitch.`;
+
+  let lastError = "";
+  for (const savedKey of keys) {
+    for (const model of MODELS) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": savedKey.api_key },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json", maxOutputTokens: 2048 },
+          }),
+        });
+        if (!response.ok) { lastError = `Gemini returned ${response.status}`; continue; }
+        const payload = await response.json();
+        const raw = (payload.candidates?.[0]?.content?.parts || []).map((part: { text?: string }) => part.text || "").join("").trim();
+        const parsed = JSON.parse(raw.replace(/```json\n?|```/g, "").trim());
+        const suggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions
+          .filter((item: any) => item?.message)
+          .slice(0, 3)
+          .map((item: any) => ({ message: String(item.message), reason: String(item.reason || ""), approach: String(item.approach || "Reply") }))
+          : [];
+        if (suggestions.length) {
+          await recordSuccess(savedKey.id);
+          return { suggestions };
+        }
+        lastError = "Gemini returned no usable suggestions";
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : "Local Gemini request failed";
+      }
+    }
+    await recordFailure(savedKey.id, lastError || "Gemini could not generate suggestions");
+  }
+  throw new Error(`${lastError || "Gemini could not generate reply suggestions"}. Check your active Gemini keys and try again.`);
 }
