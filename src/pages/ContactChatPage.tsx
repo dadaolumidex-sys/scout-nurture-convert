@@ -66,6 +66,7 @@ const ContactChatPage = () => {
   const [contact, setContact] = useState<Contact | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [replyDirection, setReplyDirection] = useState("");
   const [persona, setPersona] = useState<Persona>(initialPersona);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -283,11 +284,13 @@ const ContactChatPage = () => {
       .map((m) => `${m.persona ? personaConfig[m.persona as Persona]?.name || m.persona : "Earlier stage"} ${m.role === "assistant" ? "YOUR REPLY" : "CLIENT"}: ${m.content}`)
       .join("\n");
     const latestClientMessage = [...personaMessages].reverse().find((m) => m.role === "user")?.content || "";
+    const compactReplyDirection = replyDirection.trim().slice(0, 1_500);
 
     const contactContext = contact
       ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
 
 IMPORTANT: The exact latest real message from this client is: "${latestClientMessage}". Reply directly to that message. Do not reply to, quote, or continue any private AI notes.
+${compactReplyDirection ? `\nYour team's reply direction: "${compactReplyDirection}". Follow this direction while still replying naturally to the client.` : ""}
 ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real client message):\n${compactPrivateNotes}` : ""}
 ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to understand the relationship, then answer the newest real client message):\n${earlierPhaseHistory}` : ""}`
       : "";
@@ -642,6 +645,14 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
 
 
         {/* Input */}
+        <Textarea
+          aria-label="How you want the AI to reply"
+          placeholder="Optional: tell the AI how you want to reply — e.g. friendly but confident, ask about their budget, keep it very short, do not mention prices yet..."
+          value={replyDirection}
+          onChange={(e) => setReplyDirection(e.target.value)}
+          className="mb-2 bg-muted/60 border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[88px] text-sm"
+          rows={1}
+        />
         <div className="flex gap-2 items-end">
           <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleImageUpload} />
           <Button
