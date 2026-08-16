@@ -207,6 +207,24 @@ function filePart(fileData: string, fileMime?: string) {
   };
 }
 
+async function describeGeminiFailure(response: Response) {
+  const detail = await response.json().catch(() => ({})) as { error?: { message?: string } };
+  const providerMessage = detail.error?.message?.replace(/\s+/g, " ").trim();
+  if (response.status === 400) {
+    return `Gemini could not read this file or request${providerMessage ? `: ${providerMessage}` : ". Try a smaller PDF, image, Word, or text file."}`;
+  }
+  if (response.status === 401 || response.status === 403) {
+    return "Your Gemini key was rejected. In Settings → API & Connections, check that the key is correct, active, and allowed to use Gemini.";
+  }
+  if (response.status === 429) {
+    return "Your Gemini key has reached its request limit. Wait a little, use another active key, or check its Gemini quota.";
+  }
+  if (response.status >= 500) {
+    return "Gemini is temporarily unavailable. Please wait a moment and try again.";
+  }
+  return `Gemini could not analyze this source${providerMessage ? `: ${providerMessage}` : ` (error ${response.status})`}.`;
+}
+
 /**
  * Development-only fallback used when the hosted Edge Function is unavailable.
  * It deliberately runs only on localhost and uses keys belonging to the signed-in user.
@@ -245,7 +263,7 @@ export async function analyzeKnowledgeLocally(input: LocalAnalysisInput): Promis
           },
         );
         if (!response.ok) {
-          lastError = `Gemini returned ${response.status}`;
+          lastError = await describeGeminiFailure(response);
           continue;
         }
         const payload = await response.json();

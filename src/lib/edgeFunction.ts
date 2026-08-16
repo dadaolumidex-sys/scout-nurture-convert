@@ -43,9 +43,16 @@ export async function callEdgeFunction<T>(
 
     const payload = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok) {
+      const errorText = typeof payload.error === "string" ? payload.error.trim() : "";
+      if (/^AI service error\.?$/i.test(errorText)) {
+        throw new Error(
+          "The online AI analyzer could not complete this file. Check that your Gemini key is active in Settings → API & Connections. " +
+          "If it is active, refresh the app and retry; the online AI service may be temporarily unavailable.",
+        );
+      }
       throw new Error(
-        typeof payload.error === "string" && payload.error.trim()
-          ? payload.error
+        errorText
+          ? errorText
           : `Request failed (${response.status})`,
       );
     }
