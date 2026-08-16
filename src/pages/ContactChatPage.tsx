@@ -46,6 +46,7 @@ type ChatMessage = {
   image_url: string | null;
   created_at: string;
   selected: boolean;
+  source?: string | null;
 };
 
 type Persona = "friend" | "promoter" | "streamer";
@@ -231,15 +232,30 @@ const ContactChatPage = () => {
       ? (((await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any)).data) || []) as ChatMessage[]
       : ((contactId ? guestStorage.messages.list(contactId) : []) as ChatMessage[]);
 
-    const personaMessages = msgs.filter((m) => m.persona === targetPersona);
+    const isPrivateAiContext = (message: ChatMessage) => message.source?.startsWith("ai_chat_export:");
+    // Exported AI Chat history is background only. It must never be treated as
+    // a real client message, otherwise an old line can override a new reply.
+    const personaMessages = msgs.filter((m) => m.persona === targetPersona && !isPrivateAiContext(m));
     const recentMessages = personaMessages.slice(-20).map((m) => ({
       role: m.role === "assistant" ? "assistant" as const : "user" as const,
       content: m.content,
       imageUrl: m.image_url,
     }));
 
+    const privateNotes = msgs
+      .filter((m) => m.persona === targetPersona && isPrivateAiContext(m))
+      .map((m) => m.content)
+      .join("\n\n");
+    const compactPrivateNotes = privateNotes.length > 12_000
+      ? `${privateNotes.slice(0, 6_000)}\n\n[older private notes omitted]\n\n${privateNotes.slice(-6_000)}`
+      : privateNotes;
+    const latestClientMessage = [...personaMessages].reverse().find((m) => m.role === "user")?.content || "";
+
     const contactContext = contact
-      ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.`
+      ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
+
+IMPORTANT: The exact latest real message from this client is: "${latestClientMessage}". Reply directly to that message. Do not reply to, quote, or continue any private AI notes.
+${compactPrivateNotes ? `\nPrivate AI background (context only, never a real client message):\n${compactPrivateNotes}` : ""}`
       : "";
 
     try {
@@ -447,7 +463,17 @@ const ContactChatPage = () => {
               </div>
             </div>
           )}
-          {messages.filter((msg) => msg.persona === persona).map((msg) => (
+          {messages.filter((msg) => msg.persona === persona).map((msg) => {
+            const isPrivateAiContext = msg.source?.startsWith("ai_chat_export:");
+            if (isPrivateAiContext) {
+              return (
+                <details key={msg.id} className="rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+                  <summary className="cursor-pointer font-medium text-primary">🔒 Private AI context — not sent to this client</summary>
+                  <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed">{msg.content}</p>
+                </details>
+              );
+            }
+            return (
             <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className={`group relative max-w-[calc(100%-1rem)] sm:max-w-[82%] rounded-xl px-4 py-3 text-base font-medium leading-7 text-foreground shadow-sm ${
                 msg.role === "user"
@@ -535,7 +561,8 @@ const ContactChatPage = () => {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {/* Suggestion cards inline */}
           {(suggestions.length > 0 || loading) && (
