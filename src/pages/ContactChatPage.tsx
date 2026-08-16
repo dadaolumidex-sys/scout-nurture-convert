@@ -72,6 +72,7 @@ const ContactChatPage = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(null);
   const [suggestionsPersona, setSuggestionsPersona] = useState<Persona | null>(null);
@@ -184,41 +185,9 @@ const ContactChatPage = () => {
     setUploading(true);
     try {
       const imageUrl = await compressImageFile(file);
-
-      if (user) {
-        await (supabase.from("contact_messages" as any).insert({
-          contact_id: contactId,
-          role: "user",
-          content: "[Screenshot]",
-          image_url: imageUrl,
-          persona,
-          user_id: user.id,
-        }) as any);
-      } else if (contactId) {
-        guestStorage.messages.insert({
-          contact_id: contactId,
-          role: "user",
-          content: "[Screenshot]",
-          image_url: imageUrl,
-          persona,
-          selected: false,
-        });
-      }
-
-      await loadMessages();
-
-      if (contact?.status === "new" || !contact?.status) {
-        if (user) {
-          await (supabase.from("streamer_contacts" as any).update({ status: "in_conversation" }).eq("id", contactId) as any);
-        } else if (contactId) {
-          guestStorage.contacts.update(contactId, { status: "in_conversation" });
-        }
-        setContact((prev) => prev ? { ...prev, status: "in_conversation" } : prev);
-      }
-
+      setPendingImage(imageUrl);
       if (fileInputRef.current) fileInputRef.current.value = "";
-
-      await generateSuggestions(persona);
+      toast.success("Screenshot attached. Add your instruction, then press Send when ready.");
     } catch (error) {
       console.error(error);
       toast.error("Failed to upload image");
@@ -228,15 +197,17 @@ const ContactChatPage = () => {
   };
 
   const handleSend = async () => {
-    if (!input.trim() || loading) return;
-    const messageText = input.trim();
+    if ((!input.trim() && !pendingImage) || loading) return;
+    const messageText = input.trim() || "[Screenshot — use the attached conversation and reply direction]";
+    const attachedImage = pendingImage;
     setInput("");
+    setPendingImage(null);
     setSuggestions([]);
     setSelectedSuggestion(null);
 
     if (user) {
       await (supabase.from("contact_messages" as any).insert({
-        contact_id: contactId, role: "user", content: messageText, persona: persona, user_id: user.id,
+        contact_id: contactId, role: "user", content: messageText, image_url: attachedImage, persona: persona, user_id: user.id,
       }) as any);
     } else if (contactId) {
       guestStorage.messages.insert({
@@ -244,7 +215,7 @@ const ContactChatPage = () => {
         role: "user",
         content: messageText,
         persona,
-        image_url: null,
+        image_url: attachedImage,
         selected: false,
       });
     }
@@ -700,12 +671,19 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
           <Button
             type="button"
             onClick={(e) => { if (e.detail > 0) void handleSend(); }}
-            disabled={!input.trim()}
+            disabled={!input.trim() && !pendingImage}
             className="gradient-primary text-primary-foreground h-10 w-10 p-0 shrink-0"
           >
             <Send className="h-4 w-4" />
           </Button>
         </div>
+        {pendingImage && (
+          <div className="mt-2 flex items-center gap-2 rounded-lg border border-border bg-muted/50 p-2">
+            <img src={pendingImage} alt="Screenshot ready to send" className="h-12 w-12 rounded object-cover" />
+            <p className="flex-1 text-xs text-muted-foreground">Screenshot attached — it will not be analyzed until you press Send.</p>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setPendingImage(null)} className="h-7 text-xs">Remove</Button>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
