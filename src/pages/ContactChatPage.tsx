@@ -13,7 +13,7 @@ import { ChatHeader } from "@/components/chat/ChatHeader";
 import { SuggestionCards } from "@/components/chat/SuggestionCards";
 import { useAuth } from "@/hooks/useAuth";
 import { guestStorage } from "@/lib/guestStorage";
-import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
+import { getInboxState, INBOX_STATES, type InboxState } from "@/lib/inboxState";
 import { compressImageFile } from "@/lib/imageCompress";
 import { callEdgeFunction } from "@/lib/edgeFunction";
 import { readDraftRecord, writeDraftRecord } from "@/lib/draftStorage";
@@ -29,6 +29,7 @@ type Contact = {
   conversation_type: string | null;
   growth_stage: string | null;
   status: string | null;
+  inbox_state?: string | null;
   discord_channel_id?: string | null;
   discord_user_id?: string | null;
   discord_sync_enabled?: boolean | null;
@@ -673,22 +674,26 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
           </Button>
           <div className="hidden sm:block flex-1" />
           <select
-            aria-label="Lead status"
-            value={contact?.status || "new"}
+            aria-label="Client inbox status"
+            value={getInboxState(contact?.inbox_state, contact?.status)}
             onChange={async (e) => {
-              const newStatus = e.target.value;
+              const nextState = e.target.value as InboxState;
               if (user) {
-                await (supabase.from("streamer_contacts" as any).update({ status: newStatus }).eq("id", contactId) as any);
+                const { error } = await (supabase.from("streamer_contacts" as any).update({ inbox_state: nextState }).eq("id", contactId) as any);
+                if (error) {
+                  toast.error("Could not update Inbox status. Refresh and try again.");
+                  return;
+                }
               } else if (contactId) {
-                guestStorage.contacts.update(contactId, { status: newStatus });
+                guestStorage.contacts.update(contactId, { inbox_state: nextState } as any);
               }
-              setContact((prev) => prev ? { ...prev, status: newStatus } : prev);
-              toast.success(`Status: ${getLeadStatus(newStatus).label}`);
+              setContact((prev) => prev ? { ...prev, inbox_state: nextState } : prev);
+              toast.success(`Inbox status: ${INBOX_STATES[nextState].label}`);
             }}
             className="text-xs bg-muted border border-border rounded-md px-2 py-1.5 text-foreground max-w-full flex-1 sm:flex-none sm:w-auto"
           >
-            {LEAD_STATUSES.map((s) => (
-              <option key={s.id} value={s.id}>{s.emoji} {s.label}</option>
+            {(Object.entries(INBOX_STATES) as [InboxState, typeof INBOX_STATES[InboxState]][]).map(([value, state]) => (
+              <option key={value} value={value}>{state.emoji} {state.label}</option>
             ))}
           </select>
         </div>

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { RemindersPanel } from "@/components/inbox/RemindersPanel";
 import { PipelineBoard } from "@/components/inbox/PipelineBoard";
-import { LEAD_STATUSES } from "@/lib/leadStatus";
+import { getInboxState, INBOX_STATES, type InboxState } from "@/lib/inboxState";
 
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,14 +32,11 @@ type Contact = {
   last_message: string | null;
   profile_image_url: string | null;
   conversation_type: string | null;
+  inbox_state?: string | null;
 };
 
 type ConversationType = "new_prospect" | "existing_chat" | "re_engage";
-type InboxFilter = "all" | "active" | "finished";
-
-const conversationStages: Record<string, { label: string; emoji: string; className: string }> =
-  Object.fromEntries(LEAD_STATUSES.map((s) => [s.id, { label: s.label, emoji: s.emoji, className: s.className }]));
-
+type InboxFilter = "all" | InboxState;
 
 const conversationTypes: Record<ConversationType, { label: string; description: string; icon: React.ReactNode }> = {
   new_prospect: { label: "New Prospect", description: "Cold outreach — start fresh", icon: <UserPlus className="h-6 w-6" /> },
@@ -92,13 +89,12 @@ const InboxPage = () => {
 
   const filteredContacts = contacts.filter((c) => {
     const matchesSearch = (c.display_name || c.username).toLowerCase().includes(search.toLowerCase());
-    const isFinished = ["converted", "not_interested", "blocked"].includes(c.status || "");
-    return matchesSearch && (filter === "all" || (filter === "finished" ? isFinished : !isFinished));
+    const state = getInboxState(c.inbox_state, c.status);
+    return matchesSearch && (filter === "all" || state === filter);
   });
 
   const filterCount = (next: InboxFilter) => contacts.filter((contact) => {
-    const isFinished = ["converted", "not_interested", "blocked"].includes(contact.status || "");
-    return next === "all" || (next === "finished" ? isFinished : !isFinished);
+    return next === "all" || getInboxState(contact.inbox_state, contact.status) === next;
   }).length;
 
   const resetDialog = () => {
@@ -367,7 +363,8 @@ const InboxPage = () => {
         <div className="flex gap-2 overflow-x-auto pb-1">
           {([
             ["all", "All"],
-            ["active", "Active"],
+            ["needs_reply", "Needs reply"],
+            ["waiting", "Waiting"],
             ["finished", "Finished"],
           ] as [InboxFilter, string][]).map(([value, label]) => (
             <Button
@@ -420,7 +417,7 @@ const InboxPage = () => {
                         <h3 className="font-semibold text-sm sm:text-base text-foreground truncate">{contact.display_name || contact.username}</h3>
                         <Badge variant="outline" className="border-primary/30 text-primary text-[10px] sm:text-xs capitalize shrink-0">{contact.platform}</Badge>
                         {(() => {
-                          const stage = conversationStages[contact.status || "new"] || conversationStages.new;
+                          const stage = INBOX_STATES[getInboxState(contact.inbox_state, contact.status)];
                           return (
                             <Badge variant="outline" className={`text-[10px] sm:text-xs shrink-0 ${stage.className}`}>
                               {stage.emoji} <span className="hidden sm:inline ml-1">{stage.label}</span>
