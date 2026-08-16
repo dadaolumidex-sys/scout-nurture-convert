@@ -140,6 +140,30 @@ const ContactChatPage = () => {
     if (data) setMessages(data);
   };
 
+  const handlePersonaChange = async (nextPersona: Persona) => {
+    setPersona(nextPersona);
+    setSuggestions([]);
+    setSelectedSuggestion(null);
+    setSuggestionsPersona(null);
+
+    // A person has one Inbox, but their active outreach stage should follow
+    // them as the team moves from friendship to promoter to closer.
+    if (contact?.conversation_type === nextPersona) return;
+    if (user) {
+      const { error } = await (supabase.from("streamer_contacts" as any)
+        .update({ conversation_type: nextPersona })
+        .eq("id", contactId) as any);
+      if (error) {
+        toast.error("Could not save the client stage. Please try again.");
+        return;
+      }
+    } else if (contactId) {
+      guestStorage.contacts.update(contactId, { conversation_type: nextPersona });
+    }
+    setContact((prev) => prev ? { ...prev, conversation_type: nextPersona } : prev);
+    toast.success(`${contact?.display_name || contact?.username || "Client"} is now in the ${personaConfig[nextPersona].name} stage.`);
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -253,13 +277,19 @@ const ContactChatPage = () => {
     const compactPrivateNotes = privateNotes.length > 12_000
       ? `${privateNotes.slice(0, 6_000)}\n\n[older private notes omitted]\n\n${privateNotes.slice(-6_000)}`
       : privateNotes;
+    const earlierPhaseHistory = msgs
+      .filter((m) => m.persona !== targetPersona && !isPrivateAiContext(m))
+      .slice(-12)
+      .map((m) => `${m.persona ? personaConfig[m.persona as Persona]?.name || m.persona : "Earlier stage"} ${m.role === "assistant" ? "YOUR REPLY" : "CLIENT"}: ${m.content}`)
+      .join("\n");
     const latestClientMessage = [...personaMessages].reverse().find((m) => m.role === "user")?.content || "";
 
     const contactContext = contact
       ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
 
 IMPORTANT: The exact latest real message from this client is: "${latestClientMessage}". Reply directly to that message. Do not reply to, quote, or continue any private AI notes.
-${compactPrivateNotes ? `\nPrivate AI background (context only, never a real client message):\n${compactPrivateNotes}` : ""}`
+${compactPrivateNotes ? `\nPrivate AI background (context only, never a real client message):\n${compactPrivateNotes}` : ""}
+${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to understand the relationship, then answer the newest real client message):\n${earlierPhaseHistory}` : ""}`
       : "";
 
     try {
@@ -410,9 +440,14 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
         <ChatHeader
           contact={contact}
           persona={persona}
-          onPersonaChange={(p) => { setPersona(p); setSuggestions([]); setSelectedSuggestion(null); }}
+          onPersonaChange={handlePersonaChange}
           onBack={() => navigate("/inbox")}
         />
+
+        <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">One client, one history.</span>{" "}
+          Choose their current stage above. Paste their latest Discord message, paste a full chat transcript, or upload screenshots; the AI uses it as context and drafts the next reply in the selected stage.
+        </div>
 
         {suggestedPersona && (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
@@ -425,10 +460,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
               size="sm"
               className="gradient-primary text-primary-foreground h-8"
               onClick={() => {
-                setPersona(suggestedPersona);
-                setSuggestions([]);
-                setSelectedSuggestion(null);
-                toast.success(`Switched to ${personaConfig[suggestedPersona].name}`);
+                void handlePersonaChange(suggestedPersona);
               }}
             >
               Move to {personaConfig[suggestedPersona].name}
@@ -622,7 +654,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             <Image className="h-4 w-4" />
           </Button>
           <Textarea
-            placeholder="Paste their message here..."
+            placeholder="Paste their latest message or the full Discord conversation here..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[44px] max-h-[120px]"

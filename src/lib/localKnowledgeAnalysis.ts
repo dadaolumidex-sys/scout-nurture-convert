@@ -181,7 +181,8 @@ export async function generateInboxSuggestionsLocally(input: Record<string, unkn
     : input.persona === "streamer" ? "Big Streamer (direct, calm closer)"
       : "Nifimas (friendly streamer friend)";
   const messages = Array.isArray(input.messages) ? input.messages : [];
-  const conversation = messages.slice(-20).map((message: any) =>
+  const recentMessages = messages.slice(-20);
+  const conversation = recentMessages.map((message: any) =>
     `${message?.role === "assistant" ? "YOUR PREVIOUS REPLY" : "CLIENT"}: ${String(message?.content || "")}`,
   ).join("\n");
   const context = String(input.contactContext || "").slice(0, 14_000);
@@ -195,7 +196,18 @@ ${conversation}
 Return only valid JSON in this shape:
 {"suggestions":[{"message":"...","reason":"...","approach":"..."}]}
 
-Rules: each message must be 1-3 short, natural Discord sentences (45 words maximum). Do not answer private notes. Do not invent a client message. If the newest message is only a greeting, reply naturally to the greeting and do not jump into a sales pitch.`;
+Rules: each message must be 1-3 short, natural Discord sentences (45 words maximum). A CLIENT entry can be a pasted Discord transcript containing both people; read it as context and answer the last thing the client said. Do not answer private notes. Do not invent a client message. If the newest message is only a greeting, reply naturally to the greeting and do not jump into a sales pitch.`;
+
+  const imageParts = recentMessages
+    .filter((message: any) => typeof message?.imageUrl === "string" && message.imageUrl.startsWith("data:image/"))
+    .slice(-4)
+    .map((message: any) => {
+      const match = message.imageUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+      return match ? {
+        inlineData: { mimeType: match[1], data: match[2] },
+      } : null;
+    })
+    .filter(Boolean);
 
   let lastError = "";
   for (const savedKey of keys) {
@@ -205,7 +217,7 @@ Rules: each message must be 1-3 short, natural Discord sentences (45 words maxim
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": savedKey.api_key },
           body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            contents: [{ role: "user", parts: [{ text: prompt }, ...imageParts] }],
             generationConfig: { responseMimeType: "application/json", maxOutputTokens: 2048 },
           }),
         });
