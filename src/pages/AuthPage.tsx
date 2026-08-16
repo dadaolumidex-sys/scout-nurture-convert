@@ -18,6 +18,24 @@ async function ensureProfile(email: string) {
   }, { onConflict: "user_id" });
 }
 
+function withAuthTimeout<T>(request: Promise<T>, timeoutMs = 20_000): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error("Sign-in is taking too long. Check your internet connection and try again.")), timeoutMs);
+    request.then(
+      (value) => { window.clearTimeout(timeout); resolve(value); },
+      (error) => { window.clearTimeout(timeout); reject(error); },
+    );
+  });
+}
+
+function friendlyAuthError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Authentication failed";
+  if (/failed to fetch|networkerror|network request failed/i.test(message)) {
+    return "Could not reach the sign-in service. Check your internet connection, then try again.";
+  }
+  return message;
+}
+
 const AuthPage = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -32,35 +50,41 @@ const AuthPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!navigator.onLine) {
+      toast.error("You are offline. Connect to the internet, then try signing in again.");
+      return;
+    }
     setLoading(true);
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { error } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
         if (error) throw error;
-        await ensureProfile(email);
+        // A profile is useful, but it must never keep a successful sign-in
+        // spinning if the database is slow or temporarily unavailable.
+        void ensureProfile(email);
         toast.success("Welcome back!");
         window.location.href = "/";
       } else {
-        const { data, error } = await supabase.auth.signUp({
+        const { data, error } = await withAuthTimeout(supabase.auth.signUp({
           email,
           password,
           options: {
             emailRedirectTo: window.location.origin,
             data: { display_name: email.split("@")[0], workspace_name: "My Workspace" },
           },
-        });
+        }));
         if (error) throw error;
         if (!data.session) {
-          const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+          const { error: signInError } = await withAuthTimeout(supabase.auth.signInWithPassword({ email, password }));
           if (signInError) throw signInError;
         }
-        await ensureProfile(email);
+        void ensureProfile(email);
         toast.success("Account created! Welcome 🎉");
         window.location.href = "/";
       }
     } catch (error: any) {
-      toast.error(error.message || "Authentication failed");
+      toast.error(friendlyAuthError(error));
     } finally {
       setLoading(false);
     }
