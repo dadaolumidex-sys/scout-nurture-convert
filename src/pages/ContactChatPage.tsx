@@ -16,7 +16,6 @@ import { guestStorage } from "@/lib/guestStorage";
 import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
 import { compressImageFile } from "@/lib/imageCompress";
 import { callEdgeFunction } from "@/lib/edgeFunction";
-import { ClientActionCard, EMPTY_CLIENT_ACTION_PLAN, type ClientActionPlan } from "@/components/inbox/ClientActionCard";
 
 
 
@@ -77,9 +76,6 @@ const ContactChatPage = () => {
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(null);
   const [suggestionsPersona, setSuggestionsPersona] = useState<Persona | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionPlan, setActionPlan] = useState<ClientActionPlan>(EMPTY_CLIENT_ACTION_PLAN);
-  const [actionPlanMessageId, setActionPlanMessageId] = useState<string | null>(null);
-  const [savingActionPlan, setSavingActionPlan] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -154,52 +150,7 @@ const ContactChatPage = () => {
       setLoadError(error.message || "Conversation messages could not be loaded.");
       return;
     }
-    if (data) {
-      setMessages(data);
-      const savedPlan = [...data].reverse().find((message: ChatMessage) => message.source === "client_action_card");
-      if (savedPlan) {
-        try {
-          const parsed = JSON.parse(savedPlan.content);
-          setActionPlan({ ...EMPTY_CLIENT_ACTION_PLAN, ...parsed });
-          setActionPlanMessageId(savedPlan.id);
-        } catch {
-          setActionPlan(EMPTY_CLIENT_ACTION_PLAN);
-          setActionPlanMessageId(null);
-        }
-      } else {
-        setActionPlan(EMPTY_CLIENT_ACTION_PLAN);
-        setActionPlanMessageId(null);
-      }
-    }
-  };
-
-  const saveActionPlan = async (plan: ClientActionPlan) => {
-    if (!contactId) return;
-    setSavingActionPlan(true);
-    const content = JSON.stringify(plan);
-    try {
-      if (user) {
-        const query = actionPlanMessageId
-          ? (supabase.from("contact_messages" as any).update({ content, updated_at: new Date().toISOString() }).eq("id", actionPlanMessageId) as any)
-          : (supabase.from("contact_messages" as any).insert({ contact_id: contactId, role: "assistant", content, persona: null, selected: false, source: "client_action_card", user_id: user.id }).select().single() as any);
-        const { data, error } = await query;
-        if (error) throw error;
-        if (!actionPlanMessageId && data?.id) setActionPlanMessageId(data.id);
-      } else if (actionPlanMessageId) {
-        guestStorage.messages.update(actionPlanMessageId, { content, source: "client_action_card" });
-      } else {
-        const saved = guestStorage.messages.insert({ contact_id: contactId, role: "assistant", content, persona: null, image_url: null, selected: false, source: "client_action_card" });
-        setActionPlanMessageId(saved.id);
-      }
-      setActionPlan(plan);
-      toast.success("Client action plan saved");
-      await loadMessages();
-    } catch (error) {
-      console.error(error);
-      toast.error("Could not save the client plan");
-    } finally {
-      setSavingActionPlan(false);
-    }
+    if (data) setMessages(data);
   };
 
   const handlePersonaChange = async (nextPersona: Persona) => {
@@ -351,7 +302,6 @@ const ContactChatPage = () => {
       ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
 
 IMPORTANT: The exact latest real message from this client is: "${latestClientMessage}". Reply directly to that message. Do not reply to, quote, or continue any private AI notes.
-${actionPlan.goal || actionPlan.objection || actionPlan.nextAction !== "Reply today" || actionPlan.handoverNote ? `\nClient action plan: Goal: ${actionPlan.goal || "not set"}. Main concern: ${actionPlan.objection || "not set"}. Next action: ${actionPlan.nextAction}. Team note: ${actionPlan.handoverNote || "none"}. Use this to guide the reply, but never mention this private plan to the client.` : ""}
 ${compactReplyDirection ? `\nYour team's reply direction: "${compactReplyDirection}". Follow this direction while still replying naturally to the client.` : ""}
 ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real client message):\n${compactPrivateNotes}` : ""}
 ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to understand the relationship, then answer the newest real client message):\n${earlierPhaseHistory}` : ""}`
@@ -513,13 +463,6 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
           <span className="font-medium text-foreground">One client, one history.</span>{" "}
           Choose their current stage above. Paste their latest Discord message, paste a full chat transcript, or upload screenshots; the AI uses it as context and drafts the next reply in the selected stage.
         </div>
-
-        <ClientActionCard
-          plan={actionPlan}
-          lastClientMessage={[...messages].reverse().find((message) => message.role === "user" && message.source !== "client_action_card")?.content || ""}
-          saving={savingActionPlan}
-          onSave={saveActionPlan}
-        />
 
         {suggestedPersona && (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
