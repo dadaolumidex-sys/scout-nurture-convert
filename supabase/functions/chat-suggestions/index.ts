@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildKnowledgeContext, KNOWLEDGE_GUARDRAIL, HUMAN_VOICE_RULES, type KnowledgeEntry } from "../_shared/knowledge.ts";
-import { buildLiveUrlContext } from "../_shared/urlContext.ts";
+import { buildLiveUrlContext, type ApifyKey } from "../_shared/urlContext.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -187,6 +187,7 @@ serve(async (req) => {
 
     // Get user's API keys
     const userKeys: { gemini: ProviderKey[]; openai: ProviderKey[] } = { gemini: [], openai: [] };
+    const apifyKeys: ApifyKey[] = [];
     let userId: string | null = null;
     const authHeader = req.headers.get("authorization");
     if (authHeader) {
@@ -199,12 +200,13 @@ serve(async (req) => {
             .select("id, provider, api_key")
             .eq("user_id", user.id)
             .eq("is_active", true)
-            .in("provider", ["gemini", "openai"])
+            .in("provider", ["gemini", "openai", "apify"])
             .order("failure_count", { ascending: true })
             .order("last_used_at", { ascending: true, nullsFirst: true });
           for (const row of keyRows || []) {
             if (row.provider === "gemini" && row.api_key?.trim()) userKeys.gemini.push({ id: row.id, key: row.api_key.trim(), provider: "gemini" });
             if (row.provider === "openai" && row.api_key?.trim()) userKeys.openai.push({ id: row.id, key: row.api_key.trim(), provider: "openai" });
+            if (row.provider === "apify" && row.api_key?.trim()) apifyKeys.push({ key: row.api_key.trim() });
           }
 
           // Backward compatibility for accounts saved before multi-key support.
@@ -251,7 +253,7 @@ serve(async (req) => {
     }
 
     const latestUserText = [...(Array.isArray(messages) ? messages : [])].reverse().find((message) => message.role === "user")?.content || "";
-    const liveUrlContext = await buildLiveUrlContext(latestUserText);
+    const liveUrlContext = await buildLiveUrlContext(latestUserText, apifyKeys);
     const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + modeRules + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + liveUrlContext + KNOWLEDGE_GUARDRAIL;
 
     const response = await callAI({

@@ -169,7 +169,7 @@ async function readWebsitesLocally(text: string) {
         continue;
       }
       await recordSuccess(savedKey.id);
-      return `WEBSITE AUDIT SOURCE — read the public pages below before recommending a pitch. Do not invent details not shown here.\n\n${pages}`;
+      return `WEBSITE CONTENT — SOURCE LIMITS: Read the public pages below before recommending a pitch. Treat page statistics and explicitly marked reports as page-provided data. Treat promises, guarantees, testimonials, \"verified\" labels, or marketing claims as claims from the website unless independently supported. Do not invent details not shown here.\n\n${pages}`;
     } catch (error) {
       lastError = error instanceof Error ? error.message : "Website reader failed";
     }

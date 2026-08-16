@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildKnowledgeContext, KNOWLEDGE_GUARDRAIL, type KnowledgeEntry } from "../_shared/knowledge.ts";
-import { buildLiveUrlContext } from "../_shared/urlContext.ts";
+import { buildLiveUrlContext, type ApifyKey } from "../_shared/urlContext.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -172,6 +172,7 @@ serve(async (req) => {
 
     // Get user's API keys (fallback chain) and their saved knowledge / objection playbook.
     const userKeys: { gemini: ProviderKey[]; openai: ProviderKey[] } = { gemini: [], openai: [] };
+    const apifyKeys: ApifyKey[] = [];
     let adminClient: ReturnType<typeof createClient> | null = null;
     let dbKnowledge: KnowledgeEntry[] = [];
     const personaKey = persona === "promoter" ? "brozeen" : "nifimas";
@@ -189,12 +190,13 @@ serve(async (req) => {
             .select("id, provider, api_key")
             .eq("user_id", user.id)
             .eq("is_active", true)
-            .in("provider", ["gemini", "openai"])
+            .in("provider", ["gemini", "openai", "apify"])
             .order("failure_count", { ascending: true })
             .order("last_used_at", { ascending: true, nullsFirst: true });
           for (const row of keyRows || []) {
             if (row.provider === "gemini" && row.api_key?.trim()) userKeys.gemini.push({ id: row.id, key: row.api_key.trim(), provider: "gemini" });
             if (row.provider === "openai" && row.api_key?.trim()) userKeys.openai.push({ id: row.id, key: row.api_key.trim(), provider: "openai" });
+            if (row.provider === "apify" && row.api_key?.trim()) apifyKeys.push({ key: row.api_key.trim() });
           }
           const { data: kn } = await sb.from("knowledge_entries")
             .select("title, content, category, insights")
@@ -219,7 +221,7 @@ serve(async (req) => {
     const linkText = typeof latestUserText?.content === "string"
       ? latestUserText.content
       : (latestUserText?.content || []).filter((part) => part.type === "text").map((part) => part.text || "").join(" ");
-    systemPrompt += await buildLiveUrlContext(linkText);
+    systemPrompt += await buildLiveUrlContext(linkText, apifyKeys);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const ENV_GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");

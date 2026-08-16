@@ -5,6 +5,8 @@ const MAX_TEXT_CHARS = 12_000;
 const FETCH_TIMEOUT_MS = 8_000;
 const MAX_REDIRECTS = 3;
 
+export type ApifyKey = { key: string };
+
 function trimTrailingPunctuation(value: string): string {
   return value.replace(/[.,!?;:]+$/g, "");
 }
@@ -129,10 +131,56 @@ async function fetchPublicPage(initialUrl: string): Promise<{ url: string; title
   throw new Error("Could not load URL");
 }
 
-export async function buildLiveUrlContext(text: string): Promise<string> {
+function crawlerText(item: Record<string, unknown>) {
+  const content = [item.markdown, item.text, item.content, item.body]
+    .find((value) => typeof value === "string" && value.trim());
+  if (!content || typeof content !== "string") return null;
+  return {
+    url: String(item.url || item.loadedUrl || ""),
+    title: String(item.title || item.pageTitle || "Web page"),
+    text: content.slice(0, MAX_TEXT_CHARS),
+  };
+}
+
+async function crawlWithApify(urls: string[], keys: ApifyKey[]) {
+  for (const savedKey of keys) {
+    try {
+      const response = await fetch(
+        `https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items?token=${encodeURIComponent(savedKey.key)}&timeout=60`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            startUrls: urls.map((url) => ({ url })),
+            maxCrawlDepth: 1,
+            maxCrawlPages: 3,
+            useSitemaps: false,
+            useLlmsTxt: false,
+            saveMarkdown: true,
+            blockMedia: true,
+            respectRobotsTxtFile: true,
+            proxyConfiguration: { useApifyProxy: true },
+          }),
+        },
+      );
+      if (!response.ok) continue;
+      const items = await response.json();
+      const pages = (Array.isArray(items) ? items : [])
+        .map((item) => item && typeof item === "object" ? crawlerText(item as Record<string, unknown>) : null)
+        .filter((page): page is { url: string; title: string; text: string } => !!page);
+      if (pages.length) return pages;
+    } catch { /* Rotate to the next key, then use the basic reader. */ }
+  }
+  return [];
+}
+
+export async function buildLiveUrlContext(text: string, apifyKeys: ApifyKey[] = []): Promise<string> {
   const urls = extractPublicUrls(text);
   if (urls.length === 0) return "";
-  const results = await Promise.allSettled(urls.map(fetchPublicPage));
+  const crawledPages = apifyKeys.length ? await crawlWithApify(urls, apifyKeys) : [];
+  const results = crawledPages.length
+    ? crawledPages.map((page) => ({ status: "fulfilled" as const, value: page }))
+    : await Promise.allSettled(urls.map(fetchPublicPage));
   const blocks = results.map((result, index) => {
     if (result.status === "fulfilled" && result.value.text) {
       return `### ${result.value.title}\nSource: ${result.value.url}\n${result.value.text}`;
@@ -142,5 +190,5 @@ export async function buildLiveUrlContext(text: string): Promise<string> {
       : "Could not read this website";
     return `### Link unavailable\nSource: ${urls[index]}\n${reason}`;
   });
-  return `\n\n## LIVE WEBSITE CONTENT\nThe user included these links in their latest message. Use only the extracted content below, distinguish it from stored knowledge, and clearly say when a page could not be read.\n\n${blocks.join("\n\n")}`;
+  return `\n\n## WEBSITE CONTENT — SOURCE LIMITS\nThe user included these public links. Use only the extracted content below. Treat page statistics and explicitly marked reports as page-provided data. Treat promises, guarantees, testimonials, \"verified\" labels, or marketing claims as claims from the website unless independently supported. Clearly say when a page could not be read; never invent missing details.\n\n${blocks.join("\n\n")}`;
 }
