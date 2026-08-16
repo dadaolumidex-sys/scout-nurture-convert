@@ -85,10 +85,23 @@ async function streamChat({
     await onDone();
   };
 
+  // A person's own active Gemini key is normally the quickest path. It also
+  // avoids waiting on a busy hosted AI service before discovering a provider
+  // model is unavailable for that account.
+  if (session?.user) {
+    try {
+      await tryPersonalFallback();
+      return;
+    } catch (error) {
+      console.warn("Personal Chat AI unavailable; trying the hosted backup.", error);
+    }
+  }
+
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
-  const timeout = window.setTimeout(() => controller.abort(), deepResearch ? 90_000 : 55_000);
+  // A normal reply should either begin quickly or move to the backup path.
+  const timeout = window.setTimeout(() => controller.abort(), deepResearch ? 60_000 : 28_000);
   let resp: Response;
   try {
     resp = await fetch(CHAT_URL, {

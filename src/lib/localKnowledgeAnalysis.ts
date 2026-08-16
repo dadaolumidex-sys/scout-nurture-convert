@@ -314,7 +314,11 @@ export async function generateInboxSuggestionsLocally(input: Record<string, unkn
     `${message?.role === "assistant" ? "YOUR PREVIOUS REPLY" : "CLIENT"}: ${String(message?.content || "")}`,
   ).join("\n");
   const context = String(input.contactContext || "").slice(0, 14_000);
-  const websiteContext = await readWebsitesLocally(`${conversation}\n${context}`);
+  // Website crawling can take many seconds. Only crawl when the newest item
+  // being answered actually contains a link; a link from an older message has
+  // already been read and is saved as private context for later replies.
+  const newestMessageText = String(recentMessages[recentMessages.length - 1]?.content || "");
+  const websiteContext = await readWebsitesLocally(newestMessageText);
   const prompt = `You are ${persona}. Write exactly 3 possible replies for the client conversation below.
 
 ${context}
