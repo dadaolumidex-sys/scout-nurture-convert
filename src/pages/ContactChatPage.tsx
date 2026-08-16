@@ -115,7 +115,12 @@ const ContactChatPage = () => {
       setLoadError(error.message || "This conversation could not be loaded.");
       return;
     }
-    if (data) setContact(data);
+    if (data) {
+      setContact(data);
+      if (!searchParams.get("persona") && ["friend", "promoter", "streamer"].includes(data.conversation_type || "")) {
+        setPersona(data.conversation_type as Persona);
+      }
+    }
   };
 
   const loadMessages = async () => {

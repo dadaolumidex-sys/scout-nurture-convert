@@ -20,9 +20,11 @@ import { compressImageFile } from "@/lib/imageCompress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 
 type Persona = "friend" | "promoter";
+type InboxPersona = Persona | "streamer";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
@@ -188,6 +190,7 @@ const ChatPage = () => {
   const [msgTimestamps, setMsgTimestamps] = useState<Date[]>([]);
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportPersona, setExportPersona] = useState<InboxPersona>("friend");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -438,6 +441,12 @@ const ChatPage = () => {
 
   const activeConvo = activeId ? conversations.find(c => c.id === activeId) : null;
 
+  const openExportDialog = () => {
+    const savedPersona = activeConvo?.persona;
+    setExportPersona(savedPersona === "promoter" || savedPersona === "streamer" ? savedPersona : "friend");
+    setExportOpen(true);
+  };
+
   const exportToInbox = async () => {
     if (!user || !activeConvo || messages.length === 0) {
       toast.error("Open a named AI Chat with messages first");
@@ -469,11 +478,13 @@ const ChatPage = () => {
           display_name: clientName,
           platform: "manual",
           status: "in_conversation",
-          conversation_type: "ai_chat",
+          conversation_type: exportPersona,
         }).select("id").single() as any);
         if (error || !created) throw new Error(error?.message || "Couldn't create the Inbox client");
         contact = created;
       }
+
+      await (supabase.from("streamer_contacts" as any).update({ conversation_type: exportPersona }).eq("id", contact.id) as any);
 
       const transcript = messages.map((message) => (
         `${message.role === "user" ? "YOU / YOUR NOTE" : "AI ADVICE"}:\n${message.content}`
@@ -490,7 +501,7 @@ const ChatPage = () => {
         user_id: user.id,
         contact_id: contact.id,
         role: "assistant",
-        persona,
+        persona: exportPersona,
         source: exportSource,
         content: privateNote.slice(0, 60_000),
       };
@@ -501,7 +512,7 @@ const ChatPage = () => {
 
       setExportOpen(false);
       toast.success(`Saved ${clientName} to Inbox — your AI Chat is unchanged`);
-      navigate(`/inbox/${contact.id}`);
+      navigate(`/inbox/${contact.id}?persona=${exportPersona}`);
     } catch (error) {
       console.error("Inbox export failed:", error);
       toast.error(error instanceof Error ? error.message : "Couldn't send this chat to Inbox");
@@ -520,6 +531,17 @@ const ChatPage = () => {
           <div>
             <Label className="text-foreground">Client name</Label>
             <Input value={activeConvo?.title || ""} readOnly className="bg-muted border-border text-foreground" />
+          </div>
+          <div>
+            <Label className="text-foreground">Current stage / reply voice</Label>
+            <Select value={exportPersona} onValueChange={(value) => setExportPersona(value as InboxPersona)}>
+              <SelectTrigger className="bg-muted border-border text-foreground"><SelectValue /></SelectTrigger>
+              <SelectContent className="bg-card border-border">
+                <SelectItem value="friend">🤝 Nifimas — friendship stage</SelectItem>
+                <SelectItem value="promoter">💼 Brozeen — promoter stage</SelectItem>
+                <SelectItem value="streamer">🎤 Big Streamer — closer stage</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <p className="text-sm text-muted-foreground">
             This creates or reuses this client in Inbox and saves this AI Chat as a private context note. It does not edit or remove your original AI Chat.
@@ -726,7 +748,7 @@ const ChatPage = () => {
             </h1>
             <ModelBadge deepResearch={deepResearch} />
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setExportOpen(true)} aria-label="Send to Inbox" disabled={!activeConvo || messages.length === 0}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={openExportDialog} aria-label="Send to Inbox" disabled={!activeConvo || messages.length === 0}>
             <Inbox className="h-4 w-4" />
           </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleNewChat}>
@@ -773,7 +795,7 @@ const ChatPage = () => {
               <ModelBadge deepResearch={deepResearch} />
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => setExportOpen(true)} disabled={!activeConvo || messages.length === 0} className="gap-1 h-8 px-2">
+              <Button variant="outline" size="sm" onClick={openExportDialog} disabled={!activeConvo || messages.length === 0} className="gap-1 h-8 px-2">
                 <Inbox className="h-3.5 w-3.5" /> Send to Inbox
               </Button>
               <Button variant="outline" size="sm" onClick={handleNewChat} className="gap-1 h-8 px-2">
