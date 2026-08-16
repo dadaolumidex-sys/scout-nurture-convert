@@ -4,6 +4,7 @@ type AnalysisType = "knowledge" | "objection" | "training";
 
 type LocalAnalysisInput = {
   content?: string;
+  url?: string;
   fileData?: string;
   fileMime?: string;
   type?: AnalysisType;
@@ -14,6 +15,67 @@ type LocalAnalysisResult = { result: string; extractedContent: string };
 
 const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
 const MAX_SOURCE_CHARS = 100_000;
+
+function isYouTubeUrl(value: string) {
+  try {
+    const host = new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+    return host === "youtu.be" || host === "youtube.com" || host.endsWith(".youtube.com");
+  } catch {
+    return false;
+  }
+}
+
+function transcriptFromItem(item: Record<string, unknown>) {
+  for (const field of ["transcriptText", "transcript", "text", "content", "captions"]) {
+    const value = item[field];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (Array.isArray(value)) {
+      const lines = value.map((part) => typeof part === "string"
+        ? part
+        : String((part as Record<string, unknown>)?.text || (part as Record<string, unknown>)?.content || "").trim(),
+      ).filter(Boolean);
+      if (lines.length) return lines.join(" ");
+    }
+  }
+  return "";
+}
+
+async function fetchYouTubeTranscriptLocally(videoUrl: string) {
+  const keys = await getActiveKeysForRotation("apify");
+  if (!keys.length) throw new Error("Add an active Apify key in Settings → API & Connections to extract YouTube transcripts locally.");
+
+  let lastError = "";
+  for (const savedKey of keys) {
+    try {
+      const response = await fetch(
+        `https://api.apify.com/v2/acts/api-ninja~youtube-transcript-scraper/run-sync-get-dataset-items?token=${encodeURIComponent(savedKey.api_key)}&timeout=60`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ urls: [videoUrl], language: "en" }),
+        },
+      );
+      if (!response.ok) {
+        lastError = `Apify returned ${response.status}`;
+        continue;
+      }
+      const data = await response.json();
+      const item = Array.isArray(data) ? data[0] : data;
+      const transcript = item && typeof item === "object" ? transcriptFromItem(item as Record<string, unknown>) : "";
+      if (!transcript) {
+        lastError = "The video has no readable transcript";
+        continue;
+      }
+      await recordSuccess(savedKey.id);
+      const title = String((item as Record<string, unknown>).title || "YouTube video");
+      return `Title: ${title}\n\nTranscript:\n${transcript}`.slice(0, MAX_SOURCE_CHARS);
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "YouTube transcript request failed";
+    }
+    await recordFailure(savedKey.id, lastError || "YouTube transcript request failed");
+  }
+  throw new Error(`${lastError || "YouTube transcript extraction failed"}. Check that the video has captions and try again.`);
+}
 
 function promptFor(type: AnalysisType, persona?: string) {
   if (type === "training") {
@@ -50,7 +112,13 @@ function filePart(fileData: string, fileMime?: string) {
  */
 export async function analyzeKnowledgeLocally(input: LocalAnalysisInput): Promise<LocalAnalysisResult> {
   const type = input.type || "knowledge";
-  const sourceText = input.content?.trim() || "";
+  let sourceText = input.content?.trim() || "";
+  if (input.url?.trim()) {
+    if (!isYouTubeUrl(input.url.trim())) {
+      throw new Error("Local link analysis currently supports YouTube. For other links, paste the text or use the hosted service when it is available.");
+    }
+    sourceText = await fetchYouTubeTranscriptLocally(input.url.trim());
+  }
   if (!sourceText && !input.fileData) throw new Error("No content to analyze.");
 
   const keys = await getActiveKeysForRotation("gemini");

@@ -7,6 +7,13 @@ export async function callEdgeFunction<T>(
   body: Record<string, unknown>,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<T> {
+  // Local mode deliberately bypasses the unavailable hosted function and uses
+  // the signed-in user's own configured keys instead.
+  if (functionName === "analyze-knowledge" && import.meta.env.DEV && window.location.hostname === "localhost") {
+    const { analyzeKnowledgeLocally } = await import("./localKnowledgeAnalysis");
+    return analyzeKnowledgeLocally(body) as Promise<T>;
+  }
+
   const { data: { session } } = await supabase.auth.getSession();
   const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const controller = new AbortController();
@@ -44,10 +51,6 @@ export async function callEdgeFunction<T>(
     // Lovable Cloud can be unavailable while local development is still running.
     // Keep this fallback strictly local so production never exposes a provider key
     // to the browser.
-    if (functionName === "analyze-knowledge" && import.meta.env.DEV && window.location.hostname === "localhost") {
-      const { analyzeKnowledgeLocally } = await import("./localKnowledgeAnalysis");
-      return analyzeKnowledgeLocally(body) as Promise<T>;
-    }
     throw error;
   } finally {
     window.clearTimeout(timeout);
