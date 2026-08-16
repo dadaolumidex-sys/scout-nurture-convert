@@ -1,23 +1,21 @@
-function isWorkboxCacheForThisRegistration(name) {
-  const hasWorkboxBucket = /(^|-)precache-v\d+-|(^|-)runtime-|(^|-)googleAnalytics-/.test(name);
-  return hasWorkboxBucket && name.endsWith(self.registration.scope);
-}
-
+// This app is online-first. Do not keep an old published page in a service
+// worker cache: users need the newest Lovable release when reopening the app.
 self.addEventListener("install", () => self.skipWaiting());
 
 self.addEventListener("activate", (event) =>
   event.waitUntil(
     (async () => {
-      try {
-        const cacheNames = await caches.keys();
-        const workboxCacheNames = cacheNames.filter(isWorkboxCacheForThisRegistration);
-        await Promise.allSettled(workboxCacheNames.map((name) => caches.delete(name)));
-        await self.clients.claim();
-        const windowClients = await self.clients.matchAll({ type: "window" });
-        await Promise.allSettled(windowClients.map((client) => client.navigate(client.url)));
-      } finally {
-        await self.registration.unregister();
-      }
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map((name) => caches.delete(name)));
+      await self.clients.claim();
     })(),
   ),
 );
+
+self.addEventListener("fetch", (event) => {
+  if (event.request.mode !== "navigate") return;
+
+  // A network-only navigation fetch prevents a phone's installed-web-app
+  // shell from repeatedly reopening an old index.html after a publish.
+  event.respondWith(fetch(event.request, { cache: "no-store" }));
+});
