@@ -481,7 +481,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
 
   return (
     <DashboardLayout>
-      <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-8rem)] animate-slide-in">
+      <div className="max-w-3xl mx-auto flex flex-col h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] sm:h-[calc(100vh-8rem)] animate-slide-in">
         <ChatHeader
           contact={contact}
           persona={persona}
@@ -515,7 +515,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
 
 
         {/* Messages */}
-        <div className="flex-1 overflow-auto space-y-3 mb-4 pr-1">
+        <div className="flex-1 min-h-0 overflow-auto space-y-3 mb-4 pr-1">
           {messages.filter((msg) => msg.persona === persona).length === 0 && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground space-y-2">
