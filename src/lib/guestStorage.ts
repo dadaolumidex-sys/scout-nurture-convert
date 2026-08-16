@@ -220,6 +220,10 @@ export const guestStorage = {
       writeCollection(STORAGE_KEYS.contacts, items);
       return items[index];
     },
+    remove(id: string) {
+      writeCollection(STORAGE_KEYS.contacts, readCollection<GuestContactRecord>(STORAGE_KEYS.contacts).filter((item) => item.id !== id));
+      writeCollection(STORAGE_KEYS.messages, readCollection<GuestContactMessageRecord>(STORAGE_KEYS.messages).filter((item) => item.contact_id !== id));
+    },
   },
 
   messages: {

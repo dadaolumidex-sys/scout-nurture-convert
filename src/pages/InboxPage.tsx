@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, ImagePlus, X, List, LayoutGrid } from "lucide-react";
+import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, ImagePlus, X, List, LayoutGrid, Trash2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -61,6 +62,8 @@ const InboxPage = () => {
   const [chatImages, setChatImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadContacts();
@@ -201,6 +204,27 @@ const InboxPage = () => {
     } catch (error) {
       toast.error("Failed to add contact");
       console.error(error);
+    }
+  };
+
+  const deleteContact = async () => {
+    if (!contactToDelete) return;
+    setDeleting(true);
+    try {
+      if (user) {
+        const { error } = await (supabase.from("streamer_contacts" as any).delete().eq("id", contactToDelete.id) as any);
+        if (error) throw error;
+      } else {
+        guestStorage.contacts.remove(contactToDelete.id);
+      }
+      toast.success(`${contactToDelete.display_name || contactToDelete.username} removed from Inbox`);
+      setContactToDelete(null);
+      await loadContacts();
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not delete this Inbox client");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -458,6 +482,17 @@ const InboxPage = () => {
                       <ExternalLink className="h-4 w-4" />
                     </a>
                   )}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Delete ${contact.display_name || contact.username} from Inbox`}
+                    title="Delete this Inbox client"
+                    onClick={(event) => { event.stopPropagation(); setContactToDelete(contact); }}
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </CardContent>
               </Card>
             ))
@@ -465,6 +500,22 @@ const InboxPage = () => {
         </div>
         )}
       </div>
+      <AlertDialog open={!!contactToDelete} onOpenChange={(open) => { if (!open && !deleting) setContactToDelete(null); }}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this Inbox client?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Delete {contactToDelete?.display_name || contactToDelete?.username} and their Inbox messages? This cannot be undone. Your separate AI Chat conversations will stay safe.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(event) => { event.preventDefault(); void deleteContact(); }} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete client"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 };
