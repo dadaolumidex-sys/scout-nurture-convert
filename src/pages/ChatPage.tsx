@@ -19,6 +19,7 @@ import { ChatComposer, ChatComposerHandle } from "@/components/chat/ChatComposer
 import { compressImageFile } from "@/lib/imageCompress";
 import { uploadChatImage, resolveChatImage } from "@/lib/chatImageStorage";
 import { ChatImagePreview } from "@/components/chat/ChatImagePreview";
+import { generatePersonalChatReply } from "@/lib/personalChat";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -71,6 +72,18 @@ async function streamChat({
 
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const tryPersonalFallback = async () => {
+    if (!session?.user) throw new Error("A signed-in personal key is required for the backup reply.");
+    const reply = await generatePersonalChatReply({
+      messages: apiMessages,
+      persona,
+      deepResearch,
+      memory,
+      knowledge,
+    });
+    onDelta(reply);
+    await onDone();
+  };
 
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
@@ -87,7 +100,12 @@ async function streamChat({
   } catch (error) {
     window.clearTimeout(timeout);
     signal?.removeEventListener("abort", abortFromCaller);
-    throw error;
+    try {
+      await tryPersonalFallback();
+    } catch {
+      throw error;
+    }
+    return;
   }
 
 
@@ -97,7 +115,11 @@ async function streamChat({
     const err = await resp.json().catch(() => ({ error: "Request failed" }));
     window.clearTimeout(timeout);
     signal?.removeEventListener("abort", abortFromCaller);
-    onError(err.error || `Error ${resp.status}`, err.code);
+    try {
+      await tryPersonalFallback();
+    } catch {
+      onError(err.error || `Error ${resp.status}`, err.code);
+    }
     return;
   }
   if (!resp.body) {
