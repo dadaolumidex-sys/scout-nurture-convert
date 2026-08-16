@@ -296,8 +296,10 @@ const ContactChatPage = () => {
       imageUrl: m.image_url,
     }));
 
+    // AI Chat exports belong to the client, not to one reply voice. Keep them
+    // available after moving from Friendship to Promoter or Expert Proof.
     const privateNotes = msgs
-      .filter((m) => m.persona === targetPersona && isPrivateAiContext(m))
+      .filter((m) => isPrivateAiContext(m))
       .map((m) => m.content)
       .join("\n\n");
     const compactPrivateNotes = privateNotes.length > 12_000
