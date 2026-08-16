@@ -41,6 +41,7 @@ export type GuestContactMessageRecord = TimestampedRecord & {
   persona: string | null;
   image_url: string | null;
   selected: boolean;
+  source?: string | null;
 };
 
 export type GuestKnowledgeEntryRecord = TimestampedRecord & {

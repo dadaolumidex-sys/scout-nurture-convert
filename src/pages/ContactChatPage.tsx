@@ -16,6 +16,7 @@ import { guestStorage } from "@/lib/guestStorage";
 import { LEAD_STATUSES, getLeadStatus } from "@/lib/leadStatus";
 import { compressImageFile } from "@/lib/imageCompress";
 import { callEdgeFunction } from "@/lib/edgeFunction";
+import { ClientActionCard, EMPTY_CLIENT_ACTION_PLAN, type ClientActionPlan } from "@/components/inbox/ClientActionCard";
 
 
 
@@ -76,6 +77,9 @@ const ContactChatPage = () => {
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(null);
   const [suggestionsPersona, setSuggestionsPersona] = useState<Persona | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionPlan, setActionPlan] = useState<ClientActionPlan>(EMPTY_CLIENT_ACTION_PLAN);
+  const [actionPlanMessageId, setActionPlanMessageId] = useState<string | null>(null);
+  const [savingActionPlan, setSavingActionPlan] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -150,7 +154,52 @@ const ContactChatPage = () => {
       setLoadError(error.message || "Conversation messages could not be loaded.");
       return;
     }
-    if (data) setMessages(data);
+    if (data) {
+      setMessages(data);
+      const savedPlan = [...data].reverse().find((message: ChatMessage) => message.source === "client_action_card");
+      if (savedPlan) {
+        try {
+          const parsed = JSON.parse(savedPlan.content);
+          setActionPlan({ ...EMPTY_CLIENT_ACTION_PLAN, ...parsed });
+          setActionPlanMessageId(savedPlan.id);
+        } catch {
+          setActionPlan(EMPTY_CLIENT_ACTION_PLAN);
+          setActionPlanMessageId(null);
+        }
+      } else {
+        setActionPlan(EMPTY_CLIENT_ACTION_PLAN);
+        setActionPlanMessageId(null);
+      }
+    }
+  };
+
+  const saveActionPlan = async (plan: ClientActionPlan) => {
+    if (!contactId) return;
+    setSavingActionPlan(true);
+    const content = JSON.stringify(plan);
+    try {
+      if (user) {
+        const query = actionPlanMessageId
+          ? (supabase.from("contact_messages" as any).update({ content, updated_at: new Date().toISOString() }).eq("id", actionPlanMessageId) as any)
+          : (supabase.from("contact_messages" as any).insert({ contact_id: contactId, role: "assistant", content, persona: null, selected: false, source: "client_action_card", user_id: user.id }).select().single() as any);
+        const { data, error } = await query;
+        if (error) throw error;
+        if (!actionPlanMessageId && data?.id) setActionPlanMessageId(data.id);
+      } else if (actionPlanMessageId) {
+        guestStorage.messages.update(actionPlanMessageId, { content, source: "client_action_card" });
+      } else {
+        const saved = guestStorage.messages.insert({ contact_id: contactId, role: "assistant", content, persona: null, image_url: null, selected: false, source: "client_action_card" });
+        setActionPlanMessageId(saved.id);
+      }
+      setActionPlan(plan);
+      toast.success("Client action plan saved");
+      await loadMessages();
+    } catch (error) {
+      console.error(error);
+      toast.error("Could not save the client plan");
+    } finally {
+      setSavingActionPlan(false);
+    }
   };
 
   const handlePersonaChange = async (nextPersona: Persona) => {
@@ -273,7 +322,7 @@ const ContactChatPage = () => {
       ? (((await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any)).data) || []) as ChatMessage[]
       : ((contactId ? guestStorage.messages.list(contactId) : []) as ChatMessage[]);
 
-    const isPrivateAiContext = (message: ChatMessage) => message.source?.startsWith("ai_chat_export:");
+    const isPrivateAiContext = (message: ChatMessage) => message.source?.startsWith("ai_chat_export:") || message.source === "client_action_card";
     // Exported AI Chat history is background only. It must never be treated as
     // a real client message, otherwise an old line can override a new reply.
     const personaMessages = msgs.filter((m) => m.persona === targetPersona && !isPrivateAiContext(m));
@@ -302,6 +351,7 @@ const ContactChatPage = () => {
       ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
 
 IMPORTANT: The exact latest real message from this client is: "${latestClientMessage}". Reply directly to that message. Do not reply to, quote, or continue any private AI notes.
+${actionPlan.goal || actionPlan.objection || actionPlan.nextAction !== "Reply today" || actionPlan.handoverNote ? `\nClient action plan: Goal: ${actionPlan.goal || "not set"}. Main concern: ${actionPlan.objection || "not set"}. Next action: ${actionPlan.nextAction}. Team note: ${actionPlan.handoverNote || "none"}. Use this to guide the reply, but never mention this private plan to the client.` : ""}
 ${compactReplyDirection ? `\nYour team's reply direction: "${compactReplyDirection}". Follow this direction while still replying naturally to the client.` : ""}
 ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real client message):\n${compactPrivateNotes}` : ""}
 ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to understand the relationship, then answer the newest real client message):\n${earlierPhaseHistory}` : ""}`
@@ -464,6 +514,13 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
           Choose their current stage above. Paste their latest Discord message, paste a full chat transcript, or upload screenshots; the AI uses it as context and drafts the next reply in the selected stage.
         </div>
 
+        <ClientActionCard
+          plan={actionPlan}
+          lastClientMessage={[...messages].reverse().find((message) => message.role === "user" && message.source !== "client_action_card")?.content || ""}
+          saving={savingActionPlan}
+          onSave={saveActionPlan}
+        />
+
         {suggestedPersona && (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
             <p className="text-xs sm:text-sm text-foreground flex-1 min-w-[180px]">
@@ -500,6 +557,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
           )}
           {messages.filter((msg) => msg.persona === persona).map((msg) => {
             const isPrivateAiContext = msg.source?.startsWith("ai_chat_export:");
+            if (msg.source === "client_action_card") return null;
             if (isPrivateAiContext) {
               return (
                 <details key={msg.id} className="rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
