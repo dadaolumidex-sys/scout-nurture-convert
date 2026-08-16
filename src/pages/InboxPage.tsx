@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, ImagePlus, X, List, LayoutGrid, Trash2 } from "lucide-react";
+import { Plus, MessageSquare, ExternalLink, Search, UserPlus, Upload, Ghost, List, LayoutGrid, Trash2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import { LEAD_STATUSES } from "@/lib/leadStatus";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { guestStorage, readFileAsDataUrl } from "@/lib/guestStorage";
+import { guestStorage } from "@/lib/guestStorage";
 
 type Contact = {
   id: string;
@@ -59,7 +59,6 @@ const InboxPage = () => {
   const [newPlatform, setNewPlatform] = useState<"twitch" | "kick">("twitch");
   const [newPersona, setNewPersona] = useState<"friend" | "promoter" | "streamer">("friend");
   const [chatHistory, setChatHistory] = useState("");
-  const [chatImages, setChatImages] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [contactToDelete, setContactToDelete] = useState<Contact | null>(null);
@@ -99,7 +98,6 @@ const InboxPage = () => {
     setNewName("");
     setNewPersona("friend");
     setChatHistory("");
-    setChatImages([]);
   };
 
   const handleAddContact = async () => {
@@ -153,19 +151,6 @@ const InboxPage = () => {
           }) as any);
         }
 
-        if (chatImages.length > 0 && newId) {
-          for (const file of chatImages) {
-            const imageUrl = await readFileAsDataUrl(file);
-            await (supabase.from("contact_messages" as any).insert({
-              contact_id: newId,
-              content: `${contextLabel} (screenshot)`,
-              role: "user",
-              persona: newPersona,
-              image_url: imageUrl,
-              user_id: user.id,
-            }) as any);
-          }
-        }
       } else {
         const contact = guestStorage.contacts.insert(baseContact);
         newId = contact.id;
@@ -181,20 +166,9 @@ const InboxPage = () => {
           });
         }
 
-        for (const file of chatImages) {
-          const imageUrl = await readFileAsDataUrl(file);
-          guestStorage.messages.insert({
-            contact_id: contact.id,
-            content: `${contextLabel} (screenshot)`,
-            role: "user",
-            persona: newPersona,
-            image_url: imageUrl,
-            selected: false,
-          });
-        }
       }
 
-      const shouldAutogen = chatHistory.trim().length > 0 || chatImages.length > 0;
+      const shouldAutogen = chatHistory.trim().length > 0;
       toast.success(user ? "Contact added!" : "Contact added in guest mode!");
       const persona = newPersona;
       resetDialog();
@@ -333,53 +307,6 @@ const InboxPage = () => {
                         />
                       </div>
 
-                        <div>
-                          <Label className="text-foreground text-sm flex items-center gap-1.5">
-                            <ImagePlus className="h-3.5 w-3.5" />
-                            Upload Chat Screenshots
-                          </Label>
-                          <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
-                            Upload screenshots of your DMs for the AI to analyze
-                          </p>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            className="hidden"
-                            id="chat-screenshot-upload"
-                            onChange={(e) => {
-                              if (e.target.files) {
-                                setChatImages(prev => [...prev, ...Array.from(e.target.files!)]);
-                              }
-                            }}
-                          />
-                          <label
-                            htmlFor="chat-screenshot-upload"
-                            className="flex items-center justify-center gap-2 w-full p-3 rounded-lg border border-dashed border-border bg-muted/50 hover:border-primary/50 hover:bg-accent/20 transition-all cursor-pointer text-sm text-muted-foreground"
-                          >
-                            <ImagePlus className="h-4 w-4" />
-                            Click to upload screenshots
-                          </label>
-                          {chatImages.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              {chatImages.map((file, i) => (
-                                <div key={i} className="relative group">
-                                  <img
-                                    src={URL.createObjectURL(file)}
-                                    alt={`Screenshot ${i + 1}`}
-                                    className="h-16 w-16 rounded-md object-cover border border-border"
-                                  />
-                                  <button
-                                    onClick={() => setChatImages(prev => prev.filter((_, idx) => idx !== i))}
-                                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
                     </div>
 
 
