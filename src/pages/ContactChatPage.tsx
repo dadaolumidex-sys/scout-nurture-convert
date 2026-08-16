@@ -743,7 +743,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
           />
           <Button
             type="button"
-            onClick={(e) => { if (e.detail > 0) void handleSend(); }}
+            onClick={() => void handleSend()}
             disabled={!input.trim() && !pendingImage}
             className="gradient-primary text-primary-foreground h-10 w-10 p-0 shrink-0"
           >

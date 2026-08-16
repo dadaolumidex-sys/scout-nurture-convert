@@ -29,6 +29,22 @@ export async function callEdgeFunction<T>(
     return analyzeKnowledgeLocally(body) as Promise<T>;
   };
 
+  const runPersonalInboxReply = async () => {
+    const { generateInboxSuggestionsLocally } = await import("./localKnowledgeAnalysis");
+    return generateInboxSuggestionsLocally(body) as Promise<T>;
+  };
+
+  // Inbox replies should feel immediate. Prefer the signed-in person's active
+  // Gemini key, then fall back to the hosted function only when they have not
+  // configured a usable personal key.
+  if (functionName === "chat-suggestions") {
+    try {
+      return await runPersonalInboxReply();
+    } catch (personalKeyError) {
+      console.warn("Personal Inbox AI unavailable; trying hosted service.", personalKeyError);
+    }
+  }
+
   const { data: { session } } = await supabase.auth.getSession();
   const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const controller = new AbortController();
