@@ -30,8 +30,11 @@ function withAuthTimeout<T>(request: Promise<T>, timeoutMs = 20_000): Promise<T>
 
 function friendlyAuthError(error: unknown) {
   const message = error instanceof Error ? error.message : "Authentication failed";
+  if (/sign-in is taking too long/i.test(message)) {
+    return "StreamScout's sign-in service is not responding right now. Your internet can be working; this is the app's secure database connection. Please try again shortly.";
+  }
   if (/failed to fetch|networkerror|network request failed/i.test(message)) {
-    return "Could not reach the sign-in service. Check your internet connection, then try again.";
+    return "Could not reach StreamScout's sign-in service. Your internet may be working, but the app's secure database connection is unavailable right now. Please try again shortly.";
   }
   return message;
 }
