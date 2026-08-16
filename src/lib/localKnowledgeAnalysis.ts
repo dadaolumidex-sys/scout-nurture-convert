@@ -207,6 +207,29 @@ function filePart(fileData: string, fileMime?: string) {
   };
 }
 
+async function inboxImagePart(imageUrl: string) {
+  const inlineMatch = imageUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (inlineMatch) return { inlineData: { mimeType: inlineMatch[1], data: inlineMatch[2] } };
+
+  // Signed storage URLs are used for logged-in phone/desktop screenshots.
+  // Gemini needs the actual bytes, not the private storage reference.
+  try {
+    const response = await fetch(imageUrl);
+    if (!response.ok) return null;
+    const image = await response.blob();
+    if (!image.type.startsWith("image/") || image.size > 8 * 1024 * 1024) return null;
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(image);
+    });
+    return base64 ? { inlineData: { mimeType: image.type, data: base64 } } : null;
+  } catch {
+    return null;
+  }
+}
+
 async function describeGeminiFailure(response: Response) {
   const detail = await response.json().catch(() => ({})) as { error?: { message?: string } };
   const providerMessage = detail.error?.message?.replace(/\s+/g, " ").trim();
@@ -341,16 +364,12 @@ Return only valid JSON in this shape:
 
 Rules: each message must be 1-3 short, natural Discord sentences (45 words maximum). A CLIENT entry can be a pasted Discord transcript containing both people; read it as context and answer the last thing the client said. Do not answer private notes. Do not invent a client message. If the newest message is only a greeting, reply naturally to the greeting and do not jump into a sales pitch.`;
 
-  const imageParts = recentMessages
-    .filter((message: any) => typeof message?.imageUrl === "string" && message.imageUrl.startsWith("data:image/"))
-    .slice(-4)
-    .map((message: any) => {
-      const match = message.imageUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
-      return match ? {
-        inlineData: { mimeType: match[1], data: match[2] },
-      } : null;
-    })
-    .filter(Boolean);
+  const imageParts = (await Promise.all(
+    recentMessages
+      .filter((message: any) => typeof message?.imageUrl === "string" && message.imageUrl)
+      .slice(-3)
+      .map((message: any) => inboxImagePart(message.imageUrl)),
+  )).filter(Boolean);
 
   let lastError = "";
   for (const savedKey of keys) {
