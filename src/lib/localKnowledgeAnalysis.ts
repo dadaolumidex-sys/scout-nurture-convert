@@ -273,7 +273,7 @@ export async function analyzeKnowledgeLocally(input: LocalAnalysisInput): Promis
 }
 
 /** Local equivalent of the Inbox reply function when Lovable Cloud is unavailable. */
-export async function generateInboxSuggestionsLocally(input: Record<string, unknown>): Promise<{ suggestions: LocalSuggestion[] }> {
+export async function generateInboxSuggestionsLocally(input: Record<string, unknown>): Promise<{ suggestions: LocalSuggestion[]; websiteAudit?: string }> {
   const keys = await getActiveKeysForRotation("gemini");
   if (!keys.length) throw new Error("Add an active Gemini key in Settings → API & Connections to generate Inbox replies locally.");
 
@@ -350,7 +350,9 @@ Rules: each message must be 1-3 short, natural Discord sentences (45 words maxim
           : [];
         if (suggestions.length) {
           await recordSuccess(savedKey.id);
-          return { suggestions };
+          return websiteContext.startsWith("WEBSITE CONTENT")
+            ? { suggestions, websiteAudit: websiteContext }
+            : { suggestions };
         }
         lastError = "Gemini returned no usable suggestions";
       } catch (error) {

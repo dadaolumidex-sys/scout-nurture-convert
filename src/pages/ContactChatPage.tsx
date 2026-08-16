@@ -244,7 +244,7 @@ const ContactChatPage = () => {
       ? (((await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any)).data) || []) as ChatMessage[]
       : ((contactId ? guestStorage.messages.list(contactId) : []) as ChatMessage[]);
 
-    const isPrivateAiContext = (message: ChatMessage) => message.source?.startsWith("ai_chat_export:") || message.source === "client_action_card";
+    const isPrivateAiContext = (message: ChatMessage) => message.source?.startsWith("ai_chat_export:") || message.source === "client_action_card" || message.source === "website_audit";
     // Exported AI Chat history is background only. It must never be treated as
     // a real client message, otherwise an old line can override a new reply.
     const personaMessages = msgs.filter((m) => m.persona === targetPersona && !isPrivateAiContext(m));
@@ -279,7 +279,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
       : "";
 
     try {
-      const data = await callEdgeFunction<{ suggestions?: Suggestion[] }>("chat-suggestions", {
+      const data = await callEdgeFunction<{ suggestions?: Suggestion[]; websiteAudit?: string }>("chat-suggestions", {
         messages: recentMessages,
         persona: targetPersona,
         contactContext,
@@ -288,6 +288,38 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
       });
       const nextSuggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
       if (nextSuggestions.length === 0) throw new Error("The AI returned no reply suggestions. Please try again.");
+      if (data.websiteAudit) {
+        try {
+          if (user) {
+            const { data: existingAudit } = await (supabase.from("contact_messages" as any)
+              .select("id")
+              .eq("contact_id", contactId)
+              .eq("persona", targetPersona)
+              .eq("source", "website_audit")
+              .limit(1) as any);
+            const auditNote = {
+              contact_id: contactId,
+              role: "assistant",
+              content: data.websiteAudit.slice(0, 18_000),
+              persona: targetPersona,
+              source: "website_audit",
+              user_id: user.id,
+            };
+            if (existingAudit?.[0]) {
+              await (supabase.from("contact_messages" as any).update({ ...auditNote, updated_at: new Date().toISOString() }).eq("id", existingAudit[0].id) as any);
+            } else {
+              await (supabase.from("contact_messages" as any).insert(auditNote) as any);
+            }
+          } else if (contactId) {
+            const existingAudit = msgs.find((message) => message.persona === targetPersona && message.source === "website_audit");
+            if (existingAudit) guestStorage.messages.update(existingAudit.id, { content: data.websiteAudit.slice(0, 18_000), source: "website_audit" });
+            else guestStorage.messages.insert({ contact_id: contactId, role: "assistant", content: data.websiteAudit.slice(0, 18_000), persona: targetPersona, image_url: null, selected: false, source: "website_audit" });
+          }
+          await loadMessages();
+        } catch (auditError) {
+          console.warn("Could not save the private website audit", auditError);
+        }
+      }
       setSuggestions(nextSuggestions);
     } catch (e) {
       console.error(e);
@@ -472,6 +504,14 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
           {messages.filter((msg) => msg.persona === persona).map((msg) => {
             const isPrivateAiContext = msg.source?.startsWith("ai_chat_export:");
             if (msg.source === "client_action_card") return null;
+            if (msg.source === "website_audit") {
+              return (
+                <details key={msg.id} className="rounded-xl border border-dashed border-info/40 bg-info/5 px-4 py-3 text-sm text-muted-foreground">
+                  <summary className="cursor-pointer font-medium text-info">🔒 Private website audit — used for future replies</summary>
+                  <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed">{msg.content}</p>
+                </details>
+              );
+            }
             if (isPrivateAiContext) {
               return (
                 <details key={msg.id} className="rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
