@@ -17,6 +17,7 @@ type LocalSuggestion = { message: string; reason: string; approach: string };
 
 const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
 const MAX_SOURCE_CHARS = 100_000;
+const WEBSITE_URL_PATTERN = /https?:\/\/[^\s<>()\[\]{}"']+/gi;
 
 async function loadLocalReplyMemory(persona: string) {
   const knowledgePersona = persona === "promoter" ? "brozeen" : persona === "streamer" ? "bigstreamer" : "nifimas";
@@ -98,6 +99,83 @@ async function fetchYouTubeTranscriptLocally(videoUrl: string) {
     await recordFailure(savedKey.id, lastError || "YouTube transcript request failed");
   }
   throw new Error(`${lastError || "YouTube transcript extraction failed"}. Check that the video has captions and try again.`);
+}
+
+function publicWebsiteUrls(text: string) {
+  const seen = new Set<string>();
+  for (const rawUrl of text.match(WEBSITE_URL_PATTERN) || []) {
+    try {
+      const url = new URL(rawUrl.replace(/[.,!?;:]+$/g, ""));
+      const host = url.hostname.toLowerCase();
+      if (!/^https?:$/.test(url.protocol) || host === "localhost" || host.endsWith(".local") || /^(127\.|10\.|192\.168\.|169\.254\.)/.test(host)) continue;
+      url.username = "";
+      url.password = "";
+      url.hash = "";
+      seen.add(url.toString());
+      if (seen.size === 2) break;
+    } catch { /* Ignore malformed links. */ }
+  }
+  return [...seen];
+}
+
+function websiteTextFromItem(item: Record<string, unknown>) {
+  const content = [item.markdown, item.text, item.content, item.body]
+    .find((value) => typeof value === "string" && value.trim());
+  if (!content || typeof content !== "string") return "";
+  const title = String(item.title || item.pageTitle || "Website page").trim();
+  const url = String(item.url || item.loadedUrl || "").trim();
+  return `### ${title || "Website page"}\nSource: ${url}\n${content}`;
+}
+
+async function readWebsitesLocally(text: string) {
+  const urls = publicWebsiteUrls(text);
+  if (!urls.length) return "";
+  const keys = await getActiveKeysForRotation("apify");
+  if (!keys.length) return "Website links were included, but no active Apify key is available to read them.";
+
+  let lastError = "";
+  for (const savedKey of keys) {
+    try {
+      const response = await fetch(
+        `https://api.apify.com/v2/acts/apify~website-content-crawler/run-sync-get-dataset-items?token=${encodeURIComponent(savedKey.api_key)}&timeout=60`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            startUrls: urls.map((url) => ({ url })),
+            maxCrawlDepth: 1,
+            maxCrawlPages: 3,
+            useSitemaps: false,
+            useLlmsTxt: false,
+            saveMarkdown: true,
+            blockMedia: true,
+            respectRobotsTxtFile: true,
+            proxyConfiguration: { useApifyProxy: true },
+          }),
+        },
+      );
+      if (!response.ok) {
+        lastError = `Apify returned ${response.status}`;
+        continue;
+      }
+      const items = await response.json();
+      const pages = (Array.isArray(items) ? items : [])
+        .map((item) => item && typeof item === "object" ? websiteTextFromItem(item as Record<string, unknown>) : "")
+        .filter(Boolean)
+        .join("\n\n")
+        .slice(0, 18_000);
+      if (!pages) {
+        lastError = "The website did not return readable public text";
+        continue;
+      }
+      await recordSuccess(savedKey.id);
+      return `WEBSITE AUDIT SOURCE — read the public pages below before recommending a pitch. Do not invent details not shown here.\n\n${pages}`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Website reader failed";
+    }
+    await recordFailure(savedKey.id, lastError || "Website reader failed");
+  }
+  return `Website link could not be read (${lastError || "unknown issue"}). Ask the user to paste the important page text or upload screenshots instead.`;
 }
 
 function promptFor(type: AnalysisType, persona?: string) {
@@ -215,11 +293,14 @@ export async function generateInboxSuggestionsLocally(input: Record<string, unkn
     `${message?.role === "assistant" ? "YOUR PREVIOUS REPLY" : "CLIENT"}: ${String(message?.content || "")}`,
   ).join("\n");
   const context = String(input.contactContext || "").slice(0, 14_000);
+  const websiteContext = await readWebsitesLocally(`${conversation}\n${context}`);
   const prompt = `You are ${persona}. Write exactly 3 possible replies for the client conversation below.
 
 ${context}
 
 ${modeRules}
+
+${websiteContext}
 
 SAVED KNOWLEDGE AND PLAYBOOK (use only when relevant; saved objections take priority when the client pushes back):
 ${replyMemory.knowledge || "No saved knowledge available."}
