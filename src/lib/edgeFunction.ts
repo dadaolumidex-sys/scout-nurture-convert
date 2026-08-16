@@ -21,6 +21,14 @@ export async function callEdgeFunction<T>(
     return generateInboxSuggestionsLocally(body) as Promise<T>;
   }
 
+  const runPersonalKnowledgeFallback = async () => {
+    // Each signed-in user can only read their own RLS-protected API keys. This
+    // is a resilience fallback for file/link analysis when the hosted function
+    // is behind an old deployment or temporarily unavailable.
+    const { analyzeKnowledgeLocally } = await import("./localKnowledgeAnalysis");
+    return analyzeKnowledgeLocally(body) as Promise<T>;
+  };
+
   const { data: { session } } = await supabase.auth.getSession();
   const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const controller = new AbortController();
@@ -62,9 +70,17 @@ export async function callEdgeFunction<T>(
       throw new Error("The AI request took too long. Please try again.");
     }
 
-    // Lovable Cloud can be unavailable while local development is still running.
-    // Keep this fallback strictly local so production never exposes a provider key
-    // to the browser.
+    // A published frontend can be newer than its hosted Edge Function. Let a
+    // signed-in user's own saved keys handle knowledge files/links in that
+    // case, rather than showing a vague cloud error or losing the upload.
+    if (functionName === "analyze-knowledge") {
+      try {
+        return await runPersonalKnowledgeFallback();
+      } catch (fallbackError) {
+        // The local analyzer gives detailed, actionable key/file messages.
+        throw fallbackError;
+      }
+    }
     throw error;
   } finally {
     window.clearTimeout(timeout);
