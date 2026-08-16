@@ -84,11 +84,13 @@ const ContactChatPage = () => {
 
   const autogenRef = useRef(searchParams.get("autogen") === "1");
   const draftKey = `streamscout_inbox_draft_${user?.id || "guest"}_${contactId || "unknown"}`;
+  const inboxDraftRef = useRef({ input: "", replyDirection: "" });
 
   useEffect(() => {
     const saved = readDraftRecord(draftKey, { input: "", replyDirection: "" });
     setInput(saved.input || "");
     setReplyDirection(saved.replyDirection || "");
+    inboxDraftRef.current = { input: saved.input || "", replyDirection: saved.replyDirection || "" };
     setLoadedDraftKey(draftKey);
   }, [draftKey]);
 
@@ -97,6 +99,14 @@ const ContactChatPage = () => {
       writeDraftRecord(draftKey, { input, replyDirection });
     }
   }, [draftKey, input, loadedDraftKey, replyDirection]);
+
+  const updateInboxDraft = (next: Partial<{ input: string; replyDirection: string }>) => {
+    const saved = { ...inboxDraftRef.current, ...next };
+    inboxDraftRef.current = saved;
+    writeDraftRecord(draftKey, saved);
+    if (next.input !== undefined) setInput(next.input);
+    if (next.replyDirection !== undefined) setReplyDirection(next.replyDirection);
+  };
 
   useEffect(() => {
     if (contactId) {
@@ -216,7 +226,7 @@ const ContactChatPage = () => {
     if ((!input.trim() && !pendingImage) || loading) return;
     const messageText = input.trim() || "[Screenshot — use the attached conversation and reply direction]";
     const attachedImage = pendingImage;
-    setInput("");
+    updateInboxDraft({ input: "" });
     setPendingImage(null);
     setSuggestions([]);
     setSelectedSuggestion(null);
@@ -689,13 +699,13 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
           aria-label="How you want the AI to reply"
           placeholder="Optional: tell the AI how you want to reply — e.g. friendly but confident, ask about their budget, keep it very short, do not mention prices yet..."
           value={replyDirection}
-          onChange={(e) => setReplyDirection(e.target.value)}
+          onChange={(e) => updateInboxDraft({ replyDirection: e.target.value })}
           className="mb-2 bg-muted/60 border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[88px] text-sm"
           rows={1}
         />
         {(input || replyDirection) && (
           <div className="mb-2 flex justify-end">
-            <Button type="button" variant="ghost" size="sm" onClick={() => { setInput(""); setReplyDirection(""); }} className="h-7 text-xs text-muted-foreground hover:text-foreground">
+            <Button type="button" variant="ghost" size="sm" onClick={() => updateInboxDraft({ input: "", replyDirection: "" })} className="h-7 text-xs text-muted-foreground hover:text-foreground">
               Clear unsent text
             </Button>
           </div>
@@ -714,7 +724,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
           <Textarea
             placeholder="Paste their latest message or the full Discord conversation here..."
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => updateInboxDraft({ input: e.target.value })}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[44px] max-h-[120px]"
             rows={2}
             onKeyDownCapture={(e) => {

@@ -75,6 +75,13 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
       if (loadedDraftKey === draftKey) writeDraft(draftKey, text);
     }, [draftKey, loadedDraftKey, text]);
 
+    const updateText = (nextText: string) => {
+      // Store during the input event too. On phones an app can be suspended
+      // before React has a chance to run its normal save effect.
+      writeDraft(draftKey, nextText);
+      setText(nextText);
+    };
+
     useEffect(() => () => {
       recognitionRef.current?.abort();
       recognitionRef.current = null;
@@ -96,7 +103,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
         setListening(false);
       }
       onSend(text);
-      setText("");
+      updateText("");
     };
 
     const disabled = loading || (!text.trim() && !hasPendingImages);
@@ -135,7 +142,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
         }
         const spoken = `${finalTranscriptRef.current}${interim}`.trim();
         const base = voiceBaseTextRef.current;
-        setText(`${base}${base && spoken ? " " : ""}${spoken}`);
+        updateText(`${base}${base && spoken ? " " : ""}${spoken}`);
         window.requestAnimationFrame(() => textareaRef.current?.focus());
       };
 
@@ -175,7 +182,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
       const start = target.selectionStart;
       const end = target.selectionEnd;
       enterDraftRef.current = { value: text, start, end };
-      setText((current) => `${current.slice(0, start)}\n${current.slice(end)}`);
+      const nextText = `${text.slice(0, start)}\n${text.slice(end)}`;
+      updateText(nextText);
       window.requestAnimationFrame(() => {
         target.selectionStart = start + 1;
         target.selectionEnd = start + 1;
@@ -188,7 +196,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
       enterDraftRef.current = null;
       if (!draft || text.includes("\n")) return;
       const restored = `${draft.value.slice(0, draft.start)}\n${draft.value.slice(draft.end)}`;
-      setText(restored);
+      updateText(restored);
     };
 
     if (variant === "mobile") {
@@ -214,14 +222,14 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
               ref={textareaRef}
               placeholder="Ask anything..."
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => updateText(e.target.value)}
               onKeyDownCapture={addNewLine}
               onKeyUp={preserveNewLine}
               className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5 pr-10"
               rows={1}
             />
             {text && (
-              <Button type="button" variant="ghost" size="icon" onClick={() => setText("")} className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Clear draft" title="Clear draft">
+              <Button type="button" variant="ghost" size="icon" onClick={() => updateText("")} className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Clear draft" title="Clear draft">
                 <X className="h-4 w-4" />
               </Button>
             )}
@@ -240,7 +248,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
             ref={textareaRef}
             placeholder="Type your message or upload a conversation screenshot..."
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => updateText(e.target.value)}
             onKeyDownCapture={addNewLine}
             onKeyUp={preserveNewLine}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-20 min-h-[72px]"
@@ -262,7 +270,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
             {listening ? <Square className="h-3.5 w-3.5 fill-current" /> : <Mic className="h-4 w-4" />}
           </Button>
           {text && (
-            <Button type="button" variant="ghost" size="icon" onClick={() => setText("")} className="absolute right-[4.5rem] bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Clear draft" title="Clear draft">
+            <Button type="button" variant="ghost" size="icon" onClick={() => updateText("")} className="absolute right-[4.5rem] bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Clear draft" title="Clear draft">
               <X className="h-4 w-4" />
             </Button>
           )}
