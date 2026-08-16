@@ -119,7 +119,7 @@ const ContactChatPage = () => {
   // Auto-generate the first suggestion when arriving from the New Chat flow with pasted context.
   useEffect(() => {
     if (!autogenRef.current || !contact) return;
-    if (messages.filter((m) => m.persona === persona).length === 0) return;
+    if (!messages.some((m) => !m.source?.startsWith("ai_chat_export:") && m.source !== "client_action_card" && m.source !== "website_audit")) return;
     autogenRef.current = false;
     void generateSuggestions(persona);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -257,7 +257,10 @@ const ContactChatPage = () => {
       setContact((prev) => prev ? { ...prev, status: "in_conversation" } : prev);
     }
 
-    // Generate suggestions for current persona only
+    // The reply voice can change as the relationship progresses, but this is
+    // still one continuous client conversation. Keep every public message in
+    // context so a promoter or expert can continue exactly where friendship
+    // left off.
     await generateSuggestions(persona);
   };
 
@@ -274,8 +277,8 @@ const ContactChatPage = () => {
     const isPrivateAiContext = (message: ChatMessage) => message.source?.startsWith("ai_chat_export:") || message.source === "client_action_card" || message.source === "website_audit";
     // Exported AI Chat history is background only. It must never be treated as
     // a real client message, otherwise an old line can override a new reply.
-    const personaMessages = msgs.filter((m) => m.persona === targetPersona && !isPrivateAiContext(m));
-    const recentMessages = personaMessages.slice(-20).map((m) => ({
+    const publicMessages = msgs.filter((m) => !isPrivateAiContext(m));
+    const recentMessages = publicMessages.slice(-20).map((m) => ({
       role: m.role === "assistant" ? "assistant" as const : "user" as const,
       content: m.content,
       imageUrl: m.image_url,
@@ -288,21 +291,15 @@ const ContactChatPage = () => {
     const compactPrivateNotes = privateNotes.length > 12_000
       ? `${privateNotes.slice(0, 6_000)}\n\n[older private notes omitted]\n\n${privateNotes.slice(-6_000)}`
       : privateNotes;
-    const earlierPhaseHistory = msgs
-      .filter((m) => m.persona !== targetPersona && !isPrivateAiContext(m))
-      .slice(-12)
-      .map((m) => `${m.persona ? personaConfig[m.persona as Persona]?.name || m.persona : "Earlier stage"} ${m.role === "assistant" ? "YOUR REPLY" : "CLIENT"}: ${m.content}`)
-      .join("\n");
-    const latestClientMessage = [...personaMessages].reverse().find((m) => m.role === "user")?.content || "";
+    const latestClientMessage = [...publicMessages].reverse().find((m) => m.role === "user")?.content || "";
     const compactReplyDirection = replyDirection.trim().slice(0, 1_500);
 
     const contactContext = contact
       ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
 
-IMPORTANT: The exact latest real message from this client is: "${latestClientMessage}". Reply directly to that message. Do not reply to, quote, or continue any private AI notes.
+IMPORTANT: This is one continuous conversation, even if the reply voice changed from Friendship to Promoter & Closer or Expert Proof. The exact latest real message from this client is: "${latestClientMessage}". Reply directly to that message. Do not reply to, quote, or continue any private AI notes.
 ${compactReplyDirection ? `\nYour team's reply direction: "${compactReplyDirection}". Follow this direction while still replying naturally to the client.` : ""}
-${compactPrivateNotes ? `\nPrivate AI background (context only, never a real client message):\n${compactPrivateNotes}` : ""}
-${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to understand the relationship, then answer the newest real client message):\n${earlierPhaseHistory}` : ""}`
+${compactPrivateNotes ? `\nPrivate AI background (context only, never a real client message):\n${compactPrivateNotes}` : ""}`
       : "";
 
     try {
@@ -455,6 +452,14 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
     : warmSignal && persona === "friend"
       ? "promoter"
       : null;
+  // Keep the conversation continuous on screen too. A stage is a reply voice,
+  // not a separate room or a replacement for earlier messages.
+  const displayMessages = messages.filter((message) => message.source !== "client_action_card");
+  const hasClientConversation = messages.some((message) =>
+    !message.source?.startsWith("ai_chat_export:")
+    && message.source !== "client_action_card"
+    && message.source !== "website_audit",
+  );
 
 
 
@@ -491,7 +496,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
 
         <div className="mb-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">One client, one history.</span>{" "}
-          Choose the reply voice, paste their latest message or full chat, then generate a reply. Screenshots are temporary for the current reply only.
+          Choose the reply voice when the conversation moves forward. Earlier messages stay here, and every next reply uses the full client history. Screenshots are temporary for the current reply only.
         </div>
 
         {suggestedPersona && (
@@ -516,7 +521,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
 
         {/* Messages */}
         <div className="flex-1 min-h-0 overflow-auto space-y-3 mb-4 pr-1">
-          {messages.filter((msg) => msg.persona === persona).length === 0 && (
+          {displayMessages.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground space-y-2">
                 <p className="text-sm">No messages yet. Paste their message to get started!</p>
@@ -528,7 +533,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
               </div>
             </div>
           )}
-          {messages.filter((msg) => msg.persona === persona).map((msg) => {
+          {displayMessages.map((msg) => {
             const isPrivateAiContext = msg.source?.startsWith("ai_chat_export:");
             if (msg.source === "client_action_card") return null;
             if (msg.source === "website_audit") {
@@ -554,15 +559,15 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
                   ? "bg-card border border-border"
                   : "bg-card border border-border"
               }`}>
-                {/* Persona badge + selected indicator */}
-                {msg.role === "assistant" && (
+                {/* The label shows which reply voice was used at that point. */}
+                {(msg.persona || (msg.role === "assistant" && msg.selected)) && (
                   <div className="flex items-center gap-1.5 mb-1">
                     {msg.persona && (
                       <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${personaConfig[msg.persona as Persona]?.badgeClass || ""}`}>
                         {personaConfig[msg.persona as Persona]?.emoji} {personaConfig[msg.persona as Persona]?.name}
                       </Badge>
                     )}
-                    {msg.selected && (
+                    {msg.role === "assistant" && msg.selected && (
                       <div className="flex items-center gap-0.5 text-[10px] font-medium text-secondary">
                         <Check className="h-3 w-3" /> Used
                       </div>
@@ -661,7 +666,7 @@ ${earlierPhaseHistory ? `\nEarlier phase history (background only; use it to und
         <div className="flex flex-wrap gap-2 mb-3 items-center">
           <Button
             onClick={() => generateSuggestions(persona)}
-            disabled={loading || messages.filter((m) => m.persona === persona).length === 0}
+            disabled={loading || !hasClientConversation}
             variant="outline"
             size="sm"
             className={`shrink-0 ${persona === "friend"
