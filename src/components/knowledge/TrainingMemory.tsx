@@ -233,13 +233,13 @@ export function TrainingMemory() {
       <Tabs value={personaTab} onValueChange={setPersonaTab}>
          <TabsList className="bg-muted border border-border flex-wrap h-auto">
           <TabsTrigger value="nifimas" className="data-[state=active]:bg-secondary/10 data-[state=active]:text-secondary">
-            🤝 Nifimas (Friend)
+            🤝 Friendship
           </TabsTrigger>
           <TabsTrigger value="brozeen" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
-            💼 Brozeen (Promoter)
+            💼 Promoter & Closer
           </TabsTrigger>
           <TabsTrigger value="bigstreamer" className="data-[state=active]:bg-info/10 data-[state=active]:text-info">
-            🎤 Big Streamer
+            🎤 Expert Proof
           </TabsTrigger>
         </TabsList>
 
@@ -252,7 +252,7 @@ export function TrainingMemory() {
             <Card className="bg-card border-border">
               <CardContent className="p-8 text-center text-muted-foreground">
                 <MessageSquare className="h-10 w-10 mx-auto mb-3 opacity-30" />
-                <p>No training data for {personaTab === "nifimas" ? "Nifimas" : personaTab === "bigstreamer" ? "Big Streamer" : "Brozeen"} yet</p>
+                <p>No training data for {personaTab === "nifimas" ? "Friendship" : personaTab === "bigstreamer" ? "Expert Proof" : "Promoter & Closer"} yet</p>
               </CardContent>
             </Card>
           ) : (

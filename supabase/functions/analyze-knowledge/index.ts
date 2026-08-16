@@ -293,7 +293,7 @@ serve(async (req) => {
     if (type === "training") {
       systemPrompt = `You are analyzing a conversation to extract the communication style and personality fingerprint of a streamer outreach specialist. Read the entire supplied source before responding.
 
-Persona context: ${persona === "brozeen" ? "Brozeen (professional promoter who converts streamers into clients)" : "Nifimas (friendly, casual friend who builds trust and rapport)"}
+Persona context: ${persona === "brozeen" ? "Promoter & Closer (professional growth expert who handles objections and converts clients)" : "Friendship (friendly, casual rapport builder)"}
 
 Analyze the conversation and provide:
 1. A "Style:" summary (1-2 sentences describing the communication approach)

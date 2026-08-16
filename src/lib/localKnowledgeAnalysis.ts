@@ -103,7 +103,7 @@ async function fetchYouTubeTranscriptLocally(videoUrl: string) {
 function promptFor(type: AnalysisType, persona?: string) {
   if (type === "training") {
     return `Analyze this conversation and extract the communication style and personality fingerprint.
-Persona context: ${persona === "brozeen" ? "Brozeen (professional promoter)" : "Nifimas (friendly, casual friend)"}.
+Persona context: ${persona === "brozeen" ? "Promoter & Closer (professional growth expert who handles objections and conversion)" : "Friendship (friendly, casual rapport builder)"}.
 
 Return exactly this format:
 Style: [one or two concise sentences]
@@ -199,15 +199,15 @@ export async function generateInboxSuggestionsLocally(input: Record<string, unkn
   const keys = await getActiveKeysForRotation("gemini");
   if (!keys.length) throw new Error("Add an active Gemini key in Settings → API & Connections to generate Inbox replies locally.");
 
-  const persona = input.persona === "promoter" ? "Brozeen (professional promoter)"
-    : input.persona === "streamer" ? "Big Streamer (direct, calm closer)"
-      : "Nifimas (friendly streamer friend)";
+  const persona = input.persona === "promoter" ? "Promoter & Closer (professional growth expert who provides value, handles objections, and closes)"
+    : input.persona === "streamer" ? "Expert Proof (backup authority who supports the Promoter & Closer with genuine success proof)"
+      : "Friendship (friendly streamer-to-streamer rapport builder)";
   const conversationType = String(input.conversationType || "new_prospect");
   const modeRules = conversationType === "existing_chat"
     ? "CONTINUE EXISTING CHAT: Read the whole pasted chat carefully. Work out where it stopped and what the client last said or asked. Continue from that exact point—never restart, re-introduce yourself, or answer an older message."
     : conversationType === "re_engage"
       ? "RE-ENGAGE: The client went quiet. Do not guilt them, do not say 'just following up', and do not repeat the old message. Use the conversation to create one fresh, low-pressure hook that is easy to answer—such as a useful observation or a relevant question."
-      : "NEW PROSPECT: This is the start. React to their real message, keep it light, and open an easy loop that makes replying natural. Do not pitch early unless the selected Big Streamer stage truly fits.";
+      : "NEW PROSPECT: This is the start. React to their real message, keep it light, and open an easy loop that makes replying natural. Do not pitch early unless the Promoter & Closer stage truly fits.";
   const replyMemory = await loadLocalReplyMemory(String(input.persona || "friend"));
   const messages = Array.isArray(input.messages) ? input.messages : [];
   const recentMessages = messages.slice(-20);

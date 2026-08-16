@@ -30,9 +30,9 @@ type KnowledgeEntry = {
 
 const personas = [
   { value: "shared", label: "Both Personas" },
-  { value: "nifimas", label: "🤝 Nifimas (Friend)" },
-  { value: "brozeen", label: "💼 Brozeen (Promoter)" },
-  { value: "bigstreamer", label: "🎤 Big Streamer (Closer)" },
+  { value: "nifimas", label: "🤝 Friendship" },
+  { value: "brozeen", label: "💼 Promoter & Closer" },
+  { value: "bigstreamer", label: "🎤 Expert Proof (Backup)" },
 ];
 
 export function KnowledgeBase() {
@@ -220,7 +220,7 @@ export function KnowledgeBase() {
             <li><span className="text-foreground font-medium">Niche facts</span> — Twitch/Kick growth tips, retention, overlays, clip strategy.</li>
           </ul>
           <p className="text-xs text-muted-foreground">
-            Assign each entry to a persona so it only affects that voice: Nifimas (friendship), Brozeen (value + pitch), Big Streamer
+            Assign each entry to a role so it only affects that voice: Friendship (rapport), Promoter & Closer (value, objections, and conversion), Expert Proof
             (proposal + pricing), or Both. Use <span className="text-foreground font-medium">Training Memory</span> instead when you want to
             teach the AI <em>how you type</em>, not what to say.
           </p>

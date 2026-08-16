@@ -123,7 +123,7 @@ const InboxPage = () => {
       channel_url: null,
       conversation_type: selectedType,
       // Keep the way this Inbox started even after its active reply voice
-      // changes from Nifimas to Brozeen or Big Streamer.
+      // changes from Friendship to Promoter & Closer or Expert Proof.
       growth_stage: selectedType,
       status: statusMap[selectedType || "new_prospect"],
     };
@@ -279,9 +279,9 @@ const InboxPage = () => {
                       <Select value={newPersona} onValueChange={(v) => setNewPersona(v as "friend" | "promoter" | "streamer")}>
                         <SelectTrigger className="bg-muted border-border text-foreground"><SelectValue /></SelectTrigger>
                         <SelectContent className="bg-card border-border">
-                          <SelectItem value="friend">🤝 Nifimas — Friend (build friendship, connect them to the expert)</SelectItem>
-                          <SelectItem value="promoter">💼 Brozeen — Promoter (spot gaps, give value, pitch)</SelectItem>
-                          <SelectItem value="streamer">🎤 Big Streamer — Direct closer (proposal & pricing)</SelectItem>
+                          <SelectItem value="friend">🤝 Friendship — build trust and rapport</SelectItem>
+                          <SelectItem value="promoter">💼 Promoter & Closer — give value, handle objections, close</SelectItem>
+                          <SelectItem value="streamer">🎤 Expert Proof — backup authority and success proof</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

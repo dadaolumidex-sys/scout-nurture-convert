@@ -13,7 +13,7 @@ type Props = {
 const ANGLES = [
   {
     key: "friend" as const,
-    title: "🤝 Friend Mode (Nifimas)",
+    title: "🤝 Friendship",
     hint: "Warm gamer-to-gamer opener. No selling — build rapport first.",
     accent: "text-secondary",
     border: "border-secondary",
@@ -21,16 +21,16 @@ const ANGLES = [
   },
   {
     key: "promoter" as const,
-    title: "💼 Promoter Mode (Brozeen)",
-    hint: "Names the gap you found and positions you as the fix.",
+    title: "💼 Promoter & Closer",
+    hint: "Names the gap, gives value, handles objections, and closes when they are ready.",
     accent: "text-primary",
     border: "border-primary",
     hover: "hover:bg-primary/10",
   },
   {
     key: "streamer" as const,
-    title: "🎤 Big Streamer (Direct)",
-    hint: "Peer-to-peer, confident, straight to the collab/promo offer.",
+    title: "🎤 Expert Proof",
+    hint: "Backup authority: use proof and experience to support the Promoter & Closer.",
     accent: "text-info",
     border: "border-info",
     hover: "hover:bg-info/10",

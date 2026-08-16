@@ -52,9 +52,9 @@ type Persona = "friend" | "promoter" | "streamer";
 type Suggestion = { message: string; reason: string; approach: string };
 
 const personaConfig = {
-  friend: { name: "Nifimas", emoji: "🤝", label: "Friend", badgeClass: "border-secondary/50 bg-secondary/10 text-secondary" },
-  promoter: { name: "Brozeen", emoji: "💼", label: "Promoter", badgeClass: "border-primary/50 bg-primary/10 text-primary" },
-  streamer: { name: "Big Streamer", emoji: "🎤", label: "Big Streamer", badgeClass: "border-info/50 bg-info/10 text-info" },
+  friend: { name: "Friendship", emoji: "🤝", label: "Friendship", badgeClass: "border-secondary/50 bg-secondary/10 text-secondary" },
+  promoter: { name: "Promoter & Closer", emoji: "💼", label: "Promoter & Closer", badgeClass: "border-primary/50 bg-primary/10 text-primary" },
+  streamer: { name: "Expert Proof", emoji: "🎤", label: "Expert Proof", badgeClass: "border-info/50 bg-info/10 text-info" },
 };
 
 const ContactChatPage = () => {

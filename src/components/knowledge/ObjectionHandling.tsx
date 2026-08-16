@@ -32,8 +32,8 @@ type Entry = {
 
 const personas = [
   { value: "shared", label: "Both Personas" },
-  { value: "nifimas", label: "🤝 Nifimas (Friend)" },
-  { value: "brozeen", label: "💼 Brozeen (Promoter)" },
+  { value: "nifimas", label: "🤝 Friendship" },
+  { value: "brozeen", label: "💼 Promoter & Closer" },
 ];
 
 export function ObjectionHandling() {

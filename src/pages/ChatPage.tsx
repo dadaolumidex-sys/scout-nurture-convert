@@ -29,8 +29,8 @@ type InboxPersona = Persona | "streamer";
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 const personaConfig = {
-  friend: { name: "Nifimas", label: "Friend", emoji: "🤝", badgeClass: "border-secondary text-secondary" },
-  promoter: { name: "Brozeen", label: "Promoter", emoji: "💼", badgeClass: "border-primary text-primary" },
+  friend: { name: "Friendship", label: "Friendship", emoji: "🤝", badgeClass: "border-secondary text-secondary" },
+  promoter: { name: "Promoter & Closer", label: "Promoter & Closer", emoji: "💼", badgeClass: "border-primary text-primary" },
 };
 
 async function streamChat({
@@ -537,9 +537,9 @@ const ChatPage = () => {
             <Select value={exportPersona} onValueChange={(value) => setExportPersona(value as InboxPersona)}>
               <SelectTrigger className="bg-muted border-border text-foreground"><SelectValue /></SelectTrigger>
               <SelectContent className="bg-card border-border">
-                <SelectItem value="friend">🤝 Nifimas — friendship stage</SelectItem>
-                <SelectItem value="promoter">💼 Brozeen — promoter stage</SelectItem>
-                <SelectItem value="streamer">🎤 Big Streamer — closer stage</SelectItem>
+                <SelectItem value="friend">🤝 Friendship — build trust</SelectItem>
+                <SelectItem value="promoter">💼 Promoter & Closer — value, objections, and conversion</SelectItem>
+                <SelectItem value="streamer">🎤 Expert Proof — backup authority</SelectItem>
               </SelectContent>
             </Select>
           </div>

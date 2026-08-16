@@ -20,9 +20,9 @@ type Props = {
 };
 
 const personaConfig: Record<Persona, { badgeClass: string; emoji: string; name: string; aria: string }> = {
-  friend: { badgeClass: "border-secondary/50 bg-secondary/10 text-secondary", emoji: "🤝", name: "Nifimas", aria: "Nifimas, friendly persona" },
-  promoter: { badgeClass: "border-primary/50 bg-primary/10 text-primary", emoji: "💼", name: "Brozeen", aria: "Brozeen, promoter persona" },
-  streamer: { badgeClass: "border-info/50 bg-info/10 text-info", emoji: "🎤", name: "Big Streamer", aria: "Big streamer, direct peer persona" },
+  friend: { badgeClass: "border-secondary/50 bg-secondary/10 text-secondary", emoji: "🤝", name: "Friendship", aria: "Friendship, rapport-building voice" },
+  promoter: { badgeClass: "border-primary/50 bg-primary/10 text-primary", emoji: "💼", name: "Promoter & Closer", aria: "Promoter and Closer, expert voice" },
+  streamer: { badgeClass: "border-info/50 bg-info/10 text-info", emoji: "🎤", name: "Expert Proof", aria: "Expert Proof, backup authority voice" },
 };
 
 export const ChatHeader = ({ contact, persona, onPersonaChange, onBack }: Props) => (

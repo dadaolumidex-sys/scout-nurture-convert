@@ -1,5 +1,5 @@
 // Shared hook-message generator used by the streamer analyzers.
-// Produces 3 opening DM angles (friend / promoter / big-streamer) from real channel stats.
+// Produces 3 opening DM angles (friendship / promoter-closer / expert-proof) from real channel stats.
 
 export type StreamerStats = {
   displayName: string;
@@ -34,9 +34,9 @@ Rules for every message:
 - Never promise fake numbers, never sound desperate, never use "Dear" or corporate tone.
 
 The three angles:
-1. friend  — Nifimas. Warm gamer-to-gamer opener. Zero selling. Pure curiosity + genuine compliment about their content, plus a soft question about their streaming journey.
-2. promoter — Brozeen. Professional growth strategist. Name the specific gap you found and hint you help streamers fix exactly that. Soft CTA to chat.
-3. streamer — "Big streamer straight". Speak peer-to-peer as someone with reach/audience. Direct, confident, low-word-count, gets straight to a collab/promo offer without begging.`;
+1. friend  — Friendship. Warm gamer-to-gamer opener. Zero selling. Pure curiosity + genuine compliment about their content, plus a soft question about their streaming journey.
+2. promoter — Promoter & Closer. Professional growth expert. Name the specific gap you found, give value, and prepare to handle objections and close when they are ready.
+3. streamer — Expert Proof. A backup authority voice that offers authentic peer-to-peer proof of what the Promoter & Closer can help with. Keep it calm and never make fake claims.`;
 
 function templateHooks(s: StreamerStats): Hooks {
   const gap = s.weaknesses[0] || "getting discovered by new viewers";

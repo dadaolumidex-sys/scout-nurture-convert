@@ -111,8 +111,8 @@ const AnalyticsPage = () => {
     const totalRevenue = events.filter((e) => e.event_type === "converted").reduce((sum, e) => sum + e.revenue, 0);
 
     const personaPerf = [
-      { name: "Nifimas", converted: events.filter((e) => e.persona === "nifimas" && e.event_type === "converted").length, contacted: events.filter((e) => e.persona === "nifimas" && e.event_type === "contacted").length },
-      { name: "Brozeen", converted: events.filter((e) => e.persona === "brozeen" && e.event_type === "converted").length, contacted: events.filter((e) => e.persona === "brozeen" && e.event_type === "contacted").length },
+      { name: "Friendship", converted: events.filter((e) => e.persona === "nifimas" && e.event_type === "converted").length, contacted: events.filter((e) => e.persona === "nifimas" && e.event_type === "contacted").length },
+      { name: "Promoter & Closer", converted: events.filter((e) => e.persona === "brozeen" && e.event_type === "converted").length, contacted: events.filter((e) => e.persona === "brozeen" && e.event_type === "contacted").length },
     ];
 
     // Activity by day (last 7 days)
@@ -179,8 +179,8 @@ const AnalyticsPage = () => {
                   <Select value={newEvent.persona} onValueChange={(v) => setNewEvent({ ...newEvent, persona: v })}>
                     <SelectTrigger className="bg-muted border-border text-foreground"><SelectValue /></SelectTrigger>
                     <SelectContent className="bg-card border-border">
-                      <SelectItem value="nifimas">🤝 Nifimas</SelectItem>
-                      <SelectItem value="brozeen">💼 Brozeen</SelectItem>
+                      <SelectItem value="nifimas">🤝 Friendship</SelectItem>
+                      <SelectItem value="brozeen">💼 Promoter & Closer</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
