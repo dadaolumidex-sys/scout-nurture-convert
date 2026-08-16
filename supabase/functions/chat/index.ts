@@ -39,7 +39,7 @@ Always:
 
 const DEEP_RESEARCH_SUFFIX = `
 
-IMPORTANT: Deep Research mode is ON. Provide an extremely thorough, detailed answer with multiple perspectives, examples, step-by-step breakdowns, and actionable recommendations.`;
+IMPORTANT: Deep Research mode is ON. Carefully review the available conversation, saved knowledge, screenshots, and any supplied link before answering. Provide a thorough, structured answer with multiple perspectives, examples, step-by-step breakdowns, and actionable recommendations. Separate confirmed facts from recommendations, and never pretend you verified information that was not supplied or could not be read.`;
 
 const MAX_CONTEXT_MESSAGES = 30;
 const PROVIDER_TIMEOUT_MS = 15_000;
@@ -54,7 +54,7 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-3.5-flash": "gemini-3.5-flash",
 };
 
-function normalizeMessages(rawMessages: unknown): ChatMessage[] {
+function normalizeMessages(rawMessages: unknown, maxContextMessages = MAX_CONTEXT_MESSAGES): ChatMessage[] {
   if (!Array.isArray(rawMessages)) return [];
   const normalized = rawMessages
     .map((m) => {
@@ -76,7 +76,7 @@ function normalizeMessages(rawMessages: unknown): ChatMessage[] {
       return null;
     })
     .filter(Boolean) as ChatMessage[];
-  const recent = normalized.slice(-MAX_CONTEXT_MESSAGES);
+  const recent = normalized.slice(-maxContextMessages);
 
   // Re-sending every historical base64 screenshot makes each later request
   // progressively larger and can cause image chats to appear stuck or time out.
@@ -152,7 +152,7 @@ serve(async (req) => {
   try {
     const { messages: rawMessages, persona, deepResearch, memory, knowledge: guestKnowledge } = await req.json();
     const isDeepResearch = Boolean(deepResearch);
-    const safeMessages = normalizeMessages(rawMessages);
+    const safeMessages = normalizeMessages(rawMessages, isDeepResearch ? 60 : MAX_CONTEXT_MESSAGES);
     const memoryFacts: string[] = Array.isArray(memory)
       ? memory.filter((m: unknown) => typeof m === "string" && (m as string).trim()).slice(0, 100)
       : [];

@@ -65,9 +65,12 @@ export async function generatePersonalChatReply({
   const role = persona === "promoter"
     ? "Promoter & Closer: professional, confident, practical, and persuasive when appropriate."
     : "Friendship: warm, natural, helpful, and casual without forcing a sales pitch.";
-  const system = `You are StreamScout AI acting as ${role}\n\nGive accurate, useful replies. When a chat or screenshot is supplied, read it carefully and answer the latest message only. Do not invent facts. Use clear markdown and keep normal replies concise.${deepResearch ? " Give a detailed, thorough answer because Deep Research is enabled." : ""}\n\nLONG-TERM MEMORY:\n${memory.slice(0, 100).join("\n") || "None."}\n\nSAVED KNOWLEDGE:\n${savedKnowledge || JSON.stringify(knowledge).slice(0, 12_000) || "None."}`;
+  const deepResearchInstructions = deepResearch
+    ? " Deep Research is enabled: review the available conversation, saved knowledge, screenshots, and any supplied link carefully before answering. Give a detailed, structured answer; separate confirmed facts from recommendations; and say clearly when a fact cannot be verified from the supplied material."
+    : "";
+  const system = `You are StreamScout AI acting as ${role}\n\nGive accurate, useful replies. When a chat or screenshot is supplied, read it carefully and answer the latest message only. Do not invent facts. Use clear markdown and keep normal replies concise.${deepResearchInstructions}\n\nLONG-TERM MEMORY:\n${memory.slice(0, 100).join("\n") || "None."}\n\nSAVED KNOWLEDGE:\n${savedKnowledge || JSON.stringify(knowledge).slice(0, 12_000) || "None."}`;
 
-  const contents = await Promise.all(messages.slice(-30).map(async (message) => {
+  const contents = await Promise.all(messages.slice(deepResearch ? -60 : -30).map(async (message) => {
     const parts: Array<Record<string, unknown>> = [];
     if (typeof message.content === "string") parts.push({ text: message.content || " " });
     else {

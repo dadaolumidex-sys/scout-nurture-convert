@@ -201,9 +201,9 @@ function TypingIndicator({ name }: { name: string }) {
 
 function ModelBadge({ deepResearch }: { deepResearch: boolean }) {
   return (
-    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
+    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] font-medium text-muted-foreground" title={deepResearch ? "Gemini Flash with deeper analysis" : "Gemini Flash for fast replies"}>
       <Cpu className="h-2.5 w-2.5" />
-      {deepResearch ? "Gemini Pro" : "Gemini Flash"}
+      {deepResearch ? "Gemini Flash · Deep" : "Gemini Flash · Fast"}
     </div>
   );
 }
@@ -715,6 +715,9 @@ const ChatPage = () => {
         </Button>
         <ModelBadge deepResearch={deepResearch} />
       </div>
+      {deepResearch && (
+        <p className="px-3 pt-1 text-[11px] text-muted-foreground">Uses more of this chat and your saved knowledge for a detailed answer. Add a link when you want it checked.</p>
+      )}
 
       {imageLoading && (
         <p className="px-3 pt-1.5 text-xs text-muted-foreground">Preparing image…</p>
@@ -847,7 +850,7 @@ const ChatPage = () => {
             <Button variant={deepResearch ? "default" : "outline"} size="sm" onClick={() => setDeepResearch(!deepResearch)} className={`gap-1 h-7 text-xs ${deepResearch ? "gradient-primary text-primary-foreground" : ""}`}>
               <Sparkles className="h-3.5 w-3.5" /> Deep Research
             </Button>
-            {deepResearch && <Badge variant="outline" className="text-xs border-primary/30 text-primary">Advanced analysis</Badge>}
+            {deepResearch && <Badge variant="outline" className="text-xs border-primary/30 text-primary">Detailed chat + knowledge analysis</Badge>}
           </div>
 
           <div className="flex-1 overflow-auto space-y-3 mb-2">
