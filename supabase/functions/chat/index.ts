@@ -50,6 +50,7 @@ type ChatMessage = { role: "user" | "assistant" | "system"; content: string | Ch
 type ProviderKey = { id: string | null; key: string; provider: "gemini" | "openai" };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
+  "google/gemini-2.5-flash": "gemini-2.5-flash",
   "google/gemini-3.6-flash": "gemini-3.6-flash",
   "google/gemini-3.5-flash": "gemini-3.5-flash",
 };
@@ -120,11 +121,11 @@ async function callOpenAI(body: Record<string, unknown>, key: string, deep: bool
 }
 
 async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string) {
-  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.6-flash";
+  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-2.5-flash";
   // Current stable multimodal models first. The latest alias and 2.5 are kept
   // only as compatibility fallbacks for projects whose Google account has not
   // received the newest model rollout yet.
-  const models = [primary, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
+  const models = [primary, "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash"];
   const tried = new Set<string>();
   let lastErr = "";
   for (const m of models) {
@@ -225,7 +226,7 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const ENV_GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
-    const model = isDeepResearch ? "google/gemini-3.5-flash" : "google/gemini-3.6-flash";
+    const model = "google/gemini-2.5-flash";
 
     const body = {
       model,

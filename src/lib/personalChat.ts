@@ -6,7 +6,9 @@ type ApiMessage = {
   content: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
 };
 
-const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash", "gemini-flash-latest"];
+// Start with the stable Flash model. Newer aliases remain as fallbacks because
+// Gemini availability can differ between individual Google AI accounts.
+const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash"];
 
 function toBase64(bytes: ArrayBuffer) {
   const data = new Uint8Array(bytes);

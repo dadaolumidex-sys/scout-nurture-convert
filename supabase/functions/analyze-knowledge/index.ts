@@ -7,9 +7,10 @@ const corsHeaders = {
 };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
+  "google/gemini-2.5-flash": "gemini-2.5-flash",
   "google/gemini-3.6-flash": "gemini-3.6-flash",
 };
-const GEMINI_FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
+const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash"];
 const YOUTUBE_TRANSCRIPT_ACTOR = "api-ninja~youtube-transcript-scraper";
 
 type ApifyCandidate = { id: string | null; key: string };
@@ -144,8 +145,8 @@ async function loadUserGeminiKeys(req: Request): Promise<string[]> {
 }
 
 async function callGemini(body: Record<string, unknown>, key: string): Promise<Response> {
-  const lovableModel = (body.model as string) || "google/gemini-3.6-flash";
-  const models = [GEMINI_MODEL_MAP[lovableModel] || "gemini-3.6-flash", ...GEMINI_FALLBACK_MODELS];
+  const lovableModel = (body.model as string) || "google/gemini-2.5-flash";
+  const models = [GEMINI_MODEL_MAP[lovableModel] || "gemini-2.5-flash", ...GEMINI_FALLBACK_MODELS];
   let lastResponse: Response | null = null;
   for (const geminiModel of new Set(models)) {
     lastResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {

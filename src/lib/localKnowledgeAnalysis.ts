@@ -15,7 +15,7 @@ type LocalAnalysisInput = {
 type LocalAnalysisResult = { result: string; extractedContent: string };
 type LocalSuggestion = { message: string; reason: string; approach: string };
 
-const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-2.5-flash"];
+const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash"];
 const MAX_SOURCE_CHARS = 100_000;
 const WEBSITE_URL_PATTERN = /https?:\/\/[^\s<>()\[\]{}"']+/gi;
 

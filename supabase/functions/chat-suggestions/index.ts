@@ -39,9 +39,10 @@ Your job:
 
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
+  "google/gemini-2.5-flash": "gemini-2.5-flash",
   "google/gemini-3.6-flash": "gemini-3.6-flash",
 };
-const GEMINI_FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
+const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash"];
 const PROVIDER_TIMEOUT_MS = 12_000;
 
 type ProviderKey = { id: string | null; key: string; provider: "gemini" | "openai" };
@@ -65,8 +66,8 @@ async function callAI(body: Record<string, unknown>, keys: { gemini: ProviderKey
   if (envGemini && !geminiKeys.some((candidate) => candidate.key === envGemini)) {
     geminiKeys.push({ id: null, key: envGemini, provider: "gemini" });
   }
-  const requestedModel = (body.model as string) || "google/gemini-3.6-flash";
-  const models = [GEMINI_MODEL_MAP[requestedModel] || "gemini-3.6-flash", ...GEMINI_FALLBACK_MODELS];
+  const requestedModel = (body.model as string) || "google/gemini-2.5-flash";
+  const models = [GEMINI_MODEL_MAP[requestedModel] || "gemini-2.5-flash", ...GEMINI_FALLBACK_MODELS];
   const triedModels = new Set<string>();
   let lastResponse: Response | null = null;
   for (const geminiModel of models) {
