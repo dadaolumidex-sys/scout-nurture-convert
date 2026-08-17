@@ -201,42 +201,49 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
 
     if (variant === "mobile") {
       return (
-        <div className="flex items-end gap-2 p-2">
-          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-muted-foreground" onClick={onPickImage} type="button">
-            <ImagePlus className="h-5 w-5" />
-          </Button>
-          <Button
-            variant={listening ? "destructive" : "ghost"}
-            size="icon"
-            className={`h-10 w-10 shrink-0 ${listening ? "animate-pulse" : "text-muted-foreground"}`}
-            onClick={toggleVoiceTyping}
-            disabled={loading}
-            type="button"
-            aria-label={listening ? "Stop voice typing" : "Start voice typing"}
-            title={listening ? "Stop voice typing" : "Voice typing"}
-          >
-            {listening ? <Square className="h-4 w-4 fill-current" /> : <Mic className="h-5 w-5" />}
-          </Button>
-          <div className="flex-1 relative">
-            <Textarea
-              ref={textareaRef}
-              placeholder="Ask anything..."
-              value={text}
-              onChange={(e) => updateText(e.target.value)}
-              onKeyDownCapture={addNewLine}
-              onKeyUp={preserveNewLine}
-              className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5 pr-10"
-              rows={1}
-            />
-            {text && (
-              <Button type="button" variant="ghost" size="icon" onClick={() => updateText("")} className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Clear draft" title="Clear draft">
-                <X className="h-4 w-4" />
-              </Button>
-            )}
+        <div className="space-y-1 px-2 pt-1 pb-2">
+          {listening && (
+            <p className="px-1 text-xs font-medium text-primary" role="status">
+              Listening… tap Stop, then tap Send when the words appear below.
+            </p>
+          )}
+          <div className="flex items-end gap-2">
+            <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0 text-muted-foreground" onClick={onPickImage} type="button" aria-label="Attach image" title="Attach image">
+              <ImagePlus className="h-5 w-5" />
+            </Button>
+            <Button
+              variant={listening ? "destructive" : "ghost"}
+              size={listening ? "default" : "icon"}
+              className={listening ? "h-10 shrink-0 animate-pulse gap-1 px-3" : "h-10 w-10 shrink-0 text-muted-foreground"}
+              onClick={toggleVoiceTyping}
+              disabled={loading}
+              type="button"
+              aria-label={listening ? "Stop voice typing" : "Start voice typing"}
+              title={listening ? "Stop voice typing" : "Voice typing"}
+            >
+              {listening ? <><Square className="h-3.5 w-3.5 fill-current" /><span>Stop</span></> : <Mic className="h-5 w-5" />}
+            </Button>
+            <div className="flex-1 relative">
+              <Textarea
+                ref={textareaRef}
+                placeholder="Ask anything..."
+                value={text}
+                onChange={(e) => updateText(e.target.value)}
+                onKeyDownCapture={addNewLine}
+                onKeyUp={preserveNewLine}
+                className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5 pr-10"
+                rows={1}
+              />
+              {text && (
+                <Button type="button" variant="ghost" size="icon" onClick={() => updateText("")} className="absolute right-1 bottom-1 h-8 w-8 text-muted-foreground hover:text-foreground" aria-label="Clear draft" title="Clear draft">
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <Button type="button" onClick={submit} disabled={disabled} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0" aria-label="Send message" title="Send message">
+              <Send className="h-4 w-4" />
+            </Button>
           </div>
-          <Button type="button" onClick={submit} disabled={disabled} className="gradient-primary text-primary-foreground h-10 w-10 p-0 rounded-full shrink-0">
-            <Send className="h-4 w-4" />
-          </Button>
         </div>
       );
     }
