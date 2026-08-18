@@ -142,36 +142,42 @@ async function streamChat({
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let idx: number;
-    while ((idx = buffer.indexOf("\n")) !== -1) {
-      let line = buffer.slice(0, idx);
-      buffer = buffer.slice(idx + 1);
-      if (line.endsWith("\r")) line = line.slice(0, -1);
-      if (!line.startsWith("data: ")) continue;
-      const json = line.slice(6).trim();
-      if (json === "[DONE]") {
-        window.clearTimeout(timeout);
-        signal?.removeEventListener("abort", abortFromCaller);
-        await onDone();
-        return;
-      }
-      try {
-        const parsed = JSON.parse(json);
-        const content = parsed.choices?.[0]?.delta?.content;
-        if (content) onDelta(content);
-      } catch {
-        buffer = line + "\n" + buffer;
-        break;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let idx: number;
+      while ((idx = buffer.indexOf("\n")) !== -1) {
+        let line = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 1);
+        if (line.endsWith("\r")) line = line.slice(0, -1);
+        if (!line.startsWith("data: ")) continue;
+        const json = line.slice(6).trim();
+        if (json === "[DONE]") {
+          window.clearTimeout(timeout);
+          signal?.removeEventListener("abort", abortFromCaller);
+          await onDone();
+          return;
+        }
+        try {
+          const parsed = JSON.parse(json);
+          const content = parsed.choices?.[0]?.delta?.content;
+          if (content) onDelta(content);
+        } catch {
+          buffer = line + "\n" + buffer;
+          break;
+        }
       }
     }
+  } finally {
+    window.clearTimeout(timeout);
+    signal?.removeEventListener("abort", abortFromCaller);
   }
-  window.clearTimeout(timeout);
-  signal?.removeEventListener("abort", abortFromCaller);
-  await onDone();
+
+  // A stream must end with [DONE]. Without it, the provider or connection
+  // stopped early; do not save a partial sentence as a completed AI reply.
+  onError("The AI reply stopped before it finished. Tap Retry to generate it again.", "stream_interrupted");
 }
 
 function formatTime(date?: Date) {

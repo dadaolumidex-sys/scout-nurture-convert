@@ -6,9 +6,10 @@ type ApiMessage = {
   content: string | Array<{ type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }>;
 };
 
-// Start with the stable Flash model. Newer aliases remain as fallbacks because
-// Gemini availability can differ between individual Google AI accounts.
-const MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash"];
+// Keep the local reply path quick. Each extra model is another network request
+// when a key is invalid or rate-limited, which used to make a failed reply look
+// like the chat was hanging for minutes.
+const MODELS = ["gemini-2.5-flash", "gemini-flash-latest"];
 
 function toBase64(bytes: ArrayBuffer) {
   const data = new Uint8Array(bytes);
@@ -95,14 +96,20 @@ export async function generatePersonalChatReply({
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": key.api_key },
-          signal: AbortSignal.timeout(deepResearch ? 35_000 : 18_000),
+          signal: AbortSignal.timeout(deepResearch ? 30_000 : 12_000),
           body: JSON.stringify({
             system_instruction: { parts: [{ text: system }] },
             contents,
             generationConfig: { maxOutputTokens: deepResearch ? 3_000 : 1_200 },
           }),
         });
-        if (!response.ok) { lastError = `Gemini ${model} returned ${response.status}`; continue; }
+        if (!response.ok) {
+          lastError = `Gemini ${model} returned ${response.status}`;
+          // A rejected or rate-limited key will not succeed by trying another
+          // model. Move to the next saved key immediately.
+          if ([401, 403, 429].includes(response.status)) break;
+          continue;
+        }
         const payload = await response.json();
         const reply = (payload.candidates?.[0]?.content?.parts || []).map((part: { text?: string }) => part.text || "").join("").trim();
         if (!reply) { lastError = `Gemini ${model} returned no text`; continue; }
@@ -110,6 +117,9 @@ export async function generatePersonalChatReply({
         return reply;
       } catch (error) {
         lastError = error instanceof Error ? error.message : "Gemini request failed";
+        // Do not spend another timeout on the same key after a connection
+        // failure. Rotation can try the next key instead.
+        if (error instanceof DOMException && error.name === "TimeoutError") break;
       }
     }
     await recordFailure(key.id, lastError || "Gemini key could not generate a chat reply");

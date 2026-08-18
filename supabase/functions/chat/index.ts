@@ -122,10 +122,9 @@ async function callOpenAI(body: Record<string, unknown>, key: string, deep: bool
 
 async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string) {
   const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-2.5-flash";
-  // Current stable multimodal models first. The latest alias and 2.5 are kept
-  // only as compatibility fallbacks for projects whose Google account has not
-  // received the newest model rollout yet.
-  const models = [primary, "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash"];
+  // Keep the hosted fallback fast. Trying a long list after a failed key made
+  // a normal reply wait far too long before another saved key was tried.
+  const models = [primary, "gemini-flash-latest"];
   const tried = new Set<string>();
   let lastErr = "";
   for (const m of models) {
@@ -142,6 +141,7 @@ async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string
       lastErr = `${m}:${r.status}`;
       await r.body?.cancel();
       console.log("Gemini model failed:", lastErr);
+      if ([401, 403, 429].includes(r.status)) break;
     } catch (e) { console.error("Gemini err:", m, e); lastErr = `${m}:err`; }
   }
   return { ok: false as const, error: lastErr };
