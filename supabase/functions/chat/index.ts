@@ -41,8 +41,9 @@ const DEEP_RESEARCH_SUFFIX = `
 
 IMPORTANT: Deep Research mode is ON. Carefully review the available conversation, saved knowledge, screenshots, and any supplied link before answering. Provide a thorough, structured answer with multiple perspectives, examples, step-by-step breakdowns, and actionable recommendations. Separate confirmed facts from recommendations, and never pretend you verified information that was not supplied or could not be read.`;
 
-const MAX_CONTEXT_MESSAGES = 30;
-const PROVIDER_TIMEOUT_MS = 15_000;
+const MAX_CONTEXT_MESSAGES = 20;
+const NORMAL_MEMORY_LIMIT = 24;
+const PROVIDER_TIMEOUT_MS = 12_000;
 const CHAT_FUNCTION_VERSION = "gemini-3-rotation-v3";
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
@@ -153,9 +154,9 @@ serve(async (req) => {
   try {
     const { messages: rawMessages, persona, deepResearch, memory, knowledge: guestKnowledge } = await req.json();
     const isDeepResearch = Boolean(deepResearch);
-    const safeMessages = normalizeMessages(rawMessages, isDeepResearch ? 60 : MAX_CONTEXT_MESSAGES);
+    const safeMessages = normalizeMessages(rawMessages, isDeepResearch ? 50 : MAX_CONTEXT_MESSAGES);
     const memoryFacts: string[] = Array.isArray(memory)
-      ? memory.filter((m: unknown) => typeof m === "string" && (m as string).trim()).slice(0, 100)
+      ? memory.filter((m: unknown) => typeof m === "string" && (m as string).trim()).slice(0, isDeepResearch ? 60 : NORMAL_MEMORY_LIMIT)
       : [];
 
     if (safeMessages.length === 0) {
@@ -203,7 +204,7 @@ serve(async (req) => {
             .select("title, content, category, insights")
             .eq("user_id", user.id)
             .or(`persona.eq.${personaKey},persona.eq.shared`)
-            .limit(30);
+            .limit(isDeepResearch ? 20 : 12);
           if (Array.isArray(kn)) dbKnowledge = kn as KnowledgeEntry[];
         }
       }
@@ -232,7 +233,7 @@ serve(async (req) => {
       model,
       messages: [{ role: "system", content: systemPrompt }, ...safeMessages],
       stream: true,
-      max_tokens: isDeepResearch ? 3000 : 900,
+      max_tokens: isDeepResearch ? 3000 : 700,
     };
 
     let response: Response | null = null;

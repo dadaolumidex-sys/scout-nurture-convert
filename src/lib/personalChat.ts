@@ -10,6 +10,8 @@ type ApiMessage = {
 // when a key is invalid or rate-limited, which used to make a failed reply look
 // like the chat was hanging for minutes.
 const MODELS = ["gemini-2.5-flash", "gemini-flash-latest"];
+const NORMAL_MEMORY_LIMIT = 24;
+const NORMAL_KNOWLEDGE_LIMIT = 8;
 
 function toBase64(bytes: ArrayBuffer) {
   const data = new Uint8Array(bytes);
@@ -30,12 +32,12 @@ async function imagePart(url: string) {
   }
 }
 
-async function loadKnowledge(persona: "friend" | "promoter") {
+async function loadKnowledge(persona: "friend" | "promoter", limit = NORMAL_KNOWLEDGE_LIMIT) {
   const key = persona === "promoter" ? "brozeen" : "nifimas";
   const { data } = await (supabase.from("knowledge_entries" as any) as any)
     .select("title, content, insights")
     .or(`persona.eq.${key},persona.eq.shared`)
-    .limit(20);
+    .limit(limit);
   return (data || []).map((entry: any) => {
     const insights = Array.isArray(entry.insights)
       ? entry.insights.slice(0, 8).map((item: any) => typeof item === "string" ? item : item?.insight || "").filter(Boolean).join("\n")
@@ -64,7 +66,11 @@ export async function generatePersonalChatReply({
   const keys = await getActiveKeysForRotation("gemini");
   if (!keys.length) throw new Error("No active personal Gemini key is available.");
 
-  const savedKnowledge = await loadKnowledge(persona);
+  // Normal replies use a focused context so they remain quick after many
+  // uploads and saved memories. Deep Research intentionally reads more.
+  const savedKnowledge = await loadKnowledge(persona, deepResearch ? 16 : NORMAL_KNOWLEDGE_LIMIT);
+  const memoryLimit = deepResearch ? 60 : NORMAL_MEMORY_LIMIT;
+  memory = memory.slice(0, memoryLimit);
   const role = persona === "promoter"
     ? "Promoter & Closer: professional, confident, practical, and persuasive when appropriate."
     : "Friendship: warm, natural, helpful, and casual without forcing a sales pitch.";
@@ -73,7 +79,7 @@ export async function generatePersonalChatReply({
     : "";
   const system = `You are StreamScout AI acting as ${role}\n\nGive accurate, useful replies. When a chat or screenshot is supplied, read it carefully and answer the latest message only. Do not invent facts. Use clear markdown and keep normal replies concise.${deepResearchInstructions}\n\nLONG-TERM MEMORY:\n${memory.slice(0, 100).join("\n") || "None."}\n\nSAVED KNOWLEDGE:\n${savedKnowledge || JSON.stringify(knowledge).slice(0, 12_000) || "None."}`;
 
-  const contents = await Promise.all(messages.slice(deepResearch ? -60 : -30).map(async (message) => {
+  const contents = await Promise.all(messages.slice(deepResearch ? -50 : -20).map(async (message) => {
     const parts: Array<Record<string, unknown>> = [];
     if (typeof message.content === "string") parts.push({ text: message.content || " " });
     else {
@@ -96,11 +102,11 @@ export async function generatePersonalChatReply({
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": key.api_key },
-          signal: AbortSignal.timeout(deepResearch ? 30_000 : 12_000),
+          signal: AbortSignal.timeout(deepResearch ? 30_000 : 9_000),
           body: JSON.stringify({
             system_instruction: { parts: [{ text: system }] },
             contents,
-            generationConfig: { maxOutputTokens: deepResearch ? 3_000 : 1_200 },
+            generationConfig: { maxOutputTokens: deepResearch ? 3_000 : 700 },
           }),
         });
         if (!response.ok) {
