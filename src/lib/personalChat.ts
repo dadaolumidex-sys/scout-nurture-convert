@@ -102,11 +102,16 @@ export async function generatePersonalChatReply({
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": key.api_key },
-          signal: AbortSignal.timeout(deepResearch ? 30_000 : 9_000),
+          // Detailed research regularly needs more than a short reply window.
+          // Normal replies still have a finite timeout so a failed provider
+          // does not make the chat appear frozen.
+          signal: AbortSignal.timeout(deepResearch ? 60_000 : 18_000),
           body: JSON.stringify({
             system_instruction: { parts: [{ text: system }] },
             contents,
-            generationConfig: { maxOutputTokens: deepResearch ? 3_000 : 700 },
+            // Leave enough room to finish a useful answer rather than cutting
+            // it in the middle of a numbered plan or draft message.
+            generationConfig: { maxOutputTokens: deepResearch ? 6_000 : 1_200 },
           }),
         });
         if (!response.ok) {

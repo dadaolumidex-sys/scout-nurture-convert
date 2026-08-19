@@ -43,7 +43,8 @@ IMPORTANT: Deep Research mode is ON. Carefully review the available conversation
 
 const MAX_CONTEXT_MESSAGES = 20;
 const NORMAL_MEMORY_LIMIT = 24;
-const PROVIDER_TIMEOUT_MS = 12_000;
+const NORMAL_PROVIDER_TIMEOUT_MS = 18_000;
+const DEEP_RESEARCH_TIMEOUT_MS = 60_000;
 const CHAT_FUNCTION_VERSION = "gemini-3-rotation-v3";
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
@@ -103,12 +104,12 @@ function normalizeMessages(rawMessages: unknown, maxContextMessages = MAX_CONTEX
   });
 }
 
-async function callLovable(body: Record<string, unknown>, key: string) {
+async function callLovable(body: Record<string, unknown>, key: string, deep: boolean) {
   return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+    signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
   });
 }
 
@@ -117,11 +118,11 @@ async function callOpenAI(body: Record<string, unknown>, key: string, deep: bool
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ ...body, model: deep ? "gpt-4o" : "gpt-4o-mini" }),
-    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+    signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
   });
 }
 
-async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string) {
+async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string, deep: boolean) {
   const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-2.5-flash";
   // Keep the hosted fallback fast. Trying a long list after a failed key made
   // a normal reply wait far too long before another saved key was tried.
@@ -136,7 +137,7 @@ async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({ ...body, model: m }),
-        signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+        signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
       });
       if (r.ok) return { ok: true as const, response: r };
       lastErr = `${m}:${r.status}`;
@@ -233,7 +234,9 @@ serve(async (req) => {
       model,
       messages: [{ role: "system", content: systemPrompt }, ...safeMessages],
       stream: true,
-      max_tokens: isDeepResearch ? 3000 : 700,
+      // Deep research must have enough room to finish multi-step analysis.
+      // Normal chat remains capped to keep ordinary reply suggestions quick.
+      max_tokens: isDeepResearch ? 6000 : 1200,
     };
 
     let response: Response | null = null;
@@ -267,7 +270,7 @@ serve(async (req) => {
       geminiCandidates.push({ id: null, key: ENV_GEMINI_KEY, provider: "gemini" });
     }
     for (const candidate of geminiCandidates) {
-      const result = await tryGeminiWithFallbacks(body, candidate.key, model);
+      const result = await tryGeminiWithFallbacks(body, candidate.key, model, isDeepResearch);
       if (result.ok) {
         response = result.response;
         await recordKeyResult(candidate, true);
@@ -300,7 +303,7 @@ serve(async (req) => {
     // allowance never delays users who supplied their own provider key.
     if (!response && LOVABLE_API_KEY) {
       try {
-        const r = await callLovable(body, LOVABLE_API_KEY);
+        const r = await callLovable(body, LOVABLE_API_KEY, isDeepResearch);
         if (r.ok) response = r;
         else { lastErr = `Lovable ${r.status}`; await r.body?.cancel(); console.log("Lovable failed:", r.status); }
       } catch (e) { console.error("Lovable err:", e); lastErr = "Lovable timeout"; }
