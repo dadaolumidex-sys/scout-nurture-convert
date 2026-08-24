@@ -8,8 +8,8 @@
  */
 export async function compressImageFile(
   file: File,
-  maxDimension = 640,
-  quality = 0.5
+  maxDimension = 480,
+  quality = 0.42
 ): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("Unsupported image file");
   if (/heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)) {
@@ -32,8 +32,26 @@ export async function compressImageFile(
     if (!ctx) throw new Error("Could not prepare image");
     ctx.drawImage(img, 0, 0, width, height);
 
-    const out = canvas.toDataURL("image/jpeg", quality);
-    return out.length < dataUrl.length ? out : dataUrl;
+    // Groq accepts screenshots, but its request limit counts the full base64
+    // payload. Phone PNG screenshots can stay surprisingly large even after
+    // a basic resize. Re-encode at a smaller size until it is safely below a
+    // conservative request budget, while still leaving enough detail to read
+    // a Discord/DM conversation.
+    const maxDataUrlLength = 550_000;
+    let currentWidth = width;
+    let currentHeight = height;
+    let currentQuality = quality;
+    let out = canvas.toDataURL("image/jpeg", currentQuality);
+    while (out.length > maxDataUrlLength && currentWidth > 240) {
+      currentWidth = Math.max(240, Math.round(currentWidth * 0.8));
+      currentHeight = Math.max(1, Math.round(currentHeight * 0.8));
+      canvas.width = currentWidth;
+      canvas.height = currentHeight;
+      ctx.drawImage(img, 0, 0, currentWidth, currentHeight);
+      currentQuality = Math.max(0.28, currentQuality - 0.05);
+      out = canvas.toDataURL("image/jpeg", currentQuality);
+    }
+    return out;
   } catch (error) {
     throw error instanceof Error ? error : new Error("Could not prepare image");
   }
