@@ -38,6 +38,18 @@ Your job:
 
 
 
+// Inbox is an operator tool. The person using the app is never the streamer
+// being replied to, even though pasted client messages use the "user" role.
+const INBOX_OPERATOR_RULES = `
+
+## INBOX OPERATOR RULES — FOLLOW THESE FIRST
+- You help the app user draft a message they will copy and send to the CLIENT/STREAMER. You are NOT chatting with the app user and you are NOT the client.
+- Role map: messages marked "user" are the CLIENT'S messages; messages marked "assistant" are the user's previous selected replies. Never answer a "user" message as though it was addressed to you.
+- Treat team reply direction and private context as private instructions from the app user. Follow them, but never mention them in the suggested message.
+- Use the exact latest real client message as the thing to answer. If a full chat is pasted, infer who said what before drafting.
+- Return only ready-to-copy replies that the app user can send to the client. Do not greet the app user, ask them for details, or role-play as the client.
+`;
+
 const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-2.5-flash": "gemini-2.5-flash",
   "google/gemini-3.6-flash": "gemini-3.6-flash",
@@ -285,7 +297,7 @@ serve(async (req) => {
 
     const latestUserText = [...(Array.isArray(messages) ? messages : [])].reverse().find((message) => message.role === "user")?.content || "";
     const liveUrlContext = await buildLiveUrlContext(latestUserText, apifyKeys);
-    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + modeRules + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + liveUrlContext + KNOWLEDGE_GUARDRAIL;
+    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + INBOX_OPERATOR_RULES + modeRules + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + liveUrlContext + KNOWLEDGE_GUARDRAIL;
 
     const response = await callAI({
       model: "google/gemini-3.6-flash",
@@ -296,11 +308,12 @@ serve(async (req) => {
           role: "user",
           content: `${contactContext || ""}
 
-Based on the conversation above, generate exactly 3 different reply suggestions I could send to this streamer. Each one a different angle.
+Based on the conversation above, generate exactly 3 different ready-to-copy replies I can send to this streamer. Each one a different angle.
 
 Hard rules for every suggestion:
 - 1-3 short sentences, max ~45 words. Casual lowercase Discord typing. No markdown, no bullets, no corporate words, nothing that sounds like an AI.
 - If their last message contains any hesitation or push-back, base the reply on the closest match in the objection playbook above.
+- Answer the client's latest message, never the app user's private instruction. Do not write a response that sounds like the client is talking to me.
 - Never mix personas:
   • Friendship (friend) = rapport only, zero pitching, zero service talk.
   • Promoter & Closer (promoter) = name a specific gap, give value first, handle objections, and close when they're warm.
