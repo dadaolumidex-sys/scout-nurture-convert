@@ -45,11 +45,11 @@ const MAX_CONTEXT_MESSAGES = 20;
 const NORMAL_MEMORY_LIMIT = 24;
 const NORMAL_PROVIDER_TIMEOUT_MS = 18_000;
 const DEEP_RESEARCH_TIMEOUT_MS = 60_000;
-const CHAT_FUNCTION_VERSION = "gemini-3-rotation-v3";
+const CHAT_FUNCTION_VERSION = "groq-primary-v1";
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
-type ProviderKey = { id: string | null; key: string; provider: "gemini" | "openai" };
+type ProviderKey = { id: string | null; key: string; provider: "groq" | "gemini" | "openai" };
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-2.5-flash": "gemini-2.5-flash",
@@ -122,6 +122,22 @@ async function callOpenAI(body: Record<string, unknown>, key: string, deep: bool
   });
 }
 
+// Groq uses the OpenAI-compatible Chat Completions format. Llama 4 Scout
+// accepts both ordinary text and image messages, which keeps screenshots
+// working without a separate code path.
+async function callGroq(body: Record<string, unknown>, key: string, deep: boolean) {
+  return await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...body,
+      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+      max_tokens: deep ? 6000 : 1600,
+    }),
+    signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+  });
+}
+
 async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string, deep: boolean) {
   const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-2.5-flash";
   // Keep the hosted fallback fast. Trying a long list after a failed key made
@@ -174,7 +190,7 @@ serve(async (req) => {
     }
 
     // Get user's API keys (fallback chain) and their saved knowledge / objection playbook.
-    const userKeys: { gemini: ProviderKey[]; openai: ProviderKey[] } = { gemini: [], openai: [] };
+    const userKeys: { groq: ProviderKey[]; gemini: ProviderKey[]; openai: ProviderKey[] } = { groq: [], gemini: [], openai: [] };
     const apifyKeys: ApifyKey[] = [];
     let adminClient: ReturnType<typeof createClient> | null = null;
     let dbKnowledge: KnowledgeEntry[] = [];
@@ -193,10 +209,11 @@ serve(async (req) => {
             .select("id, provider, api_key")
             .eq("user_id", user.id)
             .eq("is_active", true)
-            .in("provider", ["gemini", "openai", "apify"])
+            .in("provider", ["groq", "gemini", "openai", "apify"])
             .order("failure_count", { ascending: true })
             .order("last_used_at", { ascending: true, nullsFirst: true });
           for (const row of keyRows || []) {
+            if (row.provider === "groq" && row.api_key?.trim()) userKeys.groq.push({ id: row.id, key: row.api_key.trim(), provider: "groq" });
             if (row.provider === "gemini" && row.api_key?.trim()) userKeys.gemini.push({ id: row.id, key: row.api_key.trim(), provider: "gemini" });
             if (row.provider === "openai" && row.api_key?.trim()) userKeys.openai.push({ id: row.id, key: row.api_key.trim(), provider: "openai" });
             if (row.provider === "apify" && row.api_key?.trim()) apifyKeys.push({ key: row.api_key.trim() });
@@ -263,7 +280,27 @@ serve(async (req) => {
       }
     };
 
-    // 1. Rotate through every active Gemini key. The healthiest/least recently
+    // 1. Groq is the fast primary provider. It supports normal text and
+    // screenshots, then the existing Gemini/OpenAI fallbacks take over.
+    for (const candidate of userKeys.groq) {
+      try {
+        const r = await callGroq(body, candidate.key, isDeepResearch);
+        if (r.ok) {
+          response = r;
+          await recordKeyResult(candidate, true);
+          break;
+        }
+        lastErr = `Groq ${r.status}`;
+        await r.body?.cancel();
+        await recordKeyResult(candidate, false, lastErr);
+      } catch (e) {
+        lastErr = "Groq timeout";
+        console.error("Groq err:", e);
+        await recordKeyResult(candidate, false, lastErr);
+      }
+    }
+
+    // 2. Rotate through every active Gemini key. The healthiest/least recently
     // used key is first because the database query above orders it that way.
     const geminiCandidates: ProviderKey[] = [...userKeys.gemini];
     if (ENV_GEMINI_KEY && !geminiCandidates.some((candidate) => candidate.key === ENV_GEMINI_KEY)) {
@@ -280,7 +317,7 @@ serve(async (req) => {
       await recordKeyResult(candidate, false, lastErr);
     }
 
-    // 2. Rotate through every active OpenAI key.
+    // 3. Rotate through every active OpenAI key.
     for (const candidate of response ? [] : userKeys.openai) {
       try {
         const r = await callOpenAI(body, candidate.key, isDeepResearch);
@@ -299,7 +336,7 @@ serve(async (req) => {
       }
     }
 
-    // 3. Shared Lovable gateway is the last fallback, so a slow shared
+    // 4. Shared Lovable gateway is the last fallback, so a slow shared
     // allowance never delays users who supplied their own provider key.
     if (!response && LOVABLE_API_KEY) {
       try {
@@ -310,7 +347,7 @@ serve(async (req) => {
     }
 
     if (!response) {
-      const hasUserKey = userKeys.openai.length > 0 || userKeys.gemini.length > 0;
+      const hasUserKey = userKeys.groq.length > 0 || userKeys.openai.length > 0 || userKeys.gemini.length > 0;
       const isCredit = lastErr.includes("402") || lastErr.includes("429");
       const isRejected = lastErr.includes("401") || lastErr.includes("403");
       // code lets the UI show an actionable banner (add-key CTA)
@@ -318,7 +355,7 @@ serve(async (req) => {
       let msg = "";
       if (isCredit && !hasUserKey) {
         code = "add_key";
-        msg = "The shared AI allowance is used up for now. Add your own FREE Gemini key in Settings → API Keys (get one in 30 seconds at aistudio.google.com/apikey) and you'll never hit this limit again.";
+        msg = "The shared AI allowance is used up for now. Add your own Groq or Gemini key in Settings → API Keys.";
       } else if (isCredit && hasUserKey) {
         code = "rate_limited";
         msg = "Your AI key is busy or out of quota right now. Wait a moment, or add another key in Settings → API Keys for automatic backup.";
@@ -327,7 +364,7 @@ serve(async (req) => {
         msg = "Your saved AI key was rejected. Update it in Settings → API Keys.";
       } else if (!hasUserKey) {
         code = "add_key";
-        msg = "AI is temporarily unavailable. Add your own free Gemini key in Settings → API Keys to keep chatting without interruptions.";
+        msg = "AI is temporarily unavailable. Add your own Groq or Gemini key in Settings → API Keys to keep chatting without interruptions.";
       } else {
         code = "unknown";
         msg = `AI providers failed (${lastErr || "unknown"}). Check your keys in Settings → API Keys.`;

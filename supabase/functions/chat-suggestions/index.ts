@@ -45,7 +45,16 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
 const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash"];
 const PROVIDER_TIMEOUT_MS = 12_000;
 
-type ProviderKey = { id: string | null; key: string; provider: "gemini" | "openai" };
+type ProviderKey = { id: string | null; key: string; provider: "groq" | "gemini" | "openai" };
+
+async function callGroqSuggestions(body: Record<string, unknown>, groqKey: string): Promise<Response> {
+  return await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ ...body, model: "meta-llama/llama-4-scout-17b-16e-instruct" }),
+    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+  });
+}
 
 async function callOpenAISuggestions(body: Record<string, unknown>, openaiKey: string): Promise<Response> {
   return await fetch("https://api.openai.com/v1/chat/completions", {
@@ -56,8 +65,19 @@ async function callOpenAISuggestions(body: Record<string, unknown>, openaiKey: s
   });
 }
 
-async function callAI(body: Record<string, unknown>, keys: { gemini: ProviderKey[]; openai: ProviderKey[] }): Promise<Response> {
+async function callAI(body: Record<string, unknown>, keys: { groq: ProviderKey[]; gemini: ProviderKey[]; openai: ProviderKey[] }): Promise<Response> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+
+  // Groq is the fast primary provider for Inbox suggestions as well.
+  for (const candidate of keys.groq) {
+    try {
+      const resp = await callGroqSuggestions(body, candidate.key);
+      if (resp.ok) return resp;
+      await resp.body?.cancel();
+    } catch (e) {
+      console.error("Groq error:", e);
+    }
+  }
 
   // Try every active Gemini key. Models are the outer loop so an unavailable
   // model is skipped consistently while quota/auth failures rotate keys.
@@ -187,7 +207,7 @@ serve(async (req) => {
     const sb = createClient(supabaseUrl, supabaseKey);
 
     // Get user's API keys
-    const userKeys: { gemini: ProviderKey[]; openai: ProviderKey[] } = { gemini: [], openai: [] };
+    const userKeys: { groq: ProviderKey[]; gemini: ProviderKey[]; openai: ProviderKey[] } = { groq: [], gemini: [], openai: [] };
     const apifyKeys: ApifyKey[] = [];
     let userId: string | null = null;
     const authHeader = req.headers.get("authorization");
@@ -201,10 +221,11 @@ serve(async (req) => {
             .select("id, provider, api_key")
             .eq("user_id", user.id)
             .eq("is_active", true)
-            .in("provider", ["gemini", "openai", "apify"])
+            .in("provider", ["groq", "gemini", "openai", "apify"])
             .order("failure_count", { ascending: true })
             .order("last_used_at", { ascending: true, nullsFirst: true });
           for (const row of keyRows || []) {
+            if (row.provider === "groq" && row.api_key?.trim()) userKeys.groq.push({ id: row.id, key: row.api_key.trim(), provider: "groq" });
             if (row.provider === "gemini" && row.api_key?.trim()) userKeys.gemini.push({ id: row.id, key: row.api_key.trim(), provider: "gemini" });
             if (row.provider === "openai" && row.api_key?.trim()) userKeys.openai.push({ id: row.id, key: row.api_key.trim(), provider: "openai" });
             if (row.provider === "apify" && row.api_key?.trim()) apifyKeys.push({ key: row.api_key.trim() });

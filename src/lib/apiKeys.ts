@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type Provider = "apify" | "gemini" | "openai";
+export type Provider = "apify" | "groq" | "gemini" | "openai";
 
 export interface ApiKeyRow {
   id: string;

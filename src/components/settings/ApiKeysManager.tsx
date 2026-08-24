@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { ApiKeyRow, Provider, addKey, bulkAddKeys, deleteKey, listKeys, testApifyKey, toggleKey } from "@/lib/apiKeys";
 
 const PROVIDERS: { id: Provider; name: string; placeholder: string; help: string; getUrl: string }[] = [
+  { id: "groq", name: "Groq (Fast AI)", placeholder: "gsk_...", help: "Fast main AI for chat and screenshots. Free tier available, with provider limits.", getUrl: "https://console.groq.com/keys" },
   { id: "apify", name: "Apify", placeholder: "apify_api_xxx", help: "Used for web search & scraping. Add multiple — auto-rotates on failure.", getUrl: "https://console.apify.com/account/integrations" },
   { id: "gemini", name: "Google Gemini", placeholder: "AIzaSy...", help: "Optional fallback for AI chat.", getUrl: "https://aistudio.google.com/app/apikey" },
   { id: "openai", name: "OpenAI", placeholder: "sk-...", help: "Optional fallback for AI chat.", getUrl: "https://platform.openai.com/api-keys" },
@@ -19,7 +20,7 @@ const PROVIDERS: { id: Provider; name: string; placeholder: string; help: string
 
 export function ApiKeysManager() {
   const [tab, setTab] = useState<Provider>("apify");
-  const [keys, setKeys] = useState<Record<Provider, ApiKeyRow[]>>({ apify: [], gemini: [], openai: [] });
+  const [keys, setKeys] = useState<Record<Provider, ApiKeyRow[]>>({ apify: [], groq: [], gemini: [], openai: [] });
   const [loading, setLoading] = useState(true);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
@@ -33,7 +34,7 @@ export function ApiKeysManager() {
     setLoading(true);
     try {
       const all = await listKeys();
-      const grouped: Record<Provider, ApiKeyRow[]> = { apify: [], gemini: [], openai: [] };
+      const grouped: Record<Provider, ApiKeyRow[]> = { apify: [], groq: [], gemini: [], openai: [] };
       all.forEach(k => { if (grouped[k.provider as Provider]) grouped[k.provider as Provider].push(k); });
       setKeys(grouped);
     } catch (e: any) { toast.error(e.message || "Failed to load keys"); }
@@ -51,7 +52,7 @@ export function ApiKeysManager() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">API & Connections</h1>
-            <p className="text-sm text-muted-foreground">Save Apify for realistic deep web search. Gemini/OpenAI keys are private AI fallbacks for your workspace.</p>
+            <p className="text-sm text-muted-foreground">Use Groq for fast AI chat. Gemini and OpenAI stay available as private backup providers for your workspace.</p>
           </div>
         </div>
       </div>
@@ -72,7 +73,7 @@ export function ApiKeysManager() {
       )}
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Provider)}>
-        <TabsList className="grid grid-cols-3 w-full">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full h-auto gap-1">
           {PROVIDERS.map(p => (
             <TabsTrigger key={p.id} value={p.id} className="text-xs sm:text-sm">
               {p.name}
