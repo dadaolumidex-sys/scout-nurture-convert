@@ -48,12 +48,21 @@ const PROVIDER_TIMEOUT_MS = 12_000;
 type ProviderKey = { id: string | null; key: string; provider: "groq" | "gemini" | "openai" };
 
 async function callGroqSuggestions(body: Record<string, unknown>, groqKey: string): Promise<Response> {
-  return await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ ...body, model: "meta-llama/llama-4-scout-17b-16e-instruct" }),
-    signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
-  });
+  const models = ["qwen/qwen3.6-27b", "openai/gpt-oss-20b", "llama-3.1-8b-instant"];
+  let lastResponse: Response | null = null;
+  for (const model of models) {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, model }),
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+    });
+    if (response.ok) return response;
+    lastResponse = response;
+    if (![400, 404].includes(response.status)) return response;
+    await response.body?.cancel();
+  }
+  return lastResponse!;
 }
 
 async function callOpenAISuggestions(body: Record<string, unknown>, openaiKey: string): Promise<Response> {

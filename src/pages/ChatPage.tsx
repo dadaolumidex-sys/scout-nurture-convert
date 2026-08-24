@@ -43,12 +43,13 @@ async function streamChat({
 }) {
   // Only the most recent user turn keeps its images. Re-uploading every old
   // screenshot on every turn is what made replies crawl (especially on phones).
-  const lastImageIndex = (() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "user" && messages[i].images?.length) return i;
-    }
-    return -1;
-  })();
+  // An image is only sent for the turn currently being submitted. Keeping an
+  // older image in later "hello" requests can make the provider reject the
+  // whole request as too large.
+  const lastMessage = messages[messages.length - 1];
+  const lastImageIndex = lastMessage?.role === "user" && lastMessage.images?.length
+    ? messages.length - 1
+    : -1;
 
   const apiMessages = messages.map((msg, i) => {
     if (i === lastImageIndex && msg.images && msg.images.length > 0) {
@@ -207,9 +208,9 @@ function TypingIndicator({ name }: { name: string }) {
 
 function ModelBadge({ deepResearch }: { deepResearch: boolean }) {
   return (
-    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] font-medium text-muted-foreground" title={deepResearch ? "Gemini Flash with deeper analysis" : "Gemini Flash for fast replies"}>
+    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] font-medium text-muted-foreground" title={deepResearch ? "Deep analysis using your available AI providers" : "Fast replies using your available AI providers"}>
       <Cpu className="h-2.5 w-2.5" />
-      {deepResearch ? "Gemini Flash · Deep" : "Gemini Flash · Fast"}
+      {deepResearch ? "Deep Research" : "Fast AI"}
     </div>
   );
 }
