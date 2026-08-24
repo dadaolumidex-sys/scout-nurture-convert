@@ -111,7 +111,7 @@ export async function generatePersonalChatReply({
             contents,
             // Leave enough room to finish a useful answer rather than cutting
             // it in the middle of a numbered plan or draft message.
-            generationConfig: { maxOutputTokens: deepResearch ? 6_000 : 1_200 },
+            generationConfig: { maxOutputTokens: deepResearch ? 6_000 : 1_600 },
           }),
         });
         if (!response.ok) {

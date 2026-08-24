@@ -423,7 +423,12 @@ export function useChatHistory() {
         created_at: now,
         updated_at: now,
       });
-      if (insertError) console.error("Failed to save chat message:", insertError.message);
+      if (insertError) {
+        console.error("Failed to save chat message:", insertError.message);
+        // Stop before asking the AI for a reply. Otherwise a page refresh can
+        // make the latest user message look as if it disappeared.
+        throw insertError;
+      }
 
 
       const currentConversation = conversations.find((conversation) => conversation.id === convoId);

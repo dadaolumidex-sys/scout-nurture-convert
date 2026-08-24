@@ -236,7 +236,7 @@ serve(async (req) => {
       stream: true,
       // Deep research must have enough room to finish multi-step analysis.
       // Normal chat remains capped to keep ordinary reply suggestions quick.
-      max_tokens: isDeepResearch ? 6000 : 1200,
+      max_tokens: isDeepResearch ? 6000 : 1600,
     };
 
     let response: Response | null = null;

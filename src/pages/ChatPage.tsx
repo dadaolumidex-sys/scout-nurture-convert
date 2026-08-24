@@ -441,8 +441,14 @@ const ChatPage = () => {
     setMsgTimestamps(prev => [...prev, new Date()]);
     setPendingImages([]);
 
-    // Persist in the background so the AI request starts immediately.
-    void saveMessage(convoId, userMsg);
+    // Save first so the newest message survives a refresh or connection loss.
+    try {
+      await saveMessage(convoId, userMsg);
+    } catch (error) {
+      console.error("Could not save the latest chat message:", error);
+      toast.error("Your message could not be saved. Check your connection and try again.");
+      return;
+    }
     await sendMessagesStream(convoId, newMessages);
 
   };
