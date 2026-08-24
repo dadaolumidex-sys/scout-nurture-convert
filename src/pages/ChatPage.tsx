@@ -385,18 +385,23 @@ const ChatPage = () => {
         knowledge: guestKnowledge,
         signal: requestController.signal,
         onDelta: upsertAssistant,
-        onDone: async () => {
-          try {
-            if (assistantSoFar) {
-              paintAssistant();
-              // Always persist to the conversation the reply belongs to.
-              await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
-              if (isStillActive()) setMsgTimestamps(prev => [...prev, new Date()]);
-              void captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
-            }
-          } finally {
-            unlock();
+        onDone: () => {
+          if (assistantSoFar) {
+            paintAssistant();
+            if (isStillActive()) setMsgTimestamps(prev => [...prev, new Date()]);
+            // Do not make the user wait for the database write before sending
+            // their next message. The visible reply is complete at this point;
+            // save it in the background for durable history and memory.
+            void (async () => {
+              try {
+                await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
+                await captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
+              } catch (error) {
+                console.error("Could not save AI reply:", error);
+              }
+            })();
           }
+          unlock();
         },
         onError: (msg, code) => { if (isStillActive()) { setAiError({ msg, code }); } toast.error(msg); unlock(); },
       });
