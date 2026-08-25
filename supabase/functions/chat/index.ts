@@ -58,10 +58,10 @@ const DEEP_RESEARCH_SUFFIX = `
 IMPORTANT: Deep Research mode is ON. Carefully review the available conversation, saved knowledge, screenshots, and any supplied link before answering. Provide a thorough, structured answer with multiple perspectives, examples, step-by-step breakdowns, and actionable recommendations. Separate confirmed facts from recommendations, and never pretend you verified information that was not supplied or could not be read.`;
 
 const MAX_CONTEXT_MESSAGES = 8;
-const NORMAL_MEMORY_LIMIT = 24;
+const NORMAL_MEMORY_LIMIT = 12;
 const NORMAL_MESSAGE_CHARS = 2_500;
-const NORMAL_KNOWLEDGE_CHARS = 12_000;
-const NORMAL_OBJECTION_CHARS = 8_000;
+const NORMAL_KNOWLEDGE_CHARS = 6_000;
+const NORMAL_OBJECTION_CHARS = 4_000;
 const NORMAL_PROVIDER_TIMEOUT_MS = 18_000;
 const DEEP_RESEARCH_TIMEOUT_MS = 60_000;
 const CHAT_FUNCTION_VERSION = "groq-primary-v2";
@@ -157,7 +157,9 @@ function compactBodyForGroq(body: Record<string, unknown>): Record<string, unkno
   });
   const compactMessages = [
     system && typeof system.content === "string"
-      ? { ...system, content: system.content.slice(0, 8_000) }
+      // Keep the fixed assistant instructions, not a large knowledge/memory
+      // block appended later in the prompt.
+      ? { ...system, content: system.content.slice(0, 2_000) }
       : system,
     ...compactRecent,
   ].filter(Boolean);
@@ -191,7 +193,10 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
       const recovered = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ ...compactBodyForGroq(body), model, max_tokens: deep ? 3_000 : 1_000 }),
+        // GPT-OSS has a generous text context. It is deliberately used for
+        // this recovery attempt, even after a vision model failed, because
+        // attachments are omitted from the compact retry.
+        body: JSON.stringify({ ...compactBodyForGroq(body), model: "openai/gpt-oss-20b", max_tokens: deep ? 3_000 : 1_000 }),
         signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
       });
       if (recovered.ok) return recovered;
@@ -246,7 +251,9 @@ serve(async (req) => {
       isDeepResearch ? 12_000 : NORMAL_MESSAGE_CHARS,
     );
     const memoryFacts: string[] = Array.isArray(memory)
-      ? memory.filter((m: unknown) => typeof m === "string" && (m as string).trim()).slice(0, isDeepResearch ? 60 : NORMAL_MEMORY_LIMIT)
+      ? memory.filter((m: unknown) => typeof m === "string" && (m as string).trim())
+        .slice(0, isDeepResearch ? 60 : NORMAL_MEMORY_LIMIT)
+        .map((m: string) => m.slice(0, isDeepResearch ? 1_500 : 500))
       : [];
 
     if (safeMessages.length === 0) {
