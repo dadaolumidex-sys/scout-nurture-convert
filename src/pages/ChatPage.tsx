@@ -83,17 +83,11 @@ async function streamChat({
     await onDone();
   };
 
-  // A person's own active Gemini key is normally the quickest path. It also
-  // avoids waiting on a busy hosted AI service before discovering a provider
-  // model is unavailable for that account.
-  if (session?.user) {
-    try {
-      await tryPersonalFallback();
-      return;
-    } catch (error) {
-      console.warn("Personal Chat AI unavailable; trying the hosted backup.", error);
-    }
-  }
+  // The hosted chat function knows about every active Groq, Gemini, and
+  // OpenAI key in this workspace and rotates them on each request.  Always
+  // try it first.  Sending signed-in users through the one-key Gemini browser
+  // fallback first made an older conversation look "stuck" after that Gemini
+  // key ran out, even when a newly-added Groq key was ready to answer.
 
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
