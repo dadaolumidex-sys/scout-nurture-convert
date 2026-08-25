@@ -64,7 +64,7 @@ const NORMAL_KNOWLEDGE_CHARS = 12_000;
 const NORMAL_OBJECTION_CHARS = 8_000;
 const NORMAL_PROVIDER_TIMEOUT_MS = 18_000;
 const DEEP_RESEARCH_TIMEOUT_MS = 60_000;
-const CHAT_FUNCTION_VERSION = "groq-primary-v1";
+const CHAT_FUNCTION_VERSION = "groq-primary-v2";
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
@@ -133,6 +133,37 @@ async function callOpenAI(body: Record<string, unknown>, key: string, deep: bool
   });
 }
 
+// A long, older chat can occasionally exceed a provider request-size limit,
+// even though a brand-new chat works with the very same key.  Keep the recent
+// task and the core assistant rules, but omit bulky historic context and image
+// data for one automatic recovery attempt.  This is only used after a 413.
+function compactBodyForGroq(body: Record<string, unknown>): Record<string, unknown> {
+  const rawMessages = Array.isArray(body.messages) ? body.messages as any[] : [];
+  const system = rawMessages.find((message) => message?.role === "system");
+  const recent = rawMessages.filter((message) => message?.role !== "system").slice(-4);
+  const compactRecent = recent.map((message) => {
+    if (typeof message?.content === "string") {
+      return { ...message, content: message.content.slice(-1_200) };
+    }
+    if (Array.isArray(message?.content)) {
+      const text = message.content
+        .filter((part: any) => part?.type === "text")
+        .map((part: any) => part.text || "")
+        .join("\n")
+        .slice(-1_200);
+      return { ...message, content: text || "[Earlier attachment omitted to continue this chat]" };
+    }
+    return message;
+  });
+  const compactMessages = [
+    system && typeof system.content === "string"
+      ? { ...system, content: system.content.slice(0, 8_000) }
+      : system,
+    ...compactRecent,
+  ].filter(Boolean);
+  return { ...body, messages: compactMessages, max_tokens: 1_000 };
+}
+
 // Groq uses the OpenAI-compatible Chat Completions format.
 async function callGroq(body: Record<string, unknown>, key: string, deep: boolean) {
   const hasImage = Array.isArray(body.messages) && body.messages.some((message: any) =>
@@ -153,6 +184,22 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
     });
     if (response.ok) return response;
     lastResponse = response;
+    if (response.status === 413) {
+      await response.body?.cancel();
+      // Continue the same conversation with a compact context rather than
+      // forcing the user to create a new chat or replace their Groq key.
+      const recovered = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ ...compactBodyForGroq(body), model, max_tokens: deep ? 3_000 : 1_000 }),
+        signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+      });
+      if (recovered.ok) return recovered;
+      lastResponse = recovered;
+      if (![400, 404].includes(recovered.status)) return recovered;
+      await recovered.body?.cancel();
+      continue;
+    }
     // Bad key and rate-limit errors will not be fixed by changing models.
     if (![400, 404].includes(response.status)) return response;
     await response.body?.cancel();
