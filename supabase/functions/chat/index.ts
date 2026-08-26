@@ -78,6 +78,17 @@ type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; im
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
 type ProviderKey = { id: string | null; key: string; provider: "groq" | "gemini" | "openai" };
 
+// Preserve both the beginning (who is speaking / earlier agreement) and the
+// ending (the newest message / question) of a long pasted transcript. Sending
+// unlimited raw text can exceed a provider request limit, but silently keeping
+// only the ending can make the AI misunderstand who said what.
+function trimTranscript(value: string, maxChars: number) {
+  if (value.length <= maxChars) return value;
+  const firstChars = Math.floor(maxChars * 0.45);
+  const lastChars = maxChars - firstChars;
+  return `${value.slice(0, firstChars)}\n\n[Earlier part of this long transcript shortened — continue from the latest messages below]\n\n${value.slice(-lastChars)}`;
+}
+
 const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-2.5-flash": "gemini-2.5-flash",
   "google/gemini-3.6-flash": "gemini-3.6-flash",
@@ -92,11 +103,11 @@ function normalizeMessages(rawMessages: unknown, maxContextMessages = MAX_CONTEX
       const role = (m as any).role;
       const content = (m as any).content;
       if (role !== "user" && role !== "assistant") return null;
-      if (typeof content === "string") return { role, content: content.slice(-maxMessageChars) } as ChatMessage;
+      if (typeof content === "string") return { role, content: trimTranscript(content, maxMessageChars) } as ChatMessage;
       if (Array.isArray(content)) {
         const safeParts = content
           .map((part: any) => {
-            if (part?.type === "text") return { type: "text", text: (part.text || "").slice(-maxMessageChars) } as ChatMessagePart;
+            if (part?.type === "text") return { type: "text", text: trimTranscript(part.text || "", maxMessageChars) } as ChatMessagePart;
             if (part?.type === "image_url" && part.image_url?.url) return { type: "image_url", image_url: { url: part.image_url.url } } as ChatMessagePart;
             return null;
           })
@@ -209,12 +220,13 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
       });
       if (recovered.ok) return recovered;
       lastResponse = recovered;
-      if (![400, 404].includes(recovered.status)) return recovered;
+      if ([401, 429].includes(recovered.status)) return recovered;
       await recovered.body?.cancel();
       continue;
     }
-    // Bad key and rate-limit errors will not be fixed by changing models.
-    if (![400, 404].includes(response.status)) return response;
+    // A bad key or quota limit needs a different saved key. A model-specific
+    // rejection can still succeed on the next supported Groq model.
+    if ([401, 429].includes(response.status)) return response;
     await response.body?.cancel();
   }
   return lastResponse!;

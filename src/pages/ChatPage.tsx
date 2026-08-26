@@ -29,6 +29,12 @@ type InboxPersona = Persona | "streamer";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
+function compactChatText(value: string, maxChars = 2_500) {
+  if (value.length <= maxChars) return value;
+  const first = Math.floor(maxChars * 0.45);
+  return `${value.slice(0, first)}\n\n[Earlier part shortened]\n\n${value.slice(-(maxChars - first))}`;
+}
+
 const personaConfig = {
   friend: { name: "Friendship", label: "Friendship", emoji: "🤝", badgeClass: "border-secondary text-secondary" },
   promoter: { name: "Promoter & Closer", label: "Promoter & Closer", emoji: "💼", badgeClass: "border-primary text-primary" },
@@ -51,19 +57,24 @@ async function streamChat({
     ? messages.length - 1
     : -1;
 
-  const apiMessages = messages.map((msg, i) => {
-    if (i === lastImageIndex && msg.images && msg.images.length > 0) {
+  // Do this in the browser as well as in the edge function. Otherwise a huge
+  // pasted transcript can be rejected by the network gateway before the
+  // server gets a chance to safely shorten it.
+  const recentMessages = messages.slice(-8);
+  const recentImageIndex = lastImageIndex < 0 ? -1 : lastImageIndex - Math.max(0, messages.length - recentMessages.length);
+  const apiMessages = recentMessages.map((msg, i) => {
+    if (i === recentImageIndex && msg.images && msg.images.length > 0) {
       return {
         role: msg.role,
         content: [
-          { type: "text" as const, text: msg.content || "Check this conversation and give me the perfect next reply" },
+          { type: "text" as const, text: compactChatText(msg.content || "Check this conversation and give me the perfect next reply") },
           ...msg.images.map((img) => ({ type: "image_url" as const, image_url: { url: img } })),
         ],
       };
     }
     return {
       role: msg.role,
-      content: msg.content || (msg.images?.length ? "[image sent earlier]" : ""),
+      content: compactChatText(msg.content || (msg.images?.length ? "[image sent earlier]" : "")),
     };
   });
 
