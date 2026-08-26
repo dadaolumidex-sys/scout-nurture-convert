@@ -33,6 +33,14 @@ CURRENT TASK CONTROL (highest priority for the reply):
 - When the user asks for a reply to send, give the ready-to-copy reply first. Do not replace it with generic encouragement, a recap of an older client, or unrelated follow-up questions.
 - Never invent a client, price, or conversation detail that is not in the current request or clearly relevant saved context.`;
 
+const NATURAL_CONVERSATION_RULE = `
+
+NATURAL CONVERSATION RULE:
+- Treat ordinary messages as ordinary conversation. Do not turn a greeting, gaming question, or unrelated topic into a streamer pitch, sales plan, or outreach reply.
+- Do not invent a hidden business goal, client, Discord conversation, or problem that the user did not mention.
+- Match the user's wording and requested level of detail. Be clear, practical, and human; do not sound like a scripted coach.
+- When the user asks for a message to copy, give that message first and keep any explanation brief unless they ask for more.`;
+
 const SYSTEM_PROMPTS: Record<string, string> = {
   friend: `You are Friendship — a smart, friendly, all-purpose AI assistant. You can help with ANY topic: general knowledge, writing, coding, math, business, marketing, study help, life advice, gaming, streaming, and more.
 
@@ -41,7 +49,7 @@ Your personality: Casual and supportive, like talking to a knowledgeable friend.
 Always:
 - Answer any question thoroughly and accurately, whatever the subject.
 - If a user uploads or pastes a conversation/chat screenshot, analyze it and suggest the perfect next reply.
-- If you are unsure or a fact may be outdated, say so honestly instead of guessing.${CURRENT_TASK_RULE}${FORMAT_RULES}${PRIVATE_REASONING_RULE}`,
+- If you are unsure or a fact may be outdated, say so honestly instead of guessing.${CURRENT_TASK_RULE}${NATURAL_CONVERSATION_RULE}${FORMAT_RULES}${PRIVATE_REASONING_RULE}`,
 
   promoter: `You are Promoter & Closer — a confident, professional, all-purpose AI assistant and growth strategist. You can help with ANY topic: business, marketing, writing, research, planning, coding, analysis, growth, and general questions.
 
@@ -50,7 +58,7 @@ Your personality: Professional but approachable. Data-driven, structured, and co
 Always:
 - Give clear, actionable, well-organized answers on any subject.
 - When given a conversation or screenshot, analyze it and suggest the exact next message to send.
-- If you are unsure or a fact may be outdated, say so honestly instead of guessing.${CURRENT_TASK_RULE}${FORMAT_RULES}${PRIVATE_REASONING_RULE}`,
+- If you are unsure or a fact may be outdated, say so honestly instead of guessing.${CURRENT_TASK_RULE}${NATURAL_CONVERSATION_RULE}${FORMAT_RULES}${PRIVATE_REASONING_RULE}`,
 };
 
 const DEEP_RESEARCH_SUFFIX = `
@@ -64,7 +72,7 @@ const NORMAL_KNOWLEDGE_CHARS = 6_000;
 const NORMAL_OBJECTION_CHARS = 4_000;
 const NORMAL_PROVIDER_TIMEOUT_MS = 18_000;
 const DEEP_RESEARCH_TIMEOUT_MS = 60_000;
-const CHAT_FUNCTION_VERSION = "groq-primary-v2";
+const CHAT_FUNCTION_VERSION = "groq-quality-v3";
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
@@ -174,14 +182,14 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
   // Llama is the clean, fast normal-chat model. Qwen is used only for an
   // actual image because it supports vision but may expose reasoning text.
   const models = hasImage
-    ? ["qwen/qwen3.6-27b", "llama-3.1-8b-instant", "openai/gpt-oss-20b"]
-    : ["llama-3.1-8b-instant", "openai/gpt-oss-20b"];
+    ? ["qwen/qwen3.6-27b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"]
+    : ["llama-3.3-70b-versatile", "openai/gpt-oss-20b", "llama-3.1-8b-instant"];
   let lastResponse: Response | null = null;
   for (const model of models) {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ ...body, model, max_tokens: deep ? 6000 : 1600 }),
+      body: JSON.stringify({ ...body, model, max_tokens: deep ? 6000 : 1600, temperature: 0.4 }),
       signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
     });
     if (response.ok) return response;
@@ -312,7 +320,16 @@ serve(async (req) => {
     const knowledgeEntries: KnowledgeEntry[] = dbKnowledge.length
       ? dbKnowledge
       : (Array.isArray(guestKnowledge) ? guestKnowledge : []);
-    const { knowledgeContext, objectionContext } = buildKnowledgeContext(knowledgeEntries);
+    const conversationText = safeMessages.map((message) => {
+      if (typeof message.content === "string") return message.content;
+      return message.content.map((part) => part.type === "text" ? part.text || "" : "").join(" ");
+    }).join("\n");
+    // The stored playbooks are helpful for a client/outreach task, but adding
+    // them to every normal chat made unrelated replies sound like a sales bot.
+    const shouldUseWorkspaceContext = isDeepResearch || /\b(reply|respond|message|client|prospect|streamer|discord|twitch|kick|outreach|pitch|convert|conversion|objection|audit|nifimas|brozeen)\b/i.test(conversationText);
+    const { knowledgeContext, objectionContext } = shouldUseWorkspaceContext
+      ? buildKnowledgeContext(knowledgeEntries)
+      : { knowledgeContext: "", objectionContext: "" };
     if (knowledgeContext || objectionContext) {
       // Knowledge entries can be very large after several PDF/video uploads.
       // Keep the current answer focused and below provider request limits;
