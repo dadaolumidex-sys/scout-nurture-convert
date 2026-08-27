@@ -65,11 +65,14 @@ const DEEP_RESEARCH_SUFFIX = `
 
 IMPORTANT: Deep Research mode is ON. Carefully review the available conversation, saved knowledge, screenshots, and any supplied link before answering. Provide a thorough, structured answer with multiple perspectives, examples, step-by-step breakdowns, and actionable recommendations. Separate confirmed facts from recommendations, and never pretend you verified information that was not supplied or could not be read.`;
 
-const MAX_CONTEXT_MESSAGES = 8;
-const NORMAL_MEMORY_LIMIT = 12;
-const NORMAL_MESSAGE_CHARS = 2_500;
-const NORMAL_KNOWLEDGE_CHARS = 6_000;
-const NORMAL_OBJECTION_CHARS = 4_000;
+// Keep normal requests deliberately small. The entire chat remains saved in
+// the database, but sending all old messages, memories, and playbooks at once
+// can make a provider reject a perfectly valid long paste with HTTP 413.
+const MAX_CONTEXT_MESSAGES = 4;
+const NORMAL_MEMORY_LIMIT = 6;
+const NORMAL_MESSAGE_CHARS = 1_000;
+const NORMAL_KNOWLEDGE_CHARS = 3_500;
+const NORMAL_OBJECTION_CHARS = 2_500;
 const NORMAL_PROVIDER_TIMEOUT_MS = 18_000;
 const DEEP_RESEARCH_TIMEOUT_MS = 60_000;
 const CHAT_FUNCTION_VERSION = "groq-quality-v3";
@@ -210,7 +213,7 @@ function emergencyBodyForGroq(body: Record<string, unknown>, deep: boolean): Rec
       },
       { role: "user", content: trimTranscript(latestText, 1_800) },
     ],
-    max_tokens: deep ? 2_500 : 900,
+    max_tokens: deep ? 2_000 : 700,
   };
 }
 
