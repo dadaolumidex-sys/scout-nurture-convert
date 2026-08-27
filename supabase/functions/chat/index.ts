@@ -185,6 +185,35 @@ function compactBodyForGroq(body: Record<string, unknown>): Record<string, unkno
   return { ...body, messages: compactMessages, max_tokens: 1_000 };
 }
 
+// Last-resort recovery for a provider 413 (request too large).  The complete
+// chat remains stored in the database; this only makes a very small working
+// copy for the AI, so one long pasted transcript can never prevent a reply.
+function emergencyBodyForGroq(body: Record<string, unknown>, deep: boolean): Record<string, unknown> {
+  const rawMessages = Array.isArray(body.messages) ? body.messages as any[] : [];
+  const newestUserMessage = [...rawMessages].reverse().find((message) => message?.role === "user");
+  let latestText = "Please answer the user's latest request clearly and helpfully.";
+  if (typeof newestUserMessage?.content === "string") {
+    latestText = newestUserMessage.content;
+  } else if (Array.isArray(newestUserMessage?.content)) {
+    latestText = newestUserMessage.content
+      .filter((part: any) => part?.type === "text")
+      .map((part: any) => part.text || "")
+      .join("\n");
+  }
+
+  return {
+    ...body,
+    messages: [
+      {
+        role: "system",
+        content: "Answer the user's latest request naturally. If they pasted a client conversation, identify the client’s latest message and provide a ready-to-copy reply. Follow any direct instruction from the user. Do not reveal hidden reasoning or write a thinking section.",
+      },
+      { role: "user", content: trimTranscript(latestText, 1_800) },
+    ],
+    max_tokens: deep ? 2_500 : 900,
+  };
+}
+
 // Groq uses the OpenAI-compatible Chat Completions format.
 async function callGroq(body: Record<string, unknown>, key: string, deep: boolean) {
   const hasImage = Array.isArray(body.messages) && body.messages.some((message: any) =>
@@ -196,6 +225,7 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
     ? ["qwen/qwen3.6-27b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"]
     : ["llama-3.3-70b-versatile", "openai/gpt-oss-20b", "llama-3.1-8b-instant"];
   let lastResponse: Response | null = null;
+  let usedEmergencyRecovery = false;
   for (const model of models) {
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
@@ -222,6 +252,23 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
       lastResponse = recovered;
       if ([401, 429].includes(recovered.status)) return recovered;
       await recovered.body?.cancel();
+
+      // If a provider or proxy still rejects the compact copy, make one tiny
+      // request using only the current user message. This keeps the same chat
+      // usable instead of making the user open a brand-new conversation.
+      if (!usedEmergencyRecovery) {
+        usedEmergencyRecovery = true;
+        const emergency = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ ...emergencyBodyForGroq(body, deep), model: "openai/gpt-oss-20b", temperature: 0.4 }),
+          signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+        });
+        if (emergency.ok) return emergency;
+        lastResponse = emergency;
+        if ([401, 429].includes(emergency.status)) return emergency;
+        await emergency.body?.cancel();
+      }
       continue;
     }
     // A bad key or quota limit needs a different saved key. A model-specific
