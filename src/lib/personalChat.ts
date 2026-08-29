@@ -9,7 +9,9 @@ type ApiMessage = {
 // Keep the local reply path quick. Each extra model is another network request
 // when a key is invalid or rate-limited, which used to make a failed reply look
 // like the chat was hanging for minutes.
-const MODELS = ["gemini-2.5-flash", "gemini-flash-latest"];
+const TEXT_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
+const IMAGE_MODELS = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
+const DEEP_RESEARCH_MODELS = ["gemini-3.1-pro-preview", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
 const NORMAL_MEMORY_LIMIT = 24;
 const NORMAL_KNOWLEDGE_LIMIT = 8;
 
@@ -65,6 +67,8 @@ export async function generatePersonalChatReply({
 }) {
   const keys = await getActiveKeysForRotation("gemini");
   if (!keys.length) throw new Error("No active personal Gemini key is available.");
+  const hasScreenshot = messages.some((message) => Array.isArray(message.content) && message.content.some((part) => part.type === "image_url"));
+  const models = deepResearch ? DEEP_RESEARCH_MODELS : hasScreenshot ? IMAGE_MODELS : TEXT_MODELS;
 
   // Normal replies use a focused context so they remain quick after many
   // uploads and saved memories. Deep Research intentionally reads more.
@@ -97,7 +101,7 @@ export async function generatePersonalChatReply({
 
   let lastError = "";
   for (const key of keys) {
-    for (const model of MODELS) {
+    for (const model of models) {
       try {
         const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: "POST",

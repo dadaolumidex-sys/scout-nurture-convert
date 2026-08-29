@@ -75,7 +75,7 @@ const NORMAL_KNOWLEDGE_CHARS = 3_500;
 const NORMAL_OBJECTION_CHARS = 2_500;
 const NORMAL_PROVIDER_TIMEOUT_MS = 18_000;
 const DEEP_RESEARCH_TIMEOUT_MS = 60_000;
-const CHAT_FUNCTION_VERSION = "groq-quality-v3";
+const CHAT_FUNCTION_VERSION = "gemini-3-routing-v1";
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
@@ -94,8 +94,10 @@ function trimTranscript(value: string, maxChars: number) {
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-2.5-flash": "gemini-2.5-flash",
+  "google/gemini-3.7-flash": "gemini-3.7-flash",
   "google/gemini-3.6-flash": "gemini-3.6-flash",
   "google/gemini-3.5-flash": "gemini-3.5-flash",
+  "google/gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
 };
 
 function normalizeMessages(rawMessages: unknown, maxContextMessages = MAX_CONTEXT_MESSAGES, maxMessageChars = NORMAL_MESSAGE_CHARS): ChatMessage[] {
@@ -283,10 +285,11 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
 }
 
 async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string, deep: boolean) {
-  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-2.5-flash";
-  // Keep the hosted fallback fast. Trying a long list after a failed key made
-  // a normal reply wait far too long before another saved key was tried.
-  const models = [primary, "gemini-flash-latest"];
+  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.7-flash";
+  // Main chat is 3.7. Image understanding uses 3.6 and deep research uses
+  // 3.1 Pro. Fall back through stable Flash models so a model-access issue
+  // never stops a normal conversation.
+  const models = [primary, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"];
   const tried = new Set<string>();
   let lastErr = "";
   for (const m of models) {
@@ -411,7 +414,17 @@ serve(async (req) => {
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const ENV_GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
-    const model = "google/gemini-2.5-flash";
+    const hasCurrentScreenshot = safeMessages.some((message) =>
+      Array.isArray(message.content) && message.content.some((part) => part.type === "image_url"),
+    );
+    // Route each task to the model that fits it, not one model for every job.
+    // 3.7 is the default chat brain; 3.6 handles screenshot/multimodal chat;
+    // 3.1 Pro is reserved for the deliberate Deep Research mode.
+    const model = isDeepResearch
+      ? "google/gemini-3.1-pro-preview"
+      : hasCurrentScreenshot
+        ? "google/gemini-3.6-flash"
+        : "google/gemini-3.7-flash";
 
     const body = {
       model,

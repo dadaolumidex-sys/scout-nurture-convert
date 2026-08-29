@@ -52,9 +52,12 @@ const INBOX_OPERATOR_RULES = `
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-2.5-flash": "gemini-2.5-flash",
+  "google/gemini-3.7-flash": "gemini-3.7-flash",
   "google/gemini-3.6-flash": "gemini-3.6-flash",
+  "google/gemini-3.5-flash": "gemini-3.5-flash",
+  "google/gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
 };
-const GEMINI_FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest", "gemini-3.6-flash", "gemini-3.5-flash"];
+const GEMINI_FALLBACK_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
 const PROVIDER_TIMEOUT_MS = 12_000;
 
 type ProviderKey = { id: string | null; key: string; provider: "groq" | "gemini" | "openai" };
@@ -89,26 +92,17 @@ async function callOpenAISuggestions(body: Record<string, unknown>, openaiKey: s
 async function callAI(body: Record<string, unknown>, keys: { groq: ProviderKey[]; gemini: ProviderKey[]; openai: ProviderKey[] }): Promise<Response> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
-  // Groq is the fast primary provider for Inbox suggestions as well.
-  for (const candidate of keys.groq) {
-    try {
-      const resp = await callGroqSuggestions(body, candidate.key);
-      if (resp.ok) return resp;
-      await resp.body?.cancel();
-    } catch (e) {
-      console.error("Groq error:", e);
-    }
-  }
-
-  // Try every active Gemini key. Models are the outer loop so an unavailable
+  // Try every active Gemini key first. Inbox reply suggestions are a quality
+  // task, so 3.6 Flash is deliberately preferred over the fast Groq fallback.
+  // Models are the outer loop so an unavailable
   // model is skipped consistently while quota/auth failures rotate keys.
   const envGemini = Deno.env.get("GEMINI_API_KEY")?.trim();
   const geminiKeys = [...keys.gemini];
   if (envGemini && !geminiKeys.some((candidate) => candidate.key === envGemini)) {
     geminiKeys.push({ id: null, key: envGemini, provider: "gemini" });
   }
-  const requestedModel = (body.model as string) || "google/gemini-2.5-flash";
-  const models = [GEMINI_MODEL_MAP[requestedModel] || "gemini-2.5-flash", ...GEMINI_FALLBACK_MODELS];
+  const requestedModel = (body.model as string) || "google/gemini-3.6-flash";
+  const models = [GEMINI_MODEL_MAP[requestedModel] || "gemini-3.6-flash", ...GEMINI_FALLBACK_MODELS];
   const triedModels = new Set<string>();
   let lastResponse: Response | null = null;
   for (const geminiModel of models) {
@@ -127,6 +121,18 @@ async function callAI(body: Record<string, unknown>, keys: { groq: ProviderKey[]
       } catch (error) {
         console.error("Gemini suggestion request failed:", candidate.id, geminiModel, error);
       }
+    }
+  }
+
+  // Groq remains a last-resort fast backup, never the source of the normal
+  // inbox voice or reply quality.
+  for (const candidate of keys.groq) {
+    try {
+      const resp = await callGroqSuggestions(body, candidate.key);
+      if (resp.ok) return resp;
+      await resp.body?.cancel();
+    } catch (e) {
+      console.error("Groq error:", e);
     }
   }
 

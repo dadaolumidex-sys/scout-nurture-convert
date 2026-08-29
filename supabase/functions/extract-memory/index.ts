@@ -5,7 +5,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const GEMINI_FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
+const GEMINI_FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest", "gemini-2.5-flash"];
 
 const EXTRACT_PROMPT = `You maintain a long-term memory about a specific user based on their chat with an AI assistant.
 
@@ -95,7 +95,7 @@ serve(async (req) => {
     const userContent = `KNOWN MEMORY:\n- ${known || "(none)"}\n\nCONVERSATION:\n${transcript}`;
 
     const body = {
-      model: "google/gemini-3.6-flash",
+      model: "google/gemini-3.5-flash",
       messages: [
         { role: "system", content: EXTRACT_PROMPT },
         { role: "user", content: userContent },
