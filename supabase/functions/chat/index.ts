@@ -73,6 +73,7 @@ const NORMAL_MEMORY_LIMIT = 6;
 const NORMAL_MESSAGE_CHARS = 1_000;
 const NORMAL_KNOWLEDGE_CHARS = 3_500;
 const NORMAL_OBJECTION_CHARS = 2_500;
+const NORMAL_TRAINING_CHARS = 2_500;
 // Gemini 3.7 can take longer than the older Flash models to begin a thoughtful
 // response. Keep normal chat responsive, but do not cancel a valid reply at
 // the old 18-second limit.
@@ -83,6 +84,7 @@ const CHAT_FUNCTION_VERSION = "gemini-3-routing-v1";
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
 type ProviderKey = { id: string | null; key: string; provider: "groq" | "gemini" | "openai" };
+type TrainingConversation = { title?: string; content?: string; style_analysis?: string | null };
 
 // Preserve both the beginning (who is speaking / earlier agreement) and the
 // ending (the newest message / question) of a long pasted transcript. Sending
@@ -350,6 +352,7 @@ serve(async (req) => {
     const apifyKeys: ApifyKey[] = [];
     let adminClient: ReturnType<typeof createClient> | null = null;
     let dbKnowledge: KnowledgeEntry[] = [];
+    let dbTraining: TrainingConversation[] = [];
     const personaKey = persona === "promoter" ? "brozeen" : "nifimas";
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -380,6 +383,13 @@ serve(async (req) => {
             .or(`persona.eq.${personaKey},persona.eq.shared`)
             .limit(isDeepResearch ? 20 : 12);
           if (Array.isArray(kn)) dbKnowledge = kn as KnowledgeEntry[];
+          const { data: training } = await sb.from("training_conversations")
+            .select("title, content, style_analysis")
+            .eq("user_id", user.id)
+            .eq("persona", personaKey)
+            .in("status", ["ready", "analyzed"])
+            .limit(isDeepResearch ? 8 : 4);
+          if (Array.isArray(training)) dbTraining = training as TrainingConversation[];
         }
       }
     } catch (_) { /* ignore */ }
@@ -407,6 +417,25 @@ serve(async (req) => {
       systemPrompt += knowledgeContext.slice(0, knowledgeLimit)
         + objectionContext.slice(0, objectionLimit)
         + KNOWLEDGE_GUARDRAIL;
+    }
+    if (shouldUseWorkspaceContext && dbTraining.length > 0) {
+      // Training teaches writing style and successful conversation patterns.
+      // It is reference material, never a replacement for the newest task or
+      // permission to invent proof, claims, or details about a client.
+      const styleNotes = dbTraining
+        .map((entry) => entry.style_analysis?.trim())
+        .filter(Boolean)
+        .slice(0, 5)
+        .map((note) => `- ${note!.slice(0, 900)}`)
+        .join("\n");
+      const examples = dbTraining
+        .map((entry) => entry.content?.trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .map((example, index) => `Example ${index + 1}:\n${example!.slice(0, 1_200)}`)
+        .join("\n\n");
+      const trainingContext = `\n\n## SAVED TRAINING (use when relevant)\nMatch the user's helpful, natural communication style and use the useful patterns below. Do not copy phrases blindly; answer the current person and their latest message.\n${styleNotes ? `\nStyle notes:\n${styleNotes}` : ""}${examples ? `\n\nReference examples:\n${examples}` : ""}`;
+      systemPrompt += trainingContext.slice(0, isDeepResearch ? 12_000 : NORMAL_TRAINING_CHARS);
     }
 
     const latestUserText = [...safeMessages].reverse().find((message) => message.role === "user");

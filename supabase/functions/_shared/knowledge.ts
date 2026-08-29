@@ -92,4 +92,4 @@ export function buildKnowledgeContext(entries: KnowledgeEntry[]): {
 }
 
 // Guard: reference material must never override the model's own accurate knowledge.
-export const KNOWLEDGE_GUARDRAIL = `\n\nIMPORTANT: The KNOWLEDGE BASE and OBJECTION HANDLING PLAYBOOK above are extra reference material provided by the user. Use them to sound like the user and to overcome objections, but they do NOT replace your own general knowledge. If they conflict with well-established facts, or don't apply to the current message, rely on your own accurate knowledge and judgment.`;
+export const KNOWLEDGE_GUARDRAIL = `\n\nIMPORTANT: The KNOWLEDGE BASE, TRAINING, and OBJECTION HANDLING PLAYBOOK above are extra reference material provided by the user. Use them naturally when relevant, but they do NOT replace your own accurate judgment or the newest user instruction. Never invent proof, results, prices, client details, or guarantees; respect a clear no and keep advice truthful.`;

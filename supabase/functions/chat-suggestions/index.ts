@@ -303,7 +303,19 @@ serve(async (req) => {
 
     const latestUserText = [...(Array.isArray(messages) ? messages : [])].reverse().find((message) => message.role === "user")?.content || "";
     const liveUrlContext = await buildLiveUrlContext(latestUserText, apifyKeys);
-    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend) + INBOX_OPERATOR_RULES + modeRules + HUMAN_VOICE_RULES + knowledgeContext + objectionContext + styleContext + liveUrlContext + KNOWLEDGE_GUARDRAIL;
+    // Uploaded playbooks and training examples can be very large. Keep the
+    // useful reference material while avoiding a request too large for the AI
+    // provider when someone has trained the workspace heavily.
+    const compactStyleContext = styleContext.slice(0, 7_000);
+    const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend)
+      + INBOX_OPERATOR_RULES
+      + modeRules
+      + HUMAN_VOICE_RULES
+      + knowledgeContext.slice(0, 10_000)
+      + objectionContext.slice(0, 8_000)
+      + compactStyleContext
+      + liveUrlContext
+      + KNOWLEDGE_GUARDRAIL;
 
     const response = await callAI({
       model: "google/gemini-3.6-flash",
