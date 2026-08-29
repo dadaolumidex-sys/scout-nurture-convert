@@ -104,7 +104,9 @@ async function streamChat({
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
   // A normal reply should either begin quickly or move to the backup path.
-  const timeout = window.setTimeout(() => controller.abort(), deepResearch ? 60_000 : 28_000);
+  // Gemini 3.7 can need more than 28 seconds before the response stream begins.
+  // This must remain longer than the Edge Function's normal provider timeout.
+  const timeout = window.setTimeout(() => controller.abort(), deepResearch ? 90_000 : 60_000);
   let resp: Response;
   try {
     resp = await fetch(CHAT_URL, {
