@@ -103,10 +103,15 @@ async function streamChat({
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
   signal?.addEventListener("abort", abortFromCaller, { once: true });
-  // A normal reply should either begin quickly or move to the backup path.
-  // Gemini 3.7 can need more than 28 seconds before the response stream begins.
-  // This must remain longer than the Edge Function's normal provider timeout.
-  const timeout = window.setTimeout(() => controller.abort(), deepResearch ? 90_000 : 60_000);
+  // Time out only when the request/stream goes quiet. A total wall-clock
+  // timer used to cut off Gemini while it was actively streaming a longer
+  // answer, leaving a perfectly valid reply half-finished.
+  const idleTimeoutMs = deepResearch ? 120_000 : 75_000;
+  let timeout = window.setTimeout(() => controller.abort(), idleTimeoutMs);
+  const resetIdleTimeout = () => {
+    window.clearTimeout(timeout);
+    timeout = window.setTimeout(() => controller.abort(), idleTimeoutMs);
+  };
   let resp: Response;
   try {
     resp = await fetch(CHAT_URL, {
@@ -147,6 +152,9 @@ async function streamChat({
     return;
   }
 
+  // Headers arrived successfully. From here onward, each chunk extends the
+  // wait window, allowing a longer answer to finish without hanging forever.
+  resetIdleTimeout();
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -154,6 +162,7 @@ async function streamChat({
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      resetIdleTimeout();
       buffer += decoder.decode(value, { stream: true });
       let idx: number;
       while ((idx = buffer.indexOf("\n")) !== -1) {
