@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { ApiKeyRow, Provider, addKey, bulkAddKeys, deleteKey, listKeys, testApifyKey, toggleKey } from "@/lib/apiKeys";
 
 const PROVIDERS: { id: Provider; name: string; placeholder: string; help: string; getUrl: string }[] = [
-  { id: "groq", name: "Groq (Fast AI)", placeholder: "gsk_...", help: "Fast main AI for chat and screenshots. Free tier available, with provider limits.", getUrl: "https://console.groq.com/keys" },
+  { id: "groq", name: "Groq (Backup AI)", placeholder: "gsk_...", help: "Optional fast backup when Gemini is unavailable. Free tier available, with provider limits.", getUrl: "https://console.groq.com/keys" },
   { id: "apify", name: "Apify", placeholder: "apify_api_xxx", help: "Used for web search & scraping. Add multiple — auto-rotates on failure.", getUrl: "https://console.apify.com/account/integrations" },
   { id: "gemini", name: "Google Gemini", placeholder: "AIzaSy...", help: "Optional fallback for AI chat.", getUrl: "https://aistudio.google.com/app/apikey" },
   { id: "openai", name: "OpenAI", placeholder: "sk-...", help: "Optional fallback for AI chat.", getUrl: "https://platform.openai.com/api-keys" },
@@ -52,7 +52,7 @@ export function ApiKeysManager() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">API & Connections</h1>
-            <p className="text-sm text-muted-foreground">Use Groq for fast AI chat. Gemini and OpenAI stay available as private backup providers for your workspace.</p>
+            <p className="text-sm text-muted-foreground">Gemini powers your main AI chat. Groq and OpenAI can remain as automatic backup providers for your workspace.</p>
           </div>
         </div>
       </div>

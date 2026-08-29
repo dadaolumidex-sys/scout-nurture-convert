@@ -109,7 +109,7 @@ export async function generatePersonalChatReply({
           // Detailed research regularly needs more than a short reply window.
           // Normal replies still have a finite timeout so a failed provider
           // does not make the chat appear frozen.
-          signal: AbortSignal.timeout(deepResearch ? 60_000 : 18_000),
+          signal: AbortSignal.timeout(deepResearch ? 90_000 : 60_000),
           body: JSON.stringify({
             system_instruction: { parts: [{ text: system }] },
             contents,

@@ -215,9 +215,9 @@ function TypingIndicator({ name }: { name: string }) {
 
 function ModelBadge({ deepResearch }: { deepResearch: boolean }) {
   return (
-    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] font-medium text-muted-foreground" title={deepResearch ? "Deep analysis using your available AI providers" : "Fast replies using your available AI providers"}>
+    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] font-medium text-muted-foreground" title={deepResearch ? "Deep Research uses Gemini 3.1 Pro when available" : "Normal chat uses Gemini 3.7; screenshots use Gemini 3.6"}>
       <Cpu className="h-2.5 w-2.5" />
-      {deepResearch ? "Deep Research" : "Fast AI"}
+      {deepResearch ? "Deep Research" : "Gemini AI"}
     </div>
   );
 }

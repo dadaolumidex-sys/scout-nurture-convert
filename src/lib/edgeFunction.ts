@@ -34,16 +34,9 @@ export async function callEdgeFunction<T>(
     return generateInboxSuggestionsLocally(body) as Promise<T>;
   };
 
-  // Inbox replies should feel immediate. Prefer the signed-in person's active
-  // Gemini key, then fall back to the hosted function only when they have not
-  // configured a usable personal key.
-  if (functionName === "chat-suggestions") {
-    try {
-      return await runPersonalInboxReply();
-    } catch (personalKeyError) {
-      console.warn("Personal Inbox AI unavailable; trying hosted service.", personalKeyError);
-    }
-  }
+  // Published StreamScout always calls the protected Edge Function. Direct
+  // provider-key calls are intentionally limited to localhost above, so a
+  // saved key is never needed in the public browser bundle.
 
   const { data: { session } } = await supabase.auth.getSession();
   const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
