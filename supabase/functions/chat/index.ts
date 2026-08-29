@@ -446,9 +446,27 @@ serve(async (req) => {
       }
     };
 
-    // 1. Groq is the fast primary provider. It supports normal text and
-    // screenshots, then the existing Gemini/OpenAI fallbacks take over.
-    for (const candidate of userKeys.groq) {
+    // 1. Gemini is the normal provider. It produced the reply style the
+    // workspace was originally built around, so Groq stays only as backup.
+    // The healthiest/least recently
+    // used key is first because the database query above orders it that way.
+    const geminiCandidates: ProviderKey[] = [...userKeys.gemini];
+    if (ENV_GEMINI_KEY && !geminiCandidates.some((candidate) => candidate.key === ENV_GEMINI_KEY)) {
+      geminiCandidates.push({ id: null, key: ENV_GEMINI_KEY, provider: "gemini" });
+    }
+    for (const candidate of geminiCandidates) {
+      const result = await tryGeminiWithFallbacks(body, candidate.key, model, isDeepResearch);
+      if (result.ok) {
+        response = result.response;
+        await recordKeyResult(candidate, true);
+        break;
+      }
+      lastErr = `Gemini ${result.error}`;
+      await recordKeyResult(candidate, false, lastErr);
+    }
+
+    // 2. Use Groq only when every available Gemini key is unavailable.
+    for (const candidate of response ? [] : userKeys.groq) {
       try {
         const r = await callGroq(body, candidate.key, isDeepResearch);
         if (r.ok) {
@@ -464,23 +482,6 @@ serve(async (req) => {
         console.error("Groq err:", e);
         await recordKeyResult(candidate, false, lastErr);
       }
-    }
-
-    // 2. Rotate through every active Gemini key. The healthiest/least recently
-    // used key is first because the database query above orders it that way.
-    const geminiCandidates: ProviderKey[] = [...userKeys.gemini];
-    if (ENV_GEMINI_KEY && !geminiCandidates.some((candidate) => candidate.key === ENV_GEMINI_KEY)) {
-      geminiCandidates.push({ id: null, key: ENV_GEMINI_KEY, provider: "gemini" });
-    }
-    for (const candidate of geminiCandidates) {
-      const result = await tryGeminiWithFallbacks(body, candidate.key, model, isDeepResearch);
-      if (result.ok) {
-        response = result.response;
-        await recordKeyResult(candidate, true);
-        break;
-      }
-      lastErr = `Gemini ${result.error}`;
-      await recordKeyResult(candidate, false, lastErr);
     }
 
     // 3. Rotate through every active OpenAI key.
