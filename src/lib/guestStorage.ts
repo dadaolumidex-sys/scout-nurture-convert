@@ -31,6 +31,13 @@ export type GuestContactRecord = TimestampedRecord & {
   live_title: string | null;
   live_game: string | null;
   live_viewers: number | null;
+  client_profile?: {
+    goal?: string;
+    offer?: string;
+    signals?: string;
+    notes?: string;
+    nextStep?: string;
+  } | null;
 };
 
 export type GuestContactMessageRecord = TimestampedRecord & {
@@ -173,6 +180,7 @@ export const guestStorage = {
         live_title: null,
         live_game: null,
         live_viewers: null,
+        client_profile: {},
         ...input,
       };
 

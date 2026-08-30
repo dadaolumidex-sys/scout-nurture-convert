@@ -17,6 +17,7 @@ import { getInboxState, INBOX_STATES, type InboxState } from "@/lib/inboxState";
 import { compressImageFile } from "@/lib/imageCompress";
 import { callEdgeFunction } from "@/lib/edgeFunction";
 import { readDraftRecord, writeDraftRecord } from "@/lib/draftStorage";
+import { ClientProfilePanel, EMPTY_CLIENT_PROFILE, normalizeClientProfile, type ClientProfile } from "@/components/inbox/ClientProfilePanel";
 
 
 
@@ -35,6 +36,7 @@ type Contact = {
   discord_sync_enabled?: boolean | null;
   discord_persona?: string | null;
   discord_last_synced_at?: string | null;
+  client_profile?: ClientProfile | null;
 };
 
 
@@ -80,6 +82,7 @@ const ContactChatPage = () => {
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(null);
   const [suggestionsPersona, setSuggestionsPersona] = useState<Persona | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [clientProfile, setClientProfile] = useState<ClientProfile>({ ...EMPTY_CLIENT_PROFILE });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -134,7 +137,9 @@ const ContactChatPage = () => {
     setLoadError(null);
 
     if (!user) {
-      setContact(guestStorage.contacts.get(contactId) as Contact | null);
+      const guestContact = guestStorage.contacts.get(contactId) as Contact | null;
+      setContact(guestContact);
+      setClientProfile(normalizeClientProfile(guestContact?.client_profile));
       return;
     }
 
@@ -146,6 +151,7 @@ const ContactChatPage = () => {
     }
     if (data) {
       setContact(data);
+      setClientProfile(normalizeClientProfile(data.client_profile));
       // Older Inboxes saved this source type in conversation_type. Preserve it
       // in growth_stage the first time they are opened, before stage switching.
       if (!data.growth_stage && ["new_prospect", "existing_chat", "re_engage"].includes(data.conversation_type || "")) {
@@ -162,6 +168,46 @@ const ContactChatPage = () => {
         setPersona(data.conversation_type as Persona);
       }
     }
+  };
+
+  const saveClientProfile = async (profile: ClientProfile) => {
+    if (!contactId) return;
+    const cleaned = normalizeClientProfile(profile);
+    if (user) {
+      const { error } = await (supabase.from("streamer_contacts" as any)
+        .update({ client_profile: cleaned, updated_at: new Date().toISOString() })
+        .eq("id", contactId) as any);
+      if (error) {
+        toast.error("Could not save the client profile. Refresh and try again.");
+        return;
+      }
+    } else {
+      guestStorage.contacts.update(contactId, { client_profile: cleaned } as any);
+    }
+    setClientProfile(cleaned);
+    setContact((current) => current ? { ...current, client_profile: cleaned } : current);
+    toast.success("Client profile saved — AI will use it for future replies.");
+  };
+
+  const scheduleFollowUp = async (hours: number) => {
+    if (!user || !contactId || !contact) {
+      toast.error("Sign in to schedule follow-up reminders.");
+      return;
+    }
+    const name = contact.display_name || contact.username;
+    const dueAt = new Date(Date.now() + hours * 3_600_000).toISOString();
+    const { error } = await (supabase.from("reminders" as any).insert({
+      user_id: user.id,
+      contact_id: contactId,
+      title: `Follow up with ${name}`,
+      note: clientProfile.nextStep?.trim() || "Review the latest message and send a helpful follow-up.",
+      due_at: dueAt,
+    }) as any);
+    if (error) {
+      toast.error("Could not schedule the follow-up. Please try again.");
+      return;
+    }
+    toast.success(`Follow-up set for ${hours === 24 ? "tomorrow" : `in ${hours / 24} days`}.`);
   };
 
   const loadMessages = async () => {
@@ -307,12 +353,17 @@ const ContactChatPage = () => {
       : privateNotes;
     const latestClientMessage = [...publicMessages].reverse().find((m) => m.role === "user")?.content || "";
     const compactReplyDirection = replyDirection.trim().slice(0, 1_500);
+    const profileContext = Object.entries(clientProfile)
+      .filter(([, value]) => typeof value === "string" && value.trim())
+      .map(([key, value]) => `- ${key}: ${value.trim()}`)
+      .join("\n");
 
     const contactContext = contact
       ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
 
 IMPORTANT: This is one continuous conversation, even if the reply voice changed from Friendship to Promoter & Closer or Expert Proof. The exact latest real message from this client is: "${latestClientMessage}". Reply directly to that message. Do not reply to, quote, or continue any private AI notes.
 ${compactReplyDirection ? `\nYour team's reply direction: "${compactReplyDirection}". Follow this direction while still replying naturally to the client.` : ""}
+${profileContext ? `\nPrivate client profile (use this to personalize the reply; never reveal these notes or pretend the client said them):\n${profileContext}` : ""}
 ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real client message):\n${compactPrivateNotes}` : ""}`
       : "";
 
@@ -512,6 +563,12 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           <span className="font-medium text-foreground">One client, one history.</span>{" "}
           Choose the reply voice when the conversation moves forward. Earlier messages stay here, and every next reply uses the full client history. Screenshots are temporary for the current reply only.
         </div>
+
+        <ClientProfilePanel
+          profile={clientProfile}
+          onSave={saveClientProfile}
+          onFollowUp={scheduleFollowUp}
+        />
 
         {suggestedPersona && (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
