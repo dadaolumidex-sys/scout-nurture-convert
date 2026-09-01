@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { safeGet, safeRemove, safeSet, safeSetJson } from "@/lib/safeStorage";
 
 export type ChatMessage = {
   role: "user" | "assistant";
@@ -65,12 +66,12 @@ function readLS<T>(key: string, backupKey?: string): T[] {
     }
   };
 
-  const primary = parse(window.localStorage.getItem(key));
+  const primary = parse(safeGet(key));
   if (primary.length > 0) return primary;
 
-  const backup = parse(backupKey ? window.localStorage.getItem(backupKey) : null);
+  const backup = parse(backupKey ? safeGet(backupKey) : null);
   if (backup.length > 0 && backupKey) {
-    window.localStorage.setItem(key, JSON.stringify(backup));
+    safeSetJson(key, backup);
   }
 
   return backup;
@@ -78,14 +79,12 @@ function readLS<T>(key: string, backupKey?: string): T[] {
 
 function writeLS<T>(key: string, value: T[], backupKey?: string) {
   if (typeof window === "undefined") return;
-  const serialized = JSON.stringify(value);
-  window.localStorage.setItem(key, serialized);
-  if (backupKey) window.localStorage.setItem(backupKey, serialized);
+  safeSetJson(key, value);
+  if (backupKey) safeSetJson(backupKey, value);
 }
 
 function removeLS(key: string) {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(key);
+  safeRemove(key);
 }
 
 function getUserConversationCacheKey(userId: string) {
@@ -101,18 +100,16 @@ function getActiveConversationKey(userId?: string) {
 }
 
 function readActiveConversation(userId?: string) {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(getActiveConversationKey(userId));
+  return safeGet(getActiveConversationKey(userId));
 }
 
 function writeActiveConversation(userId: string | undefined, convoId: string | null) {
-  if (typeof window === "undefined") return;
   const key = getActiveConversationKey(userId);
   if (!convoId) {
-    window.localStorage.removeItem(key);
+    safeRemove(key);
     return;
   }
-  window.localStorage.setItem(key, convoId);
+  safeSet(key, convoId);
 }
 
 function readGuestConversations() {
@@ -148,7 +145,7 @@ function writeCachedConversations(userId: string, items: Conversation[]) {
 
 function readCachedMessages(userId: string, convoId: string) {
   const key = getUserMessageCacheKey(userId, convoId);
-  const raw = typeof window === "undefined" ? null : window.localStorage.getItem(key);
+  const raw = safeGet(key);
   // Legacy caches could hold megabytes of base64 screenshots — drop those.
   if (raw && raw.length > 500_000) {
     removeLS(key);
@@ -158,12 +155,16 @@ function readCachedMessages(userId: string, convoId: string) {
   return stored.map((item) => ({ ...item, images: undefined }));
 }
 
+/** The local cache only needs enough recent turns to paint instantly. */
+const MAX_CACHED_MESSAGES = 60;
 
 function writeCachedMessages(userId: string, convoId: string, items: StoredMessage[]) {
   // Never place base64 image data in localStorage. A handful of phone photos
   // can exceed its quota and make every chat render/type operation block.
-  const textOnly = items.map((item) => ({ ...item, images: undefined }));
-  writeLS(getUserMessageCacheKey(userId, convoId), sortStoredMessages(textOnly));
+  const textOnly = sortStoredMessages(items)
+    .slice(-MAX_CACHED_MESSAGES)
+    .map((item) => ({ ...item, images: undefined }));
+  writeLS(getUserMessageCacheKey(userId, convoId), textOnly);
 }
 
 function toChatMessages(records: StoredMessage[]): ChatMessage[] {

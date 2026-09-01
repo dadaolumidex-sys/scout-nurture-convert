@@ -262,7 +262,7 @@ const ContactChatPage = () => {
 
     setUploading(true);
     try {
-      const imageUrls = await Promise.all(files.map(compressImageFile));
+      const imageUrls = await Promise.all(files.map((file) => compressImageFile(file)));
       setPendingImages((current) => [...current, ...imageUrls].slice(0, 3));
       if (fileInputRef.current) fileInputRef.current.value = "";
       toast.success(`${imageUrls.length} screenshot${imageUrls.length === 1 ? "" : "s"} attached. Add your instruction, then press Send when ready.`);
