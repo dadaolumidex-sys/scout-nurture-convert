@@ -1,3 +1,5 @@
+import { safeGet, safeSetJson } from "@/lib/safeStorage";
+
 type TimestampedRecord = {
   id: string;
   created_at: string;

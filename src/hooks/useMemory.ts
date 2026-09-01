@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { safeGet, safeSet, safeSetJson } from "@/lib/safeStorage";
 
 export type MemoryItem = {
   id: string;
