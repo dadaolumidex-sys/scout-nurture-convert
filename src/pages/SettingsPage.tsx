@@ -167,6 +167,22 @@ const SettingsPage = () => {
               )}
 
               <Card className="bg-card border-border">
+                <CardContent className="p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Device storage</p>
+                    <p className="text-xs text-muted-foreground">
+                      Offline cache used on this device: <span className="font-semibold text-foreground">{storageMb} MB</span> of about 5 MB.
+                      Freeing space fixes freezing, missing chats and stuck send buttons. Your chats stay safe in your account.
+                    </p>
+                  </div>
+                  <Button variant="outline" onClick={handleFreeUpSpace} className="w-full gap-1.5 h-10 border-border text-foreground">
+                    <Trash2 className="h-4 w-4" /> Free up space
+                  </Button>
+                </CardContent>
+              </Card>
+
+
+              <Card className="bg-card border-border">
                 <CardContent className="p-4 space-y-2">
                   <p className="text-sm font-medium text-foreground">Quick fixes</p>
                   <ul className="text-xs text-muted-foreground space-y-1.5 list-disc list-inside">
