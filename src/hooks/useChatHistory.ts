@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { safeGet, safeRemove, safeSet, safeSetJson } from "@/lib/safeStorage";
 
 export type ChatMessage = {
   role: "user" | "assistant";
