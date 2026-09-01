@@ -65,12 +65,12 @@ function readLS<T>(key: string, backupKey?: string): T[] {
     }
   };
 
-  const primary = parse(window.localStorage.getItem(key));
+  const primary = parse(safeGet(key));
   if (primary.length > 0) return primary;
 
-  const backup = parse(backupKey ? window.localStorage.getItem(backupKey) : null);
+  const backup = parse(backupKey ? safeGet(backupKey) : null);
   if (backup.length > 0 && backupKey) {
-    window.localStorage.setItem(key, JSON.stringify(backup));
+    safeSetJson(key, backup);
   }
 
   return backup;
@@ -78,14 +78,12 @@ function readLS<T>(key: string, backupKey?: string): T[] {
 
 function writeLS<T>(key: string, value: T[], backupKey?: string) {
   if (typeof window === "undefined") return;
-  const serialized = JSON.stringify(value);
-  window.localStorage.setItem(key, serialized);
-  if (backupKey) window.localStorage.setItem(backupKey, serialized);
+  safeSetJson(key, value);
+  if (backupKey) safeSetJson(backupKey, value);
 }
 
 function removeLS(key: string) {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(key);
+  safeRemove(key);
 }
 
 function getUserConversationCacheKey(userId: string) {
