@@ -113,6 +113,16 @@ const SettingsPage = () => {
     navigate("/");
   };
 
+  const [storageBytes, setStorageBytes] = useState(0);
+  useEffect(() => { setStorageBytes(storageUsageBytes()); }, [view]);
+  const storageMb = (storageBytes / 1_048_576).toFixed(2);
+
+  const handleFreeUpSpace = () => {
+    clearAppCaches();
+    setStorageBytes(storageUsageBytes());
+    toast.success("Space freed. Your chats reload from your account automatically.");
+  };
+
   // Sub-views
   if (view !== "main") {
     return (
