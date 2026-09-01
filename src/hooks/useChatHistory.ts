@@ -100,18 +100,16 @@ function getActiveConversationKey(userId?: string) {
 }
 
 function readActiveConversation(userId?: string) {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(getActiveConversationKey(userId));
+  return safeGet(getActiveConversationKey(userId));
 }
 
 function writeActiveConversation(userId: string | undefined, convoId: string | null) {
-  if (typeof window === "undefined") return;
   const key = getActiveConversationKey(userId);
   if (!convoId) {
-    window.localStorage.removeItem(key);
+    safeRemove(key);
     return;
   }
-  window.localStorage.setItem(key, convoId);
+  safeSet(key, convoId);
 }
 
 function readGuestConversations() {
