@@ -100,9 +100,10 @@ const SettingsPage = () => {
 
   const handleFixIt = () => {
     if (!issueText.trim()) { toast.error("Please describe the issue first"); return; }
-    const issues = JSON.parse(localStorage.getItem("reported_issues") || "[]");
+    let issues: unknown[] = [];
+    try { issues = JSON.parse(safeGet("reported_issues") || "[]"); } catch { issues = []; }
     issues.push({ text: issueText, date: new Date().toISOString() });
-    localStorage.setItem("reported_issues", JSON.stringify(issues));
+    safeSetJson("reported_issues", issues.slice(-50));
     toast.success("Issue logged! Running auto-fix...");
     setIssueText("");
     handleRunDiagnostics();
