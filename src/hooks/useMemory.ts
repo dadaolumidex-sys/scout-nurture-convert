@@ -23,9 +23,8 @@ function createId() {
 }
 
 function readGuest(): MemoryItem[] {
-  if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(GUEST_MEMORY_KEY);
+    const raw = safeGet(GUEST_MEMORY_KEY);
     const parsed = raw ? JSON.parse(raw) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -34,18 +33,15 @@ function readGuest(): MemoryItem[] {
 }
 
 function writeGuest(items: MemoryItem[]) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(GUEST_MEMORY_KEY, JSON.stringify(items.slice(0, MAX_MEMORIES)));
+  safeSetJson(GUEST_MEMORY_KEY, items.slice(0, MAX_MEMORIES));
 }
 
 export function isMemoryEnabled() {
-  if (typeof window === "undefined") return true;
-  return window.localStorage.getItem(MEMORY_ENABLED_KEY) !== "false";
+  return safeGet(MEMORY_ENABLED_KEY) !== "false";
 }
 
 export function setMemoryEnabled(enabled: boolean) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(MEMORY_ENABLED_KEY, enabled ? "true" : "false");
+  safeSet(MEMORY_ENABLED_KEY, enabled ? "true" : "false");
 }
 
 /** Normalize text so we can dedupe near-identical facts. */
