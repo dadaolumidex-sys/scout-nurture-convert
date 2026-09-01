@@ -145,7 +145,7 @@ function writeCachedConversations(userId: string, items: Conversation[]) {
 
 function readCachedMessages(userId: string, convoId: string) {
   const key = getUserMessageCacheKey(userId, convoId);
-  const raw = typeof window === "undefined" ? null : window.localStorage.getItem(key);
+  const raw = safeGet(key);
   // Legacy caches could hold megabytes of base64 screenshots — drop those.
   if (raw && raw.length > 500_000) {
     removeLS(key);
@@ -155,12 +155,16 @@ function readCachedMessages(userId: string, convoId: string) {
   return stored.map((item) => ({ ...item, images: undefined }));
 }
 
+/** The local cache only needs enough recent turns to paint instantly. */
+const MAX_CACHED_MESSAGES = 60;
 
 function writeCachedMessages(userId: string, convoId: string, items: StoredMessage[]) {
   // Never place base64 image data in localStorage. A handful of phone photos
   // can exceed its quota and make every chat render/type operation block.
-  const textOnly = items.map((item) => ({ ...item, images: undefined }));
-  writeLS(getUserMessageCacheKey(userId, convoId), sortStoredMessages(textOnly));
+  const textOnly = sortStoredMessages(items)
+    .slice(-MAX_CACHED_MESSAGES)
+    .map((item) => ({ ...item, images: undefined }));
+  writeLS(getUserMessageCacheKey(userId, convoId), textOnly);
 }
 
 function toChatMessages(records: StoredMessage[]): ChatMessage[] {
