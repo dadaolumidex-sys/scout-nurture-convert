@@ -17,10 +17,17 @@ Deno.serve(async (req) => {
     let body: any = {};
     try { body = await req.json(); } catch { /* cron sends minimal body */ }
 
+    // Without a bot token there is nothing to sync — bail out before touching
+    // the database so scheduled runs cost no disk I/O.
+    if (!Deno.env.get("DISCORD_BOT_TOKEN")) {
+      return json({ synced: 0, contacts: 0, imported: 0, skipped: "discord not configured" });
+    }
+
     let query = supabase
       .from("streamer_contacts")
       .select("id, user_id, username, display_name, discord_channel_id, discord_user_id, discord_last_message_id, discord_persona")
       .eq("discord_sync_enabled", true);
+
 
     if (body?.contactId) query = query.eq("id", body.contactId);
 
