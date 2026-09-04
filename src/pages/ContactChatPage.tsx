@@ -819,6 +819,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             placeholder="Paste their latest message or the full Discord conversation here..."
             value={input}
             onChange={(e) => updateInboxDraft({ input: e.target.value })}
+            onPaste={handlePaste}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[44px] max-h-[120px]"
             rows={2}
             onKeyDownCapture={(e) => {
