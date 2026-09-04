@@ -251,8 +251,7 @@ const ContactChatPage = () => {
     toast.success(`${contact?.display_name || contact?.username || "Client"} is now in the ${personaConfig[nextPersona].name} stage.`);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []);
+  const addImageFiles = async (selectedFiles: File[]) => {
     const availableSlots = 3 - pendingImages.length;
     if (!selectedFiles.length || availableSlots <= 0) {
       toast.error("You can attach up to 3 screenshots at once.");
