@@ -241,7 +241,6 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
                 onChange={(e) => updateText(e.target.value)}
                 onKeyDownCapture={addNewLine}
                 onKeyUp={preserveNewLine}
-            onPaste={handlePaste}
                 onPaste={handlePaste}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5 pr-10"
                 rows={1}
