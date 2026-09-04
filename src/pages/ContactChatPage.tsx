@@ -273,6 +273,18 @@ const ContactChatPage = () => {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await addImageFiles(Array.from(e.target.files || []));
+  };
+
+  // Paste a copied screenshot straight into the reply box.
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.clipboardData?.files || []).filter((file) => file.type.startsWith("image/"));
+    if (!files.length) return;
+    e.preventDefault();
+    void addImageFiles(files);
+  };
+
   const handleSend = async () => {
     if ((!input.trim() && pendingImages.length === 0) || loading) return;
     const messageText = input.trim() || "[Screenshot — use the attached conversation and reply direction]";
