@@ -55,7 +55,7 @@ interface ChatComposerProps {
  * This is what keeps typing fast, especially on phones with long chats.
  */
 export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
-  ({ variant, loading, hasPendingImages, draftKey, onSend, onPickImage }, ref) => {
+  ({ variant, loading, hasPendingImages, draftKey, onSend, onPickImage, onPasteImages }, ref) => {
     const [text, setText] = useState("");
     const [loadedDraftKey, setLoadedDraftKey] = useState("");
     const [listening, setListening] = useState(false);
