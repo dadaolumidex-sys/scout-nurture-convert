@@ -296,6 +296,16 @@ const ChatPage = () => {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files || []);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    await addImageFiles(list);
+  };
+
+  const handlePasteImages = (files: File[]) => {
+    void addImageFiles(files);
+    if (files.length) toast.success(`${files.length} pasted image${files.length === 1 ? "" : "s"} attached`);
+  };
 
   const removePendingImage = (index: number) => setPendingImages((prev) => prev.filter((_, i) => i !== index));
 
