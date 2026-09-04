@@ -46,6 +46,7 @@ interface ChatComposerProps {
   draftKey: string;
   onSend: (text: string) => void;
   onPickImage: () => void;
+  onPasteImages?: (files: File[]) => void;
 }
 
 /**
@@ -54,7 +55,7 @@ interface ChatComposerProps {
  * This is what keeps typing fast, especially on phones with long chats.
  */
 export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
-  ({ variant, loading, hasPendingImages, draftKey, onSend, onPickImage }, ref) => {
+  ({ variant, loading, hasPendingImages, draftKey, onSend, onPickImage, onPasteImages }, ref) => {
     const [text, setText] = useState("");
     const [loadedDraftKey, setLoadedDraftKey] = useState("");
     const [listening, setListening] = useState(false);
@@ -174,6 +175,15 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
       }
     };
 
+    // Let people paste a copied screenshot straight into the message box.
+    const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      if (!onPasteImages) return;
+      const files = Array.from(e.clipboardData?.files || []).filter((file) => file.type.startsWith("image/"));
+      if (!files.length) return;
+      e.preventDefault();
+      onPasteImages(files);
+    };
+
     const addNewLine = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
       e.preventDefault();
@@ -231,6 +241,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
                 onChange={(e) => updateText(e.target.value)}
                 onKeyDownCapture={addNewLine}
                 onKeyUp={preserveNewLine}
+                onPaste={handlePaste}
                 className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[120px] text-sm rounded-2xl px-4 py-2.5 pr-10"
                 rows={1}
               />
@@ -258,6 +269,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
             onChange={(e) => updateText(e.target.value)}
             onKeyDownCapture={addNewLine}
             onKeyUp={preserveNewLine}
+            onPaste={handlePaste}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none pr-20 min-h-[72px]"
             rows={3}
           />

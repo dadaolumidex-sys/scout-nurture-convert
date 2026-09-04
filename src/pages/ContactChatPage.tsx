@@ -251,8 +251,7 @@ const ContactChatPage = () => {
     toast.success(`${contact?.display_name || contact?.username || "Client"} is now in the ${personaConfig[nextPersona].name} stage.`);
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = Array.from(e.target.files || []);
+  const addImageFiles = async (selectedFiles: File[]) => {
     const availableSlots = 3 - pendingImages.length;
     if (!selectedFiles.length || availableSlots <= 0) {
       toast.error("You can attach up to 3 screenshots at once.");
@@ -272,6 +271,18 @@ const ContactChatPage = () => {
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await addImageFiles(Array.from(e.target.files || []));
+  };
+
+  // Paste a copied screenshot straight into the reply box.
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.clipboardData?.files || []).filter((file) => file.type.startsWith("image/"));
+    if (!files.length) return;
+    e.preventDefault();
+    void addImageFiles(files);
   };
 
   const handleSend = async () => {
@@ -808,6 +819,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             placeholder="Paste their latest message or the full Discord conversation here..."
             value={input}
             onChange={(e) => updateInboxDraft({ input: e.target.value })}
+            onPaste={handlePaste}
             className="bg-muted border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[44px] max-h-[120px]"
             rows={2}
             onKeyDownCapture={(e) => {
