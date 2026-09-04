@@ -784,6 +784,7 @@ const ChatPage = () => {
         draftKey={draftKey}
         onSend={handleSend}
         onPickImage={() => fileInputRef.current?.click()}
+        onPasteImages={handlePasteImages}
       />
     </div>
   );
@@ -922,6 +923,7 @@ const ChatPage = () => {
             draftKey={draftKey}
             onSend={handleSend}
             onPickImage={() => fileInputRef.current?.click()}
+            onPasteImages={handlePasteImages}
           />
         </div>
         {exportDialog}
