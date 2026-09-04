@@ -175,6 +175,15 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
       }
     };
 
+    // Let people paste a copied screenshot straight into the message box.
+    const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      if (!onPasteImages) return;
+      const files = Array.from(e.clipboardData?.files || []).filter((file) => file.type.startsWith("image/"));
+      if (!files.length) return;
+      e.preventDefault();
+      onPasteImages(files);
+    };
+
     const addNewLine = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key !== "Enter" || e.nativeEvent.isComposing) return;
       e.preventDefault();
