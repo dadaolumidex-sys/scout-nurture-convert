@@ -274,12 +274,8 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth" });
   }, [messages, loading]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const list = Array.from(files);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-
+  const addImageFiles = async (list: File[]) => {
+    if (!list.length) return;
     setImageLoading(true);
     try {
       const accepted = list.slice(0, 3);
