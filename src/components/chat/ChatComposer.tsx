@@ -46,6 +46,7 @@ interface ChatComposerProps {
   draftKey: string;
   onSend: (text: string) => void;
   onPickImage: () => void;
+  onPasteImages?: (files: File[]) => void;
 }
 
 /**
