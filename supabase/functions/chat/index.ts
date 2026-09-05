@@ -290,13 +290,14 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
 }
 
 async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string, deep: boolean) {
-  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.7-flash";
-  // Main chat is 3.7. Image understanding uses 3.6 and deep research uses
-  // 3.1 Pro. Fall back through stable Flash models so a model-access issue
-  // never stops a normal conversation.
-  const models = [primary, "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest"];
+  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.6-flash";
+  // Main chat is 3.6 (stable). Image understanding also uses 3.6 and deep
+  // research uses 3.1 Pro. Fall back through stable Flash models so a
+  // model-specific rate limit (429) or access issue never stops a reply.
+  const models = [primary, "gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest"];
   const tried = new Set<string>();
   let lastErr = "";
+  let rateLimited = 0;
   for (const m of models) {
     if (tried.has(m)) continue;
     tried.add(m);
@@ -311,7 +312,14 @@ async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string
       lastErr = `${m}:${r.status}`;
       await r.body?.cancel();
       console.log("Gemini model failed:", lastErr);
-      if ([401, 403, 429].includes(r.status)) break;
+      // A bad/expired key means no model on this key will work — stop.
+      if ([401, 403].includes(r.status)) break;
+      // A 429 is per-model quota: pause briefly and try the next model.
+      if (r.status === 429) {
+        rateLimited++;
+        if (rateLimited >= 3) break; // key itself is likely exhausted
+        await new Promise((resolve) => setTimeout(resolve, 1_500));
+      }
     } catch (e) { console.error("Gemini err:", m, e); lastErr = `${m}:err`; }
   }
   return { ok: false as const, error: lastErr };
