@@ -458,13 +458,12 @@ serve(async (req) => {
       Array.isArray(message.content) && message.content.some((part) => part.type === "image_url"),
     );
     // Route each task to the model that fits it, not one model for every job.
-    // 3.7 is the default chat brain; 3.6 handles screenshot/multimodal chat;
-    // 3.1 Pro is reserved for the deliberate Deep Research mode.
+    // 3.6 is the stable default chat brain; 3.1 Pro is reserved for the
+    // deliberate Deep Research mode. 3.7 stays as a fallback inside
+    // tryGeminiWithFallbacks.
     const model = isDeepResearch
       ? "google/gemini-3.1-pro-preview"
-      : hasCurrentScreenshot
-        ? "google/gemini-3.6-flash"
-        : "google/gemini-3.7-flash";
+      : "google/gemini-3.6-flash";
 
     const body = {
       model,
