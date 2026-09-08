@@ -290,7 +290,7 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
 }
 
 async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string, deep: boolean) {
-  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.6-flash";
+  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.7-flash";
   // Main chat is 3.6 (stable). Image understanding also uses 3.6 and deep
   // research uses 3.1 Pro. Fall back through stable Flash models so a
   // model-specific rate limit (429) or access issue never stops a reply.
