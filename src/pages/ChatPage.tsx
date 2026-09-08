@@ -274,12 +274,8 @@ const ChatPage = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: loading ? "auto" : "smooth" });
   }, [messages, loading]);
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    const list = Array.from(files);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-
+  const addImageFiles = async (list: File[]) => {
+    if (!list.length) return;
     setImageLoading(true);
     try {
       const accepted = list.slice(0, 3);
@@ -300,6 +296,16 @@ const ChatPage = () => {
     }
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const list = Array.from(e.target.files || []);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    await addImageFiles(list);
+  };
+
+  const handlePasteImages = (files: File[]) => {
+    void addImageFiles(files);
+    if (files.length) toast.success(`${files.length} pasted image${files.length === 1 ? "" : "s"} attached`);
+  };
 
   const removePendingImage = (index: number) => setPendingImages((prev) => prev.filter((_, i) => i !== index));
 
@@ -778,6 +784,7 @@ const ChatPage = () => {
         draftKey={draftKey}
         onSend={handleSend}
         onPickImage={() => fileInputRef.current?.click()}
+        onPasteImages={handlePasteImages}
       />
     </div>
   );
@@ -916,6 +923,7 @@ const ChatPage = () => {
             draftKey={draftKey}
             onSend={handleSend}
             onPickImage={() => fileInputRef.current?.click()}
+            onPasteImages={handlePasteImages}
           />
         </div>
         {exportDialog}

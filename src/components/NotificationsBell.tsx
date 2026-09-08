@@ -13,15 +13,22 @@ export function NotificationsBell() {
   const [open, setOpen] = useState(false);
 
   const refresh = async () => {
+    // Skip work when the tab is in the background: this used to poll the
+    // database every 30s forever and was one of the biggest sources of
+    // cloud disk I/O usage.
+    if (document.visibilityState !== "visible") return;
     setItems(await listNotifications());
     setCount(await unreadCount());
   };
 
   useEffect(() => {
     refresh();
-    const i = setInterval(refresh, 30000);
-    return () => clearInterval(i);
+    const i = setInterval(refresh, 300000);
+    const onVisible = () => { if (document.visibilityState === "visible") refresh(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(i); document.removeEventListener("visibilitychange", onVisible); };
   }, []);
+
 
   useEffect(() => {
     if (open && count > 0) { markAllRead().then(() => setCount(0)); }

@@ -13,6 +13,7 @@ import { MemoryManager } from "@/components/settings/MemoryManager";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { THEME_PRESETS, applyTheme, getStoredTheme } from "@/lib/themeColors";
+import { clearAppCaches, safeGet, safeSetJson, storageUsageBytes } from "@/lib/safeStorage";
 
 type SettingsView = "main" | "profile" | "notifications" | "security" | "appearance" | "api" | "memory" | "troubleshoot" | "install";
 
@@ -99,9 +100,10 @@ const SettingsPage = () => {
 
   const handleFixIt = () => {
     if (!issueText.trim()) { toast.error("Please describe the issue first"); return; }
-    const issues = JSON.parse(localStorage.getItem("reported_issues") || "[]");
+    let issues: unknown[] = [];
+    try { issues = JSON.parse(safeGet("reported_issues") || "[]"); } catch { issues = []; }
     issues.push({ text: issueText, date: new Date().toISOString() });
-    localStorage.setItem("reported_issues", JSON.stringify(issues));
+    safeSetJson("reported_issues", issues.slice(-50));
     toast.success("Issue logged! Running auto-fix...");
     setIssueText("");
     handleRunDiagnostics();
@@ -111,6 +113,16 @@ const SettingsPage = () => {
     await supabase.auth.signOut();
     toast.success("Signed out");
     navigate("/");
+  };
+
+  const [storageBytes, setStorageBytes] = useState(0);
+  useEffect(() => { setStorageBytes(storageUsageBytes()); }, [view]);
+  const storageMb = (storageBytes / 1_048_576).toFixed(2);
+
+  const handleFreeUpSpace = () => {
+    clearAppCaches();
+    setStorageBytes(storageUsageBytes());
+    toast.success("Space freed. Your chats reload from your account automatically.");
   };
 
   // Sub-views
@@ -165,6 +177,22 @@ const SettingsPage = () => {
                   <CardContent className="p-4 text-sm text-foreground">{diagResult}</CardContent>
                 </Card>
               )}
+
+              <Card className="bg-card border-border">
+                <CardContent className="p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Device storage</p>
+                    <p className="text-xs text-muted-foreground">
+                      Offline cache used on this device: <span className="font-semibold text-foreground">{storageMb} MB</span> of about 5 MB.
+                      Freeing space fixes freezing, missing chats and stuck send buttons. Your chats stay safe in your account.
+                    </p>
+                  </div>
+                  <Button variant="outline" onClick={handleFreeUpSpace} className="w-full gap-1.5 h-10 border-border text-foreground">
+                    <Trash2 className="h-4 w-4" /> Free up space
+                  </Button>
+                </CardContent>
+              </Card>
+
 
               <Card className="bg-card border-border">
                 <CardContent className="p-4 space-y-2">

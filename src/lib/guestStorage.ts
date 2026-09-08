@@ -1,3 +1,5 @@
+import { safeGet, safeSetJson } from "@/lib/safeStorage";
+
 type TimestampedRecord = {
   id: string;
   created_at: string;
@@ -105,7 +107,7 @@ function readCollection<T>(key: string): T[] {
   if (!isBrowser) return [];
 
   try {
-    const raw = window.localStorage.getItem(key);
+    const raw = safeGet(key);
     if (!raw) return [];
 
     const parsed = JSON.parse(raw);
@@ -117,7 +119,8 @@ function readCollection<T>(key: string): T[] {
 
 function writeCollection<T>(key: string, value: T[]) {
   if (!isBrowser) return;
-  window.localStorage.setItem(key, JSON.stringify(value));
+  // Quota-aware: a full browser store must never throw mid-save and lose data.
+  safeSetJson(key, value);
 }
 
 function sortByCreatedDesc<T extends { created_at?: string | null }>(items: T[]) {

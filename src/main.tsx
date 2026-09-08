@@ -2,8 +2,13 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 import { applyStoredTheme } from "./lib/themeColors";
+import { clearAppCaches, storageUsageBytes } from "./lib/safeStorage";
 
 applyStoredTheme();
+
+// A near-full localStorage makes every write throw, which used to freeze
+// typing, sending and chat loading. Reclaim disposable caches on startup.
+if (storageUsageBytes() > 3_500_000) clearAppCaches();
 
 createRoot(document.getElementById("root")!).render(<App />);
 
