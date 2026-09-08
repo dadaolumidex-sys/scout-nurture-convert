@@ -68,10 +68,10 @@ IMPORTANT: Deep Research mode is ON. Carefully review the available conversation
 // Keep normal requests deliberately small. The entire chat remains saved in
 // the database, but sending all old messages, memories, and playbooks at once
 // can make a provider reject a perfectly valid long paste with HTTP 413.
-const MAX_CONTEXT_MESSAGES = 4;
-const NORMAL_MEMORY_LIMIT = 6;
-const NORMAL_MESSAGE_CHARS = 1_000;
-const NORMAL_KNOWLEDGE_CHARS = 3_500;
+const MAX_CONTEXT_MESSAGES = 14;
+const NORMAL_MEMORY_LIMIT = 30;
+const NORMAL_MESSAGE_CHARS = 2_400;
+const NORMAL_KNOWLEDGE_CHARS = 5_000;
 const NORMAL_OBJECTION_CHARS = 2_500;
 const NORMAL_TRAINING_CHARS = 2_500;
 // Gemini 3.7 can take longer than the older Flash models to begin a thoughtful
