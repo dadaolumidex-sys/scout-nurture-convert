@@ -562,7 +562,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
 
   return (
     <DashboardLayout>
-      <div className="max-w-3xl mx-auto flex flex-col h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] sm:h-[calc(100vh-8rem)] animate-slide-in">
+      <div className="max-w-3xl mx-auto flex flex-col min-h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] md:h-[calc(100vh-8rem)] animate-slide-in">
         <ChatHeader
           contact={contact}
           persona={persona}
@@ -602,7 +602,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
 
 
         {/* Messages */}
-        <div className="flex-1 min-h-0 overflow-auto space-y-3 mb-4 pr-1">
+        <div className="flex-1 min-h-[12rem] max-h-[38dvh] md:min-h-0 md:max-h-none overflow-auto space-y-3 mb-4 pr-1">
           {displayMessages.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground space-y-2">
