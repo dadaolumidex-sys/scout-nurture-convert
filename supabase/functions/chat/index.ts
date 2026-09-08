@@ -74,11 +74,12 @@ const NORMAL_MESSAGE_CHARS = 1_000;
 const NORMAL_KNOWLEDGE_CHARS = 3_500;
 const NORMAL_OBJECTION_CHARS = 2_500;
 const NORMAL_TRAINING_CHARS = 2_500;
-// Gemini 3.7 can take longer than the older Flash models to begin a thoughtful
-// response. Keep normal chat responsive, but do not cancel a valid reply at
-// the old 18-second limit.
-const NORMAL_PROVIDER_TIMEOUT_MS = 45_000;
-const DEEP_RESEARCH_TIMEOUT_MS = 60_000;
+// Gemini 3.7 can take longer than the older Flash models to begin and stream
+// a thoughtful response. A 45-second server deadline could cut off a reply
+// after text had already reached the user, so normal chat needs enough time
+// to finish while the browser still protects against a genuinely idle request.
+const NORMAL_PROVIDER_TIMEOUT_MS = 90_000;
+const DEEP_RESEARCH_TIMEOUT_MS = 180_000;
 const CHAT_FUNCTION_VERSION = "gemini-3-routing-v1";
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
