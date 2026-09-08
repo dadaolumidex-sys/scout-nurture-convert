@@ -38,6 +38,15 @@ const INBOX_OPERATOR_RULES = `
 - Return only ready-to-copy replies that the app user can send to the client. Do not greet the app user, ask them for details, or role-play as the client.
 `;
 
+const PRIVATE_AI_CHAT_RULES = `
+
+## PRIVATE INBOX AI CHAT
+- You are speaking privately to the app user about this client conversation. The client will never see this answer.
+- Answer the app user's newest private question directly and thoughtfully, using the client history, profile, saved training, and knowledge only when useful.
+- If the user asks you to draft a reply, provide one natural ready-to-copy client reply. If they ask for advice, analysis, or an adjustment, answer that request instead.
+- Never mistake the private question for a client message and never invent facts about the client.
+`;
+
 const GEMINI_MODEL_MAP: Record<string, string> = {
   "google/gemini-2.5-flash": "gemini-2.5-flash",
   "google/gemini-3.7-flash": "gemini-3.7-flash",
@@ -199,13 +208,16 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages = [], persona, contactContext, conversationType, knowledge: guestKnowledge } = await req.json() as {
+    const { messages = [], persona, contactContext, conversationType, knowledge: guestKnowledge, mode, privateQuestion } = await req.json() as {
       messages?: IncomingMessage[];
       persona?: string;
       contactContext?: string;
       conversationType?: string;
       knowledge?: KnowledgeEntry[];
+      mode?: "reply" | "private_chat";
+      privateQuestion?: string;
     };
+    const isPrivateChat = mode === "private_chat";
 
     const activePersona = persona === "promoter" ? "promoter" : persona === "streamer" ? "streamer" : "friend";
     const knowledgePersona = activePersona === "friend" ? "nifimas" : activePersona === "streamer" ? "bigstreamer" : "brozeen";
@@ -298,7 +310,7 @@ serve(async (req) => {
     // provider when someone has trained the workspace heavily.
     const compactStyleContext = styleContext.slice(0, 3_000);
     const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend)
-      + INBOX_OPERATOR_RULES
+      + (isPrivateChat ? PRIVATE_AI_CHAT_RULES : INBOX_OPERATOR_RULES)
       + modeRules
       + HUMAN_VOICE_RULES
       + knowledgeContext.slice(0, 5_000)
@@ -307,14 +319,14 @@ serve(async (req) => {
       + liveUrlContext
       + KNOWLEDGE_GUARDRAIL;
 
-    const response = await callAI({
-      model: "google/gemini-3.7-flash",
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...preparedMessages,
-        {
-          role: "user",
-          content: `${contactContext || ""}
+    const requestMessages = [
+      { role: "system", content: systemPrompt },
+      ...preparedMessages,
+      {
+        role: "user",
+        content: isPrivateChat
+          ? `${contactContext || ""}\n\nPrivate question from the app user:\n${(privateQuestion || "").slice(0, 4_000)}\n\nAnswer the app user directly. This is private context, not a message from the client.`
+          : `${contactContext || ""}
 
 Based on the conversation above, generate exactly ONE best ready-to-copy reply I can send to this person.
 
@@ -328,9 +340,13 @@ Hard rules:
 Use the user's training and knowledge when they improve the answer, while relying on your own reasoning for everything else.
 
 Use the suggest_replies tool to return the reply.`,
+      },
+    ];
 
-        },
-      ],
+    const response = await callAI({
+      model: "google/gemini-3.7-flash",
+      messages: requestMessages,
+      ...(isPrivateChat ? {} : {
       tools: [
         {
           type: "function",
@@ -363,6 +379,7 @@ Use the suggest_replies tool to return the reply.`,
         },
       ],
       tool_choice: { type: "function", function: { name: "suggest_replies" } },
+      }),
     }, userKeys);
 
     if (!response.ok) {
@@ -384,6 +401,17 @@ Use the suggest_replies tool to return the reply.`,
     }
 
     const data = await response.json();
+    if (isPrivateChat) {
+      const answer = data.choices?.[0]?.message?.content?.trim();
+      if (!answer) {
+        return new Response(JSON.stringify({ error: "Failed to generate a private AI answer" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ answer }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (!toolCall) {
       return new Response(JSON.stringify({ error: "Failed to generate suggestions" }), {

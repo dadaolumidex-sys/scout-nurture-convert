@@ -286,7 +286,20 @@ const ContactChatPage = () => {
   };
 
   const handleSend = async () => {
-    if ((!input.trim() && pendingImages.length === 0) || loading) return;
+    const privateQuestion = replyDirection.trim();
+    const hasClientMessage = Boolean(input.trim() || pendingImages.length > 0);
+    if ((!hasClientMessage && !privateQuestion) || loading) return;
+
+    // A private question is never saved as a client message. It lets the user
+    // talk to the AI about this client without changing the client history.
+    if (!hasClientMessage) {
+      updateInboxDraft({ replyDirection: "" });
+      setSuggestions([]);
+      setSelectedSuggestion(null);
+      await generateSuggestions(persona, privateQuestion);
+      return;
+    }
+
     const messageText = input.trim() || "[Screenshot — use the attached conversation and reply direction]";
     const attachedImages = pendingImages;
     updateInboxDraft({ input: "" });
@@ -333,7 +346,7 @@ const ContactChatPage = () => {
     await generateSuggestions(persona);
   };
 
-  const generateSuggestions = async (targetPersona: Persona) => {
+  const generateSuggestions = async (targetPersona: Persona, privateQuestion?: string) => {
     setLoading(true);
     setSuggestions([]);
     setSelectedSuggestion(null);
@@ -343,7 +356,7 @@ const ContactChatPage = () => {
       ? (((await (supabase.from("contact_messages" as any).select("*").eq("contact_id", contactId).order("created_at", { ascending: true }) as any)).data) || []) as ChatMessage[]
       : ((contactId ? guestStorage.messages.list(contactId) : []) as ChatMessage[]);
 
-    const isPrivateAiContext = (message: ChatMessage) => message.source?.startsWith("ai_chat_export:") || message.source === "client_action_card" || message.source === "website_audit";
+    const isPrivateAiContext = (message: ChatMessage) => message.source?.startsWith("ai_chat_export:") || message.source === "client_action_card" || message.source === "website_audit" || message.source === "inbox_ai_private";
     // Exported AI Chat history is background only. It must never be treated as
     // a real client message, otherwise an old line can override a new reply.
     const publicMessages = msgs.filter((m) => !isPrivateAiContext(m));
@@ -363,7 +376,7 @@ const ContactChatPage = () => {
       ? `${privateNotes.slice(0, 6_000)}\n\n[older private notes omitted]\n\n${privateNotes.slice(-6_000)}`
       : privateNotes;
     const latestClientMessage = [...publicMessages].reverse().find((m) => m.role === "user")?.content || "";
-    const compactReplyDirection = replyDirection.trim().slice(0, 1_500);
+    const compactReplyDirection = (privateQuestion || replyDirection).trim().slice(0, 1_500);
     const profileContext = Object.entries(clientProfile)
       .filter(([, value]) => typeof value === "string" && value.trim())
       .map(([key, value]) => `- ${key}: ${value.trim()}`)
@@ -379,13 +392,37 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
       : "";
 
     try {
-      const data = await callEdgeFunction<{ suggestions?: Suggestion[]; websiteAudit?: string }>("chat-suggestions", {
+      const data = await callEdgeFunction<{ suggestions?: Suggestion[]; websiteAudit?: string; answer?: string }>("chat-suggestions", {
         messages: recentMessages,
         persona: targetPersona,
         contactContext,
         conversationType: contact?.growth_stage || contact?.conversation_type || "new_prospect",
         knowledge: user ? [] : guestStorage.knowledge.list(),
+        mode: privateQuestion ? "private_chat" : "reply",
+        privateQuestion,
       });
+      if (privateQuestion) {
+        const answer = data.answer?.trim();
+        if (!answer) throw new Error("The AI did not return a private answer. Please try again.");
+        const privateEntry = {
+          contact_id: contactId,
+          role: "assistant",
+          content: `You asked: ${privateQuestion}\n\n${answer}`,
+          persona: targetPersona,
+          image_url: null,
+          selected: false,
+          source: "inbox_ai_private",
+        };
+        if (user) {
+          await (supabase.from("contact_messages" as any).insert({ ...privateEntry, user_id: user.id }) as any);
+        } else if (contactId) {
+          guestStorage.messages.insert(privateEntry);
+        }
+        await loadMessages();
+        toast.success("Private AI answer ready.");
+        setLoading(false);
+        return;
+      }
       const nextSuggestions = Array.isArray(data.suggestions) ? data.suggestions : [];
       if (nextSuggestions.length === 0) throw new Error("The AI returned no reply suggestions. Please try again.");
       if (data.websiteAudit) {
@@ -619,7 +656,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             </div>
           )}
           {displayMessages.map((msg) => {
-            const isPrivateAiContext = msg.source?.startsWith("ai_chat_export:");
+            const isPrivateAiContext = msg.source?.startsWith("ai_chat_export:") || msg.source === "inbox_ai_private";
             if (msg.source === "client_action_card") return null;
             if (msg.source === "website_audit") {
               return (
@@ -627,6 +664,14 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
                   <summary className="cursor-pointer font-medium text-info">🔒 Private website audit — used for future replies</summary>
                   <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed">{msg.content}</p>
                 </details>
+              );
+            }
+            if (msg.source === "inbox_ai_private") {
+              return (
+                <div key={msg.id} className="rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm text-foreground">
+                  <p className="mb-2 text-xs font-medium text-primary">🔒 Private AI chat — not sent to this client</p>
+                  <MarkdownMessage content={msg.content} />
+                </div>
               );
             }
             if (isPrivateAiContext) {
@@ -790,16 +835,17 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
 
 
         {/* Input */}
-        <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="reply-direction">What do you want the reply to do? (optional)</label>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="reply-direction">Ask the AI privately about this client (optional)</label>
         <Textarea
           id="reply-direction"
           aria-label="How you want the AI to reply"
-          placeholder="Example: make it warm and natural; explain the price clearly; do not pitch yet."
+          placeholder="Example: why might they have said this? Make the reply warmer, but do not mention price."
           value={replyDirection}
           onChange={(e) => updateInboxDraft({ replyDirection: e.target.value })}
           className="mb-2 bg-muted/60 border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[88px] text-sm"
           rows={1}
         />
+        <p className="mb-2 text-xs text-muted-foreground">This stays private. Use it alone to chat with AI, or with the client message below to guide the reply.</p>
         {(input || replyDirection) && (
           <div className="mb-2 flex justify-end">
             <Button type="button" variant="ghost" size="sm" onClick={() => updateInboxDraft({ input: "", replyDirection: "" })} className="h-7 text-xs text-muted-foreground hover:text-foreground">
@@ -819,7 +865,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             <Image className="h-4 w-4" />
           </Button>
           <Textarea
-            placeholder="Paste their latest message or full conversation. AI will find their last message and write your best next reply."
+            placeholder="Paste the client's latest message or full conversation here..."
             value={input}
             onChange={(e) => updateInboxDraft({ input: e.target.value })}
             onPaste={handlePaste}
@@ -842,7 +888,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           <Button
             type="button"
             onClick={() => void handleSend()}
-            disabled={!input.trim() && pendingImages.length === 0}
+            disabled={(!input.trim() && pendingImages.length === 0 && !replyDirection.trim()) || loading}
             className="gradient-primary text-primary-foreground h-10 w-10 p-0 shrink-0"
           >
             <Send className="h-4 w-4" />
