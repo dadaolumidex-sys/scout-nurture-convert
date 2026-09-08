@@ -463,7 +463,7 @@ serve(async (req) => {
     // tryGeminiWithFallbacks.
     const model = isDeepResearch
       ? "google/gemini-3.1-pro-preview"
-      : "google/gemini-3.6-flash";
+      : "google/gemini-3.7-flash";
 
     const body = {
       model,
