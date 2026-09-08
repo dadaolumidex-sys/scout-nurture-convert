@@ -68,10 +68,10 @@ IMPORTANT: Deep Research mode is ON. Carefully review the available conversation
 // Keep normal requests deliberately small. The entire chat remains saved in
 // the database, but sending all old messages, memories, and playbooks at once
 // can make a provider reject a perfectly valid long paste with HTTP 413.
-const MAX_CONTEXT_MESSAGES = 4;
-const NORMAL_MEMORY_LIMIT = 6;
-const NORMAL_MESSAGE_CHARS = 1_000;
-const NORMAL_KNOWLEDGE_CHARS = 3_500;
+const MAX_CONTEXT_MESSAGES = 14;
+const NORMAL_MEMORY_LIMIT = 30;
+const NORMAL_MESSAGE_CHARS = 2_400;
+const NORMAL_KNOWLEDGE_CHARS = 5_000;
 const NORMAL_OBJECTION_CHARS = 2_500;
 const NORMAL_TRAINING_CHARS = 2_500;
 // Gemini 3.7 can take longer than the older Flash models to begin a thoughtful
@@ -290,11 +290,11 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
 }
 
 async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string, deep: boolean) {
-  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.6-flash";
+  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.7-flash";
   // Main chat is 3.6 (stable). Image understanding also uses 3.6 and deep
   // research uses 3.1 Pro. Fall back through stable Flash models so a
   // model-specific rate limit (429) or access issue never stops a reply.
-  const models = [primary, "gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest"];
+  const models = [primary, "gemini-3.7-flash", "gemini-3.6-flash", "gemini-flash-latest"];
   const tried = new Set<string>();
   let lastErr = "";
   let rateLimited = 0;
@@ -463,7 +463,7 @@ serve(async (req) => {
     // tryGeminiWithFallbacks.
     const model = isDeepResearch
       ? "google/gemini-3.1-pro-preview"
-      : "google/gemini-3.6-flash";
+      : "google/gemini-3.7-flash";
 
     const body = {
       model,

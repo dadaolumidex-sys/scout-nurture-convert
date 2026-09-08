@@ -101,8 +101,8 @@ async function callAI(body: Record<string, unknown>, keys: { groq: ProviderKey[]
   if (envGemini && !geminiKeys.some((candidate) => candidate.key === envGemini)) {
     geminiKeys.push({ id: null, key: envGemini, provider: "gemini" });
   }
-  const requestedModel = (body.model as string) || "google/gemini-3.6-flash";
-  const models = [GEMINI_MODEL_MAP[requestedModel] || "gemini-3.6-flash", ...GEMINI_FALLBACK_MODELS];
+  const requestedModel = (body.model as string) || "google/gemini-3.7-flash";
+  const models = [GEMINI_MODEL_MAP[requestedModel] || "gemini-3.7-flash", ...GEMINI_FALLBACK_MODELS];
   const triedModels = new Set<string>();
   let lastResponse: Response | null = null;
   for (const geminiModel of models) {
@@ -318,7 +318,7 @@ serve(async (req) => {
       + KNOWLEDGE_GUARDRAIL;
 
     const response = await callAI({
-      model: "google/gemini-3.6-flash",
+      model: "google/gemini-3.7-flash",
       messages: [
         { role: "system", content: systemPrompt },
         ...preparedMessages,
