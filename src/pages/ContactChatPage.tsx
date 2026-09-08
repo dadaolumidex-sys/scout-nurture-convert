@@ -729,7 +729,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           {(suggestions.length > 0 || loading) && (
             <div className="py-2">
               <p className="text-xs text-muted-foreground mb-2">
-                {config.emoji} {config.name} suggests ({suggestions.length} options):
+                {config.emoji} Best reply first ({suggestions.length} options):
               </p>
               <SuggestionCards
                 suggestions={suggestions}
@@ -787,11 +787,11 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
 
 
         {/* Input */}
-        <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="reply-direction">Reply instructions (optional)</label>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="reply-direction">What do you want the reply to do? (optional)</label>
         <Textarea
           id="reply-direction"
           aria-label="How you want the AI to reply"
-          placeholder="Example: friendly but confident; keep it short; do not mention price yet."
+          placeholder="Example: make it warm and natural; explain the price clearly; do not pitch yet."
           value={replyDirection}
           onChange={(e) => updateInboxDraft({ replyDirection: e.target.value })}
           className="mb-2 bg-muted/60 border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[88px] text-sm"
@@ -816,7 +816,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             <Image className="h-4 w-4" />
           </Button>
           <Textarea
-            placeholder="Paste their latest message or the full Discord conversation here..."
+            placeholder="Paste their latest message or full conversation. AI will find their last message and write your best next reply."
             value={input}
             onChange={(e) => updateInboxDraft({ input: e.target.value })}
             onPaste={handlePaste}
