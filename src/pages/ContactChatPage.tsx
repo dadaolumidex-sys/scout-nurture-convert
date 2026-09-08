@@ -420,7 +420,9 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           console.warn("Could not save the private website audit", auditError);
         }
       }
-      setSuggestions(nextSuggestions);
+      // Inbox mirrors AI Chat: save one best reply directly in the
+      // conversation so it is ready to copy without another selection step.
+      await handleSelectSuggestion(0, nextSuggestions[0], targetPersona);
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "Failed to generate suggestions");
@@ -428,10 +430,11 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
     setLoading(false);
   };
 
-  const handleSelectSuggestion = async (index: number) => {
+  const handleSelectSuggestion = async (index: number, directSuggestion?: Suggestion, directPersona?: Persona) => {
     setSelectedSuggestion(index);
-    const suggestion = suggestions[index];
-    if (!suggestion || !suggestionsPersona) return;
+    const suggestion = directSuggestion || suggestions[index];
+    const replyPersona = directPersona || suggestionsPersona;
+    if (!suggestion || !replyPersona) return;
 
     // Save selected suggestion as an assistant message marked as selected
     const saved = user
@@ -439,7 +442,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           contact_id: contactId,
           role: "assistant",
           content: suggestion.message,
-          persona: suggestionsPersona,
+          persona: replyPersona,
           selected: true,
           user_id: user.id,
         }).select().single() as any)).data
@@ -448,7 +451,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             contact_id: contactId,
             role: "assistant",
             content: suggestion.message,
-            persona: suggestionsPersona,
+            persona: replyPersona,
             image_url: null,
             selected: true,
           })
@@ -470,7 +473,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           last_message: suggestion.message.slice(0, 100),
         });
       }
-      toast.success("Reply selected! Copy it and send to the streamer.");
+      toast.success("Reply ready — copy it when you are ready to send.");
     }
   };
 
@@ -729,7 +732,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           {(suggestions.length > 0 || loading) && (
             <div className="py-2">
               <p className="text-xs text-muted-foreground mb-2">
-                {config.emoji} Best reply first ({suggestions.length} options):
+                {config.emoji} AI reply:
               </p>
               <SuggestionCards
                 suggestions={suggestions}
@@ -757,7 +760,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
                 ? "border-info/30 text-info hover:bg-info/10"
                 : "border-primary/30 text-primary hover:bg-primary/10"}`}
           >
-            {config.emoji} Get {config.name} Reply
+            {config.emoji} Regenerate reply
           </Button>
           <div className="hidden sm:block flex-1" />
           <select

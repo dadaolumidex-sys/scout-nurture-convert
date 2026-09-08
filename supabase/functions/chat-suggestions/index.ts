@@ -48,7 +48,7 @@ const GEMINI_MODEL_MAP: Record<string, string> = {
 const GEMINI_FALLBACK_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
 // Inbox replies need the same breathing room as normal chat. A 12-second
 // deadline regularly cut off Gemini before it could read a pasted transcript.
-const PROVIDER_TIMEOUT_MS = 45_000;
+const PROVIDER_TIMEOUT_MS = 35_000;
 
 type ProviderKey = { id: string | null; key: string; provider: "groq" | "gemini" | "openai" };
 
@@ -296,13 +296,13 @@ serve(async (req) => {
     // Uploaded playbooks and training examples can be very large. Keep the
     // useful reference material while avoiding a request too large for the AI
     // provider when someone has trained the workspace heavily.
-    const compactStyleContext = styleContext.slice(0, 7_000);
+    const compactStyleContext = styleContext.slice(0, 3_000);
     const systemPrompt = (SYSTEM_PROMPTS[activePersona] || SYSTEM_PROMPTS.friend)
       + INBOX_OPERATOR_RULES
       + modeRules
       + HUMAN_VOICE_RULES
-      + knowledgeContext.slice(0, 10_000)
-      + objectionContext.slice(0, 8_000)
+      + knowledgeContext.slice(0, 5_000)
+      + objectionContext.slice(0, 3_500)
       + compactStyleContext
       + liveUrlContext
       + KNOWLEDGE_GUARDRAIL;
@@ -316,10 +316,10 @@ serve(async (req) => {
           role: "user",
           content: `${contactContext || ""}
 
-Based on the conversation above, generate exactly 3 ready-to-copy replies I can send to this person. Put the BEST, most natural reply first. The other two may offer a genuinely useful alternative tone or angle.
+Based on the conversation above, generate exactly ONE best ready-to-copy reply I can send to this person.
 
-Hard rules for every suggestion:
-- Usually keep each reply to 1-3 short sentences, but use up to 80 words if the client asks a real question that needs a fuller answer.
+Hard rules:
+- Usually keep the reply to 1-3 short sentences, but use up to 80 words if the client asks a real question that needs a fuller answer.
 - Casual, natural Discord/DM writing. No markdown, no bullets, no corporate words, and nothing that sounds scripted or like an AI.
 - Answer the client's latest message and follow the app user's private direction. Do not answer the app user as if they were the client.
 - If there is a real hesitation or objection, use the closest saved playbook naturally. If there is no objection, do not manufacture one.
@@ -327,7 +327,7 @@ Hard rules for every suggestion:
 
 Use the user's training and knowledge when they improve the answer, while relying on your own reasoning for everything else.
 
-Use the suggest_replies tool to return your suggestions.`,
+Use the suggest_replies tool to return the reply.`,
 
         },
       ],
@@ -336,12 +336,14 @@ Use the suggest_replies tool to return your suggestions.`,
           type: "function",
           function: {
             name: "suggest_replies",
-            description: "Return three ready-to-copy client reply suggestions with short internal reasons",
+            description: "Return one best ready-to-copy client reply with a short internal reason",
             parameters: {
               type: "object",
               properties: {
                 suggestions: {
                   type: "array",
+                  minItems: 1,
+                  maxItems: 1,
                   items: {
                     type: "object",
                     properties: {
