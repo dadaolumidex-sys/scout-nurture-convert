@@ -294,7 +294,7 @@ async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string
   // Main chat is 3.6 (stable). Image understanding also uses 3.6 and deep
   // research uses 3.1 Pro. Fall back through stable Flash models so a
   // model-specific rate limit (429) or access issue never stops a reply.
-  const models = [primary, "gemini-3.6-flash", "gemini-3.7-flash", "gemini-flash-latest"];
+  const models = [primary, "gemini-3.7-flash", "gemini-3.6-flash", "gemini-flash-latest"];
   const tried = new Set<string>();
   let lastErr = "";
   let rateLimited = 0;
