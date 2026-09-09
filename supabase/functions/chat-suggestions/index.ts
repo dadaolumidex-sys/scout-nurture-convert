@@ -325,7 +325,7 @@ serve(async (req) => {
       {
         role: "user",
         content: isPrivateChat
-          ? `${contactContext || ""}\n\nPrivate question from the app user:\n${(privateQuestion || "").slice(0, 4_000)}\n\nAnswer the app user directly. This is private context, not a message from the client.`
+          ? `${contactContext || ""}\n\nPrivate question from the app user:\n${(privateQuestion || "").slice(0, 4_000)}\n\nAnswer the app user directly. This is private context, not a message from the client. Use the suggest_replies tool and place your complete private answer in its message field.`
           : `${contactContext || ""}
 
 Based on the conversation above, generate exactly ONE best ready-to-copy reply I can send to this person.
@@ -346,7 +346,6 @@ Use the suggest_replies tool to return the reply.`,
     const response = await callAI({
       model: "google/gemini-3.7-flash",
       messages: requestMessages,
-      ...(isPrivateChat ? {} : {
       tools: [
         {
           type: "function",
@@ -379,7 +378,6 @@ Use the suggest_replies tool to return the reply.`,
         },
       ],
       tool_choice: { type: "function", function: { name: "suggest_replies" } },
-      }),
     }, userKeys);
 
     if (!response.ok) {
@@ -402,7 +400,15 @@ Use the suggest_replies tool to return the reply.`,
 
     const data = await response.json();
     if (isPrivateChat) {
-      const answer = data.choices?.[0]?.message?.content?.trim();
+      const directAnswer = data.choices?.[0]?.message?.content;
+      const toolArguments = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+      let toolAnswer = "";
+      if (typeof toolArguments === "string") {
+        try {
+          toolAnswer = JSON.parse(toolArguments)?.suggestions?.[0]?.message || "";
+        } catch (_) { /* fall back to direct message content */ }
+      }
+      const answer = (typeof directAnswer === "string" ? directAnswer.trim() : "") || toolAnswer.trim();
       if (!answer) {
         return new Response(JSON.stringify({ error: "Failed to generate a private AI answer" }), {
           status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
