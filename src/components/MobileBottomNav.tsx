@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { preloadRoute } from "@/App";
 
 const mainTabs = [
   { label: "Home", icon: LayoutDashboard, path: "/" },
@@ -40,6 +41,7 @@ export function MobileBottomNav() {
         {mainTabs.map((tab) => (
           <button
             key={tab.path}
+            onPointerDown={() => preloadRoute(tab.path)}
             onClick={() => navigate(tab.path)}
             className={cn(
               "relative flex flex-col items-center justify-center gap-1.5 flex-1 h-full text-[13px] font-semibold transition-colors",
@@ -75,6 +77,7 @@ export function MobileBottomNav() {
             {moreTabs.map((tab) => (
               <DropdownMenuItem
                 key={tab.path}
+                onPointerDown={() => preloadRoute(tab.path)}
                 onClick={() => navigate(tab.path)}
                 className={cn("gap-3 py-3.5 text-base", isActive(tab.path) && "text-primary")}
               >
