@@ -179,6 +179,16 @@ async function streamChat({
         }
         try {
           const parsed = JSON.parse(json);
+          if (parsed.error) {
+            window.clearTimeout(timeout);
+            signal?.removeEventListener("abort", abortFromCaller);
+            try {
+              await tryPersonalFallback();
+            } catch {
+              onError(parsed.error, parsed.code);
+            }
+            return;
+          }
           const content = parsed.choices?.[0]?.delta?.content;
           if (content) onDelta(content);
         } catch {
