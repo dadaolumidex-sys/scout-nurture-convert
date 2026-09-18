@@ -478,6 +478,12 @@ serve(async (req) => {
     let response: Response | null = null;
     let lastErr = "";
 
+    // Hard budget for finding a working provider. Without it, several slow or
+    // rate-limited keys in a row could keep the browser waiting past its own
+    // idle timeout, which looked like "loading forever, then failed".
+    const selectionDeadline = Date.now() + (isDeepResearch ? 150_000 : 55_000);
+    const outOfTime = () => Date.now() > selectionDeadline;
+
     const recordKeyResult = async (candidate: ProviderKey, ok: boolean, error = "") => {
       if (!adminClient || !candidate.id) return;
       try {
@@ -499,6 +505,7 @@ serve(async (req) => {
       }
     };
 
+    const pickProvider = async (): Promise<{ response: Response } | { error: string; code: string }> => {
     // 1. Gemini is the normal provider. It produced the reply style the
     // workspace was originally built around, so Groq stays only as backup.
     // The healthiest/least recently
@@ -508,6 +515,7 @@ serve(async (req) => {
       geminiCandidates.push({ id: null, key: ENV_GEMINI_KEY, provider: "gemini" });
     }
     for (const candidate of geminiCandidates) {
+      if (outOfTime()) break;
       const result = await tryGeminiWithFallbacks(body, candidate.key, model, isDeepResearch);
       if (result.ok) {
         response = result.response;
@@ -519,7 +527,7 @@ serve(async (req) => {
     }
 
     // 2. Use Groq only when every available Gemini key is unavailable.
-    for (const candidate of response ? [] : userKeys.groq) {
+    for (const candidate of response || outOfTime() ? [] : userKeys.groq) {
       try {
         const r = await callGroq(body, candidate.key, isDeepResearch);
         if (r.ok) {
@@ -538,7 +546,7 @@ serve(async (req) => {
     }
 
     // 3. Rotate through every active OpenAI key.
-    for (const candidate of response ? [] : userKeys.openai) {
+    for (const candidate of response || outOfTime() ? [] : userKeys.openai) {
       try {
         const r = await callOpenAI(body, candidate.key, isDeepResearch);
         if (r.ok) {
@@ -589,13 +597,57 @@ serve(async (req) => {
         code = "unknown";
         msg = `AI providers failed (${lastErr || "unknown"}). Check your keys in Settings → API Keys.`;
       }
-      return new Response(JSON.stringify({ error: msg, code }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return { error: msg, code };
     }
 
-    return new Response(response.body, {
+      return { response };
+    };
+
+    // Answer the browser immediately and keep the connection alive with SSE
+    // comments while a provider is chosen. A silent wait used to look like an
+    // endless "loading" spinner and then fail with no reply at all.
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      async start(controller) {
+        let closed = false;
+        const safeEnqueue = (chunk: string) => {
+          if (closed) return;
+          try { controller.enqueue(encoder.encode(chunk)); } catch { closed = true; }
+        };
+        safeEnqueue(": connected\n\n");
+        const heartbeat = setInterval(() => safeEnqueue(": keep-alive\n\n"), 8_000);
+        try {
+          const picked = await pickProvider();
+          if ("error" in picked) {
+            safeEnqueue(`data: ${JSON.stringify({ error: picked.error, code: picked.code })}\n\n`);
+            safeEnqueue("data: [DONE]\n\n");
+            return;
+          }
+          const reader = picked.response.body?.getReader();
+          if (!reader) {
+            safeEnqueue(`data: ${JSON.stringify({ error: "The AI service returned no reply. Please try again.", code: "unknown" })}\n\n`);
+            safeEnqueue("data: [DONE]\n\n");
+            return;
+          }
+          const decoder = new TextDecoder();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            safeEnqueue(decoder.decode(value, { stream: true }));
+          }
+        } catch (streamError) {
+          console.error("chat stream error:", streamError);
+          safeEnqueue(`data: ${JSON.stringify({ error: "The AI reply was interrupted. Please tap Retry.", code: "unknown" })}\n\n`);
+          safeEnqueue("data: [DONE]\n\n");
+        } finally {
+          clearInterval(heartbeat);
+          closed = true;
+          try { controller.close(); } catch { /* already closed */ }
+        }
+      },
+    });
+
+    return new Response(stream, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-StreamScout-Chat-Version": CHAT_FUNCTION_VERSION },
     });
   } catch (e) {
