@@ -196,6 +196,25 @@ function compactBodyForGroq(body: Record<string, unknown>): Record<string, unkno
   return { ...body, messages: compactMessages, max_tokens: 1_000 };
 }
 
+// Groq can reject a request based on its total JSON size before the selected
+// model gets a chance to use its much larger token context.  Estimate the
+// text we are about to send and use the compact working copy up front for a
+// very long ongoing chat.  The complete conversation is still saved in the
+// database; this only prevents one old thread from becoming unusable.
+function groqRequestTextSize(body: Record<string, unknown>) {
+  const messages = Array.isArray(body.messages) ? body.messages as any[] : [];
+  return messages.reduce((total, message) => {
+    if (typeof message?.content === "string") return total + message.content.length;
+    if (Array.isArray(message?.content)) {
+      return total + message.content.reduce((partTotal: number, part: any) => {
+        if (part?.type === "text") return partTotal + String(part.text || "").length;
+        return partTotal;
+      }, 0);
+    }
+    return total;
+  }, 0);
+}
+
 // Last-resort recovery for a provider 413 (request too large).  The complete
 // chat remains stored in the database; this only makes a very small working
 // copy for the AI, so one long pasted transcript can never prevent a reply.
@@ -230,6 +249,12 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
   const hasImage = Array.isArray(body.messages) && body.messages.some((message: any) =>
     Array.isArray(message?.content) && message.content.some((part: any) => part?.type === "image_url"),
   );
+  // Preserve a new screenshot for vision analysis, but compact text-only
+  // conversations before the first request when they have become very long.
+  // This avoids a visible Groq 413 error on a continuation while a new chat
+  // appears to work normally.
+  const startCompact = !hasImage && groqRequestTextSize(body) > 9_000;
+  const initialBody = startCompact ? compactBodyForGroq(body) : body;
   // Llama is the clean, fast normal-chat model. Qwen is used only for an
   // actual image because it supports vision but may expose reasoning text.
   const models = hasImage
@@ -241,7 +266,7 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ ...body, model, max_tokens: deep ? 6000 : 1600, temperature: 0.4 }),
+      body: JSON.stringify({ ...initialBody, model, max_tokens: startCompact ? (deep ? 3_000 : 1_000) : (deep ? 6_000 : 1_600), temperature: 0.4 }),
       signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
     });
     if (response.ok) return response;
