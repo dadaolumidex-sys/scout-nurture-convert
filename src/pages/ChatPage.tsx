@@ -41,11 +41,12 @@ const personaConfig = {
 };
 
 async function streamChat({
-  messages, persona, deepResearch, memory, knowledge, signal, onDelta, onDone, onError,
+  messages, persona, deepResearch, memory, knowledge, signal, onDelta, onDone, onError, compactRetry = false,
 }: {
   messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[]; knowledge?: unknown[];
   signal?: AbortSignal;
   onDelta: (text: string) => void; onDone: () => void | Promise<void>; onError: (msg: string, code?: string) => void;
+  compactRetry?: boolean;
 }) {
   // Only the most recent user turn keeps its images. Re-uploading every old
   // screenshot on every turn is what made replies crawl (especially on phones).
@@ -93,6 +94,17 @@ async function streamChat({
     onDelta(reply);
     await onDone();
   };
+  const retrySmallContext = async () => {
+    // Some older deployed functions can return Groq 413 before their server
+    // recovery gets a chance to run. Retry once from the browser with just
+    // the two newest turns and no optional training context.
+    await streamChat({
+      messages: messages.slice(-2), persona, deepResearch,
+      memory: [], knowledge: [], signal, onDelta, onDone, onError,
+      compactRetry: true,
+    });
+  };
+  const isRequestTooLarge = (error: unknown) => /groq\s*413|request too large|payload too large/i.test(String(error || ""));
 
   // The hosted chat function knows about every active Groq, Gemini, and
   // OpenAI key in this workspace and rotates them on each request.  Always
@@ -138,6 +150,10 @@ async function streamChat({
     const err = await resp.json().catch(() => ({ error: "Request failed" }));
     window.clearTimeout(timeout);
     signal?.removeEventListener("abort", abortFromCaller);
+    if (!compactRetry && isRequestTooLarge(err.error)) {
+      await retrySmallContext();
+      return;
+    }
     try {
       await tryPersonalFallback();
     } catch {
@@ -182,6 +198,10 @@ async function streamChat({
           if (parsed.error) {
             window.clearTimeout(timeout);
             signal?.removeEventListener("abort", abortFromCaller);
+            if (!compactRetry && isRequestTooLarge(parsed.error)) {
+              await retrySmallContext();
+              return;
+            }
             try {
               await tryPersonalFallback();
             } catch {
