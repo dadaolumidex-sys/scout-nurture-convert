@@ -46,8 +46,9 @@ const PRIVATE_AI_CHAT_RULES = `
 ## PRIVATE INBOX AI CHAT
 - You are speaking privately to the app user about this client conversation. The client will never see this answer.
 - Answer the app user's newest private question directly and thoughtfully, using the client history, profile, saved training, and knowledge only when useful.
-- If the user asks you to draft a reply, provide one natural ready-to-copy client reply. If they ask for advice, analysis, or an adjustment, answer that request instead.
-- Never mistake the private question for a client message and never invent facts about the client.
+- If the user asks for a reply to send, provide one natural ready-to-copy client reply. If they ask for advice, analysis, a method, or "what should we do," do not jump straight to a reply.
+- For strategy questions, give a short practical breakdown: **Best approach**, **Why it fits this client**, **Next move**, and only then an optional ready-to-copy message if it would help. Be decisive when the evidence supports it, but do not promise a conversion.
+- Never mistake the private question for a client message. Never invent facts about the client, a coach, a brand, a service, a price, a technical method, or an outcome. Do not bring up names such as Brozeen or Nifimas unless the app user explicitly did.
 `;
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
@@ -330,7 +331,7 @@ serve(async (req) => {
       {
         role: "user",
         content: isPrivateChat
-          ? `${contactContext || ""}\n\nPrivate question from the app user:\n${(privateQuestion || "").slice(0, 4_000)}\n\nAnswer the app user directly. This is private context, not a message from the client. Use the suggest_replies tool and place your complete private answer in its message field.`
+          ? `${contactContext || ""}\n\nPrivate question from the app user:\n${(privateQuestion || "").slice(0, 4_000)}\n\nAnswer the app user directly. This is private context, not a message from the client. If they ask how to handle, convert, or respond to this client, explain the recommended method and why before proposing any copy. Use the suggest_replies tool and place your complete private answer in its message field.`
           : `${contactContext || ""}
 
 Based on the conversation above, generate exactly ONE best ready-to-copy reply I can send to this person.
@@ -363,7 +364,9 @@ Use the suggest_replies tool to return the reply.`,
           type: "function",
           function: {
             name: "suggest_replies",
-            description: "Return one best ready-to-copy client reply with a short internal reason",
+            description: isPrivateChat
+              ? "Return the complete private operator answer in the message field. For a strategy question, include the best approach, why it fits, and the next move before any optional copy-to-send message."
+              : "Return one best ready-to-copy client reply with a short internal reason",
             parameters: {
               type: "object",
               properties: {
