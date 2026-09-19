@@ -699,7 +699,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
                     )}
                     {msg.role === "assistant" && msg.selected && (
                       <div className="flex items-center gap-0.5 text-[10px] font-medium text-secondary">
-                        <Check className="h-3 w-3" /> Used
+                        <Check className="h-3 w-3" /> Ready to copy
                       </div>
                     )}
                   </div>
@@ -835,17 +835,17 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
 
 
         {/* Input */}
-        <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="reply-direction">Ask the AI privately about this client (optional)</label>
+        <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="reply-direction">Ask the AI privately — never sent to the client (optional)</label>
         <Textarea
           id="reply-direction"
           aria-label="How you want the AI to reply"
-          placeholder="Example: why might they have said this? Make the reply warmer, but do not mention price."
+          placeholder="Example: Why might they have said this? Make the next reply warmer, but do not mention price."
           value={replyDirection}
           onChange={(e) => updateInboxDraft({ replyDirection: e.target.value })}
           className="mb-2 bg-muted/60 border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[88px] text-sm"
           rows={1}
         />
-        <p className="mb-2 text-xs text-muted-foreground">This stays private. Use it alone to chat with AI, or with the client message below to guide the reply.</p>
+        <p className="mb-2 text-xs text-muted-foreground">Use this alone to ask the AI a question, or together with the client message below to guide the reply.</p>
         {(input || replyDirection) && (
           <div className="mb-2 flex justify-end">
             <Button type="button" variant="ghost" size="sm" onClick={() => updateInboxDraft({ input: "", replyDirection: "" })} className="h-7 text-xs text-muted-foreground hover:text-foreground">
@@ -853,6 +853,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             </Button>
           </div>
         )}
+        <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="client-message">Client's message or full conversation</label>
         <div className="flex gap-2 items-end">
           <input type="file" ref={fileInputRef} accept="image/*" multiple className="hidden" onChange={handleImageUpload} />
           <Button
@@ -865,6 +866,8 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             <Image className="h-4 w-4" />
           </Button>
           <Textarea
+            id="client-message"
+            aria-label="Client message or full conversation"
             placeholder="Paste the client's latest message or full conversation here..."
             value={input}
             onChange={(e) => updateInboxDraft({ input: e.target.value })}
@@ -890,6 +893,8 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             onClick={() => void handleSend()}
             disabled={(!input.trim() && pendingImages.length === 0 && !replyDirection.trim()) || loading}
             className="gradient-primary text-primary-foreground h-10 w-10 p-0 shrink-0"
+            aria-label="Generate a reply — this does not send anything to the client"
+            title="Generate a reply — this does not send anything to the client"
           >
             <Send className="h-4 w-4" />
           </Button>
