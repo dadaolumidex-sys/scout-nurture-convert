@@ -304,6 +304,8 @@ serve(async (req) => {
     }
 
     const latestUserText = [...(Array.isArray(messages) ? messages : [])].reverse().find((message) => message.role === "user")?.content || "";
+    const latestClientMessage = latestUserText.slice(-2_400);
+    const isSimpleGreeting = /^(hi|hello|hey|heya|yo|sup|what'?s up)[!?.\s]*$/i.test(latestUserText.trim());
     const liveUrlContext = await buildLiveUrlContext(latestUserText, apifyKeys);
     // Uploaded playbooks and training examples can be very large. Keep the
     // useful reference material while avoiding a request too large for the AI
@@ -329,6 +331,13 @@ serve(async (req) => {
           : `${contactContext || ""}
 
 Based on the conversation above, generate exactly ONE best ready-to-copy reply I can send to this person.
+
+CRITICAL ANCHOR: The exact newest real message from the CLIENT is:
+---
+${latestClientMessage || "[No client message was supplied]"}
+---
+Your reply must directly and naturally answer that exact message. Older conversation, private context, training, and sales notes are background only; they must never pull the reply onto a different topic.
+${isSimpleGreeting ? "This is only a greeting. Return a short, natural greeting back. Do not mention streaming, growth, social media, services, or any earlier topic unless the client raises it." : ""}
 
 Hard rules:
 - Usually keep the reply to 1-3 short sentences, but use up to 80 words if the client asks a real question that needs a fuller answer.
