@@ -39,9 +39,9 @@ type ConversationType = "new_prospect" | "existing_chat" | "re_engage";
 type InboxFilter = "all" | InboxState;
 
 const conversationTypes: Record<ConversationType, { label: string; description: string; icon: React.ReactNode }> = {
-  new_prospect: { label: "New Prospect", description: "Cold outreach — start fresh", icon: <UserPlus className="h-6 w-6" /> },
-  existing_chat: { label: "Existing Chat", description: "Upload DMs to continue", icon: <Upload className="h-6 w-6" /> },
-  re_engage: { label: "Re-engage", description: "They saw but didn't reply", icon: <Ghost className="h-6 w-6" /> },
+  new_prospect: { label: "New Prospect", description: "First reply or start fresh", icon: <UserPlus className="h-6 w-6" /> },
+  existing_chat: { label: "Existing Chat", description: "Already chatting — paste history", icon: <Upload className="h-6 w-6" /> },
+  re_engage: { label: "Re-engage", description: "They went quiet after chatting", icon: <Ghost className="h-6 w-6" /> },
 };
 
 const InboxPage = () => {
@@ -301,7 +301,7 @@ const InboxPage = () => {
                         </Label>
                         <p className="text-[11px] text-muted-foreground mt-0.5 mb-1.5">
                           {selectedType === "new_prospect"
-                            ? "Paste what they replied after your welcome message — the AI writes the next message for you. Leave empty to start cold."
+                            ? "Paste only their newest reply after your welcome message. If you have messages from both of you, go back and choose Existing Chat. Leave empty to start cold."
                             : "Paste the Discord/DM conversation so the AI knows exactly where you left off."}
                         </p>
                         <Textarea
