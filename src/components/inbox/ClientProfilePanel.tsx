@@ -10,6 +10,7 @@ export type ClientProfile = {
   signals?: string;
   notes?: string;
   nextStep?: string;
+  outcome?: string;
 };
 
 export const EMPTY_CLIENT_PROFILE: ClientProfile = {
@@ -18,6 +19,7 @@ export const EMPTY_CLIENT_PROFILE: ClientProfile = {
   signals: "",
   notes: "",
   nextStep: "",
+  outcome: "tracking",
 };
 
 export function normalizeClientProfile(value: unknown): ClientProfile {
@@ -29,6 +31,7 @@ export function normalizeClientProfile(value: unknown): ClientProfile {
     signals: typeof source.signals === "string" ? source.signals : "",
     notes: typeof source.notes === "string" ? source.notes : "",
     nextStep: typeof source.nextStep === "string" ? source.nextStep : "",
+    outcome: typeof source.outcome === "string" ? source.outcome : "tracking",
   };
 }
 

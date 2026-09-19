@@ -39,6 +39,7 @@ export type GuestContactRecord = TimestampedRecord & {
     signals?: string;
     notes?: string;
     nextStep?: string;
+    outcome?: string;
   } | null;
 };
 

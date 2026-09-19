@@ -61,6 +61,16 @@ const personaConfig = {
   streamer: { name: "Expert Proof", emoji: "🎤", label: "Expert Proof", badgeClass: "border-info/50 bg-info/10 text-info" },
 };
 
+const OUTCOME_OPTIONS = [
+  { value: "tracking", label: "Tracking" },
+  { value: "sent", label: "Sent" },
+  { value: "replied", label: "Replied" },
+  { value: "interested", label: "Interested" },
+  { value: "booked", label: "Booked" },
+  { value: "won", label: "Won / paid" },
+  { value: "lost", label: "Not interested" },
+] as const;
+
 const ContactChatPage = () => {
   const { contactId } = useParams<{ contactId: string }>();
   const { user } = useAuth();
@@ -187,6 +197,10 @@ const ContactChatPage = () => {
     setClientProfile(cleaned);
     setContact((current) => current ? { ...current, client_profile: cleaned } : current);
     toast.success("Client profile saved — AI will use it for future replies.");
+  };
+
+  const saveOutcome = async (outcome: string) => {
+    await saveClientProfile({ ...clientProfile, outcome });
   };
 
   const scheduleFollowUp = async (hours: number) => {
@@ -620,6 +634,37 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           onSave={saveClientProfile}
           onFollowUp={scheduleFollowUp}
         />
+
+        <section className="mb-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5" aria-label="Client summary and outcome tracker">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold text-foreground">✨ Client summary</p>
+            <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              Outcome
+              <select
+                value={clientProfile.outcome || "tracking"}
+                onChange={(event) => void saveOutcome(event.target.value)}
+                className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+                aria-label="Client outcome"
+              >
+                {OUTCOME_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="grid gap-2 text-xs sm:grid-cols-3">
+            <div className="rounded-md bg-background/60 p-2">
+              <p className="text-[10px] text-muted-foreground">Latest client message</p>
+              <p className="mt-0.5 line-clamp-2 text-foreground">{[...messages].reverse().find((message) => message.role === "user" && !message.source?.startsWith("ai_chat_export:") && message.source !== "inbox_ai_private")?.content || "No client message yet"}</p>
+            </div>
+            <div className="rounded-md bg-background/60 p-2">
+              <p className="text-[10px] text-muted-foreground">Concern or signal</p>
+              <p className="mt-0.5 line-clamp-2 text-foreground">{clientProfile.signals?.trim() || "Not recorded yet"}</p>
+            </div>
+            <div className="rounded-md bg-background/60 p-2">
+              <p className="text-[10px] text-muted-foreground">Recommended next move</p>
+              <p className="mt-0.5 line-clamp-2 text-foreground">{clientProfile.nextStep?.trim() || (getInboxState(contact.inbox_state, contact.status) === "needs_reply" ? "Reply to their latest message." : "Review the conversation and set the next step.")}</p>
+            </div>
+          </div>
+        </section>
 
         {suggestedPersona && (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
