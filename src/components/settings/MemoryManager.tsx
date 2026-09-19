@@ -9,9 +9,10 @@ import { toast } from "sonner";
 import { useMemory } from "@/hooks/useMemory";
 
 export function MemoryManager() {
-  const { memories, loading, enabled, setEnabled, addMemory, removeMemory, clearAll } = useMemory();
+  const { memories, loading, enabled, setEnabled, addMemory, removeMemory, clearAll, cleanupTemporaryAutoMemories } = useMemory();
   const [newFact, setNewFact] = useState("");
   const [adding, setAdding] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
 
   const handleAdd = async () => {
     if (!newFact.trim()) return;
@@ -26,6 +27,13 @@ export function MemoryManager() {
     if (memories.length === 0) return;
     await clearAll();
     toast.success("Memory cleared");
+  };
+
+  const handleCleanup = async () => {
+    setCleaning(true);
+    const removed = await cleanupTemporaryAutoMemories();
+    setCleaning(false);
+    toast.success(removed ? `Cleaned ${removed} automatic memor${removed === 1 ? "y" : "ies"}` : "Automatic memories are already clean");
   };
 
   return (
@@ -43,7 +51,7 @@ export function MemoryManager() {
         <CardContent className="p-4 flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium text-foreground">Remember across chats</p>
-            <p className="text-xs text-muted-foreground">When on, the assistant learns and recalls facts automatically.</p>
+            <p className="text-xs text-muted-foreground">When on, the assistant keeps durable facts about you. Temporary prospect and follow-up details stay in Inbox instead.</p>
           </div>
           <Switch checked={enabled} onCheckedChange={(v) => { setEnabled(v); toast.success(v ? "Memory turned on" : "Memory turned off"); }} />
         </CardContent>
@@ -69,14 +77,20 @@ export function MemoryManager() {
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium text-foreground">Saved memories ({memories.length})</p>
         {memories.length > 0 && (
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" onClick={handleCleanup} disabled={cleaning} className="text-muted-foreground hover:text-foreground gap-1.5">
+              {cleaning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Clean automatic memories
+            </Button>
           <Button variant="ghost" size="sm" onClick={handleClear} className="text-destructive hover:text-destructive/80 gap-1.5">
             <Trash2 className="h-4 w-4" /> Clear all
           </Button>
+          </div>
         )}
       </div>
+      <p className="text-xs text-muted-foreground">Automatic memory keeps up to 50 durable facts. Things you add yourself are kept separately.</p>
 
       {loading ? (
         <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>

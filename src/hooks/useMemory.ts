@@ -13,6 +13,7 @@ export type MemoryItem = {
 const GUEST_MEMORY_KEY = "streamscout_guest_memory";
 const MEMORY_ENABLED_KEY = "streamscout_memory_enabled";
 const MAX_MEMORIES = 100;
+const MAX_AUTO_MEMORIES = 50;
 
 function nowIso() {
   return new Date().toISOString();
@@ -47,6 +48,16 @@ export function setMemoryEnabled(enabled: boolean) {
 /** Normalize text so we can dedupe near-identical facts. */
 function normalize(text: string) {
   return text.trim().toLowerCase().replace(/\s+/g, " ").replace(/[.!,;]+$/g, "");
+}
+
+// Automatic memory is for durable facts about the app user. Prospect updates,
+// planned DMs, and time-sensitive notes belong in Inbox history instead.
+function isTemporaryAutoMemory(content: string) {
+  const value = normalize(content);
+  return /\b(today|tomorrow|tonight|this morning|this afternoon|this evening|next week|right now)\b/.test(value)
+    || /\b(prospect|client)\s+[^.]+\b(mentioned|said|replied|asked|plans?)\b/.test(value)
+    || /\b(user plans to (send|message|reach out|follow up|have .+ drop in))\b/.test(value)
+    || /\b(discord|twitch|kick)\b[^.]{0,100}\b(mentioned|said|replied|asked)\b/.test(value);
 }
 
 export function useMemory() {
@@ -109,6 +120,7 @@ export function useMemory() {
       for (const c of contents) {
         const clean = c.trim();
         if (!clean) continue;
+        if (source === "auto" && isTemporaryAutoMemory(clean)) continue;
         const key = normalize(clean);
         if (seen.has(key)) continue;
         seen.add(key);
@@ -117,15 +129,31 @@ export function useMemory() {
       if (fresh.length === 0) return;
 
       if (user) {
+        let removedIds: string[] = [];
+        if (source === "auto") {
+          const { data: automaticRows } = await supabase
+            .from("user_memory")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("source", "auto")
+            .order("created_at", { ascending: true });
+          const toRemove = (automaticRows || []).slice(0, Math.max(0, (automaticRows || []).length + fresh.length - MAX_AUTO_MEMORIES));
+          removedIds = toRemove.map((memory: { id: string }) => memory.id);
+          if (removedIds.length) await supabase.from("user_memory").delete().in("id", removedIds);
+        }
         const { data, error } = await supabase
           .from("user_memory")
           .insert(fresh.map((content) => ({ user_id: user.id, content, source })))
           .select("id, content, source, created_at");
-        if (!error && data) setMemories((prev) => [...(data as MemoryItem[]), ...prev]);
+        if (!error && data) setMemories((prev) => [...(data as MemoryItem[]), ...prev.filter((memory) => !removedIds.includes(memory.id))].slice(0, MAX_MEMORIES));
       } else {
         const items: MemoryItem[] = fresh.map((content) => ({ id: createId(), content, source, created_at: nowIso() }));
         setMemories((prev) => {
-          const next = [...items, ...prev];
+          const allItems = [...items, ...prev];
+          const keptAutoIds = new Set(allItems.filter((memory) => memory.source === "auto").slice(0, MAX_AUTO_MEMORIES).map((memory) => memory.id));
+          const next = source === "auto"
+            ? allItems.filter((memory) => memory.source !== "auto" || keptAutoIds.has(memory.id))
+            : allItems;
           writeGuest(next);
           return next;
         });
@@ -133,6 +161,19 @@ export function useMemory() {
     },
     [user, memories]
   );
+
+  const cleanupTemporaryAutoMemories = useCallback(async () => {
+    const automatic = memories.filter((memory) => memory.source === "auto");
+    const temporary = automatic.filter((memory) => isTemporaryAutoMemory(memory.content));
+    const durableAutomatic = automatic.filter((memory) => !isTemporaryAutoMemory(memory.content));
+    const tooOld = durableAutomatic.slice(MAX_AUTO_MEMORIES);
+    const ids = [...temporary, ...tooOld].map((memory) => memory.id);
+    if (!ids.length) return 0;
+    if (user) await supabase.from("user_memory").delete().in("id", ids);
+    setMemories((prev) => prev.filter((memory) => !ids.includes(memory.id)));
+    if (!user) writeGuest(memories.filter((memory) => !ids.includes(memory.id)));
+    return ids.length;
+  }, [user, memories]);
 
   const removeMemory = useCallback(
     async (id: string) => {
@@ -161,7 +202,7 @@ export function useMemory() {
     setEnabledState(value);
   }, []);
 
-  return { memories, loading, enabled, setEnabled, addMemory, addMany, removeMemory, clearAll, reload: load };
+  return { memories, loading, enabled, setEnabled, addMemory, addMany, removeMemory, clearAll, cleanupTemporaryAutoMemories, reload: load };
 }
 
 /** Read current memory facts synchronously for sending with a chat request. */

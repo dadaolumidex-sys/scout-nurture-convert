@@ -9,12 +9,15 @@ const GEMINI_FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.6-flash", "gemini-
 
 const EXTRACT_PROMPT = `You maintain a long-term memory about a specific user based on their chat with an AI assistant.
 
-From the conversation below, extract ONLY durable, useful facts worth remembering for future chats — such as the user's name, goals, projects they are building, preferences, business/niche, tools they use, ongoing tasks, and important personal context.
+From the conversation below, extract ONLY durable, useful facts about the USER worth remembering for future chats — such as the user's name, long-term goals, projects they are building, stable preferences, business/niche, tools they use, and lasting personal context.
 
 Rules:
 - Return a JSON array of short first-person-neutral fact strings, e.g. ["User is building a social media growth app", "Prefers concise answers"].
 - Each fact must be self-contained and understandable without the conversation.
 - Do NOT include one-off questions, small talk, or things that won't matter later.
+- Do NOT save details about a prospect, client, streamer, Discord exchange, a single outreach conversation, a planned message, or a one-time follow-up. Those belong in the Inbox client history, not the user's cross-chat memory.
+- Do NOT save temporary status, dates, or time-based details such as today, tomorrow, this afternoon, an event, a single stream, or a current mood.
+- Save a user's plan only when it is an ongoing project or durable goal, not a one-time action.
 - Do NOT repeat facts already in KNOWN MEMORY.
 - If nothing new is worth saving, return [].
 - Return ONLY the raw JSON array, no markdown, no explanation.`;
