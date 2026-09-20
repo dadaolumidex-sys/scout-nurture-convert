@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { Send, Image, Pencil, Trash2, Check, X, Copy, MoreVertical, Rocket } from "lucide-react";
+import { Send, Image, Pencil, Trash2, Check, X, Copy, MoreVertical, Rocket, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -635,9 +635,14 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           onFollowUp={scheduleFollowUp}
         />
 
-        <section className="mb-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5" aria-label="Client summary and outcome tracker">
+        <details className="group mb-3 rounded-lg border border-border bg-muted/30 px-3 py-2.5" aria-label="Client summary and outcome tracker">
+          <summary className="flex min-h-7 cursor-pointer list-none items-center justify-between gap-2 text-xs font-semibold text-foreground">
+            <span>✨ Client summary</span>
+            <span className="flex items-center gap-1 text-[11px] font-normal text-muted-foreground">Tap to view <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" /></span>
+          </summary>
+          <div className="mt-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-foreground">✨ Client summary</p>
+            <p className="text-[11px] text-muted-foreground">Private overview for this client</p>
             <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               Outcome
               <select
@@ -664,7 +669,8 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
               <p className="mt-0.5 line-clamp-2 text-foreground">{clientProfile.nextStep?.trim() || (getInboxState(contact.inbox_state, contact.status) === "needs_reply" ? "Reply to their latest message." : "Review the conversation and set the next step.")}</p>
             </div>
           </div>
-        </section>
+          </div>
+        </details>
 
         {suggestedPersona && (
           <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
