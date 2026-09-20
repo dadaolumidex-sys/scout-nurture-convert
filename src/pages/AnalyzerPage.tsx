@@ -155,17 +155,17 @@ const AnalyzerPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="max-w-4xl mx-auto space-y-6 animate-slide-in">
+      <div className="max-w-4xl mx-auto space-y-4 sm:space-y-6 animate-slide-in">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Streamer Analyzer</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Streamer Analyzer</h1>
+          <p className="text-sm text-muted-foreground mt-1">
             Paste a Twitch or Kick channel link to get a real-time AI-powered analysis
           </p>
         </div>
 
         <Card className="bg-card border-border">
-          <CardContent className="p-5">
-            <div className="flex gap-3">
+          <CardContent className="p-3 sm:p-5">
+            <div className="flex flex-col gap-2 sm:flex-row sm:gap-3">
               <Input
                 placeholder="https://twitch.tv/username or https://kick.com/username"
                 value={url}
@@ -176,7 +176,7 @@ const AnalyzerPage = () => {
               <Button
                 onClick={handleAnalyze}
                 disabled={loading}
-                className="gradient-primary text-primary-foreground font-semibold hover:opacity-90 min-w-[120px]"
+                className="gradient-primary text-primary-foreground font-semibold hover:opacity-90 w-full sm:min-w-[120px] sm:w-auto"
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

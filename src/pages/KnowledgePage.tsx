@@ -10,16 +10,16 @@ const KnowledgePage = () => {
 
   return (
     <DashboardLayout>
-      <div className="max-w-5xl mx-auto space-y-6 animate-slide-in">
+      <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-slide-in">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Knowledge & Training</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-foreground">Knowledge & Training</h1>
           <p className="text-muted-foreground text-sm">
             Upload content to make your AI smarter and train it on your conversation style
           </p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-muted border border-border flex-wrap h-auto">
+          <TabsList className="grid h-auto w-full grid-cols-1 gap-1 bg-muted border border-border min-[420px]:grid-cols-3">
             <TabsTrigger value="knowledge" className="data-[state=active]:bg-primary/10 data-[state=active]:text-primary">
               📚 Knowledge Base
             </TabsTrigger>

@@ -144,17 +144,17 @@ const AnalyticsPage = () => {
 
   return (
     <DashboardLayout>
-      <div className="max-w-6xl mx-auto space-y-6 animate-slide-in">
-        <div className="flex items-center justify-between">
+      <div className="max-w-6xl mx-auto space-y-4 sm:space-y-6 animate-slide-in">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">Analytics</h1>
             <p className="text-muted-foreground text-sm">
               Track performance for Streamer Promotion Services
             </p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gradient-primary text-primary-foreground">
+              <Button className="w-full gradient-primary text-primary-foreground sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" /> Log Event
               </Button>
             </DialogTrigger>
@@ -201,10 +201,10 @@ const AnalyticsPage = () => {
         </div>
 
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
           <Card className="bg-card border-border">
-            <CardContent className="p-4 flex items-center gap-3">
-              <Users className="h-8 w-8 text-primary" />
+            <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <Users className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.funnel[0].count}</p>
                 <p className="text-xs text-muted-foreground">Scouted</p>
@@ -212,8 +212,8 @@ const AnalyticsPage = () => {
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
-            <CardContent className="p-4 flex items-center gap-3">
-              <Zap className="h-8 w-8 text-info" />
+            <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <Zap className="h-6 w-6 sm:h-8 sm:w-8 text-info" />
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.funnel[1].count}</p>
                 <p className="text-xs text-muted-foreground">Contacted</p>
@@ -221,8 +221,8 @@ const AnalyticsPage = () => {
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
-            <CardContent className="p-4 flex items-center gap-3">
-              <TrendingUp className="h-8 w-8 text-secondary" />
+            <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-secondary" />
               <div>
                 <p className="text-2xl font-bold text-foreground">{stats.conversionRate}%</p>
                 <p className="text-xs text-muted-foreground">Conversion</p>
@@ -230,8 +230,8 @@ const AnalyticsPage = () => {
             </CardContent>
           </Card>
           <Card className="bg-card border-border">
-            <CardContent className="p-4 flex items-center gap-3">
-              <DollarSign className="h-8 w-8 text-success" />
+            <CardContent className="p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
+              <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-success" />
               <div>
                 <p className="text-2xl font-bold text-foreground">${stats.totalRevenue.toFixed(0)}</p>
                 <p className="text-xs text-muted-foreground">Revenue</p>

@@ -241,13 +241,13 @@ export function KnowledgeBase() {
         </CardContent>
       </Card>
 
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button
               variant="outline"
-              className="border-border text-foreground"
+              className="w-full border-border text-foreground sm:w-auto"
               onClick={() => { setDialogMode("text"); setDialogOpen(true); }}
             >
               <FileText className="h-4 w-4 mr-2" /> Add Text
@@ -255,12 +255,12 @@ export function KnowledgeBase() {
           </DialogTrigger>
           <Button
             variant="outline"
-            className="border-border text-foreground"
+            className="w-full border-border text-foreground sm:w-auto"
             onClick={() => { setDialogMode("url"); setDialogOpen(true); }}
           >
             <Link2 className="h-4 w-4 mr-2" /> Add URL
           </Button>
-          <Button variant="outline" className="border-border text-foreground" onClick={() => { setDialogMode("file"); setDialogOpen(true); }}>
+          <Button variant="outline" className="w-full border-border text-foreground sm:w-auto" onClick={() => { setDialogMode("file"); setDialogOpen(true); }}>
             <FileUp className="h-4 w-4 mr-2" /> Upload File
           </Button>
           <DialogContent className="bg-card border-border">

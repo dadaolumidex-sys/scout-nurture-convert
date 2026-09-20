@@ -181,7 +181,7 @@ export function TrainingMemory() {
             Upload past conversations, PDFs, or screenshots. The AI will extract your style fingerprint and match it in every reply.
           </p>
           <Tabs value={sourceMode} onValueChange={(value) => setSourceMode(value as typeof sourceMode)}>
-            <TabsList className="bg-muted border border-border flex-wrap h-auto">
+            <TabsList className="grid h-auto w-full grid-cols-1 gap-1 bg-muted border border-border min-[420px]:grid-cols-3">
               <TabsTrigger value="text"><Type className="h-3.5 w-3.5 mr-1" /> Paste Text</TabsTrigger>
               <TabsTrigger value="file"><FileUp className="h-3.5 w-3.5 mr-1" /> Upload File</TabsTrigger>
               <TabsTrigger value="url"><Link2 className="h-3.5 w-3.5 mr-1" /> From Link</TabsTrigger>
@@ -231,7 +231,7 @@ export function TrainingMemory() {
 
       {/* Persona tabs */}
       <Tabs value={personaTab} onValueChange={setPersonaTab}>
-         <TabsList className="bg-muted border border-border flex-wrap h-auto">
+         <TabsList className="grid h-auto w-full grid-cols-1 gap-1 bg-muted border border-border min-[420px]:grid-cols-3">
           <TabsTrigger value="nifimas" className="data-[state=active]:bg-secondary/10 data-[state=active]:text-secondary">
             🤝 Friendship
           </TabsTrigger>

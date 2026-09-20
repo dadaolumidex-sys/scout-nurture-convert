@@ -45,7 +45,7 @@ export function ChatHistoryPanel({ conversations, activeId, onSelect, onNew, onD
       isMobile ? "w-full flex-1 min-h-0" : "w-64 shrink-0 border-r border-border bg-card"
     )}>
       <div className={cn("border-b border-border", isMobile ? "pb-2" : "p-2")}>
-        <Button onClick={onNew} className="w-full gap-1.5 h-9 gradient-primary text-primary-foreground font-medium">
+        <Button onClick={onNew} className="w-full gap-1.5 h-10 gradient-primary text-primary-foreground font-medium">
           <Plus className="h-4 w-4" /> New Chat
         </Button>
       </div>
@@ -91,10 +91,10 @@ export function ChatHistoryPanel({ conversations, activeId, onSelect, onNew, onD
                     "flex items-center gap-0.5 transition-opacity",
                     isMobile ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"
                   )}>
-                    <button onClick={(e) => startRename(c, e)} aria-label={`Rename "${c.title}"`} className="text-muted-foreground hover:text-foreground p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
+                    <button onClick={(e) => startRename(c, e)} aria-label={`Rename "${c.title}"`} className="flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
                       <Pencil className="h-3 w-3" />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} aria-label={`Delete "${c.title}"`} className="text-muted-foreground hover:text-destructive p-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(c.id); }} aria-label={`Delete "${c.title}"`} className="flex h-8 w-8 items-center justify-center text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded">
                       <Trash2 className="h-3 w-3" />
                     </button>
                   </div>

@@ -266,7 +266,7 @@ export function ObjectionHandling() {
           </div>
 
           <Tabs value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
-            <TabsList className="bg-muted border border-border flex-wrap h-auto">
+            <TabsList className="grid h-auto w-full grid-cols-2 gap-1 bg-muted border border-border sm:grid-cols-4">
               <TabsTrigger value="text"><Type className="h-3.5 w-3.5 mr-1" /> Paste Text</TabsTrigger>
               <TabsTrigger value="file"><FileUp className="h-3.5 w-3.5 mr-1" /> Upload File</TabsTrigger>
               <TabsTrigger value="url"><Link2 className="h-3.5 w-3.5 mr-1" /> From Link</TabsTrigger>

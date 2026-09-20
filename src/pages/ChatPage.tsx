@@ -846,10 +846,10 @@ const ChatPage = () => {
     }
 
     return (
-      <div className="fixed inset-0 z-40 flex flex-col bg-background">
+      <div className="fixed inset-0 z-[60] flex flex-col bg-background">
         {/* Header */}
         <div className="flex items-center gap-2 px-2 py-2 border-b border-border shrink-0 bg-background/95 backdrop-blur">
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleBackToList}>
+          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleBackToList}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex-1 min-w-0">
@@ -858,13 +858,13 @@ const ChatPage = () => {
             </h1>
             <ModelBadge deepResearch={deepResearch} />
           </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={openExportDialog} aria-label="Send to Inbox" disabled={!activeConvo || messages.length === 0}>
+          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={openExportDialog} aria-label="Send to Inbox" disabled={!activeConvo || messages.length === 0}>
             <Inbox className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={handleNewChat}>
+          <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0" onClick={handleNewChat}>
             <Plus className="h-4 w-4" />
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setPersona(persona === "friend" ? "promoter" : "friend")} className={`${config.badgeClass} hover:opacity-80 h-7 px-2 text-xs border`}>
+          <Button variant="outline" size="sm" onClick={() => setPersona(persona === "friend" ? "promoter" : "friend")} className={`${config.badgeClass} hover:opacity-80 h-8 max-w-[8.5rem] truncate px-2 text-xs border`}>
             {config.emoji} {config.name}
           </Button>
         </div>
