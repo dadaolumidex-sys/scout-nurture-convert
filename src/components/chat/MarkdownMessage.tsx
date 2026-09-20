@@ -21,22 +21,22 @@ function MarkdownMessageBase({ content, className }: MarkdownMessageProps) {
   return (
     <div
       className={cn(
-        "ai-readable-message max-w-none break-words text-base font-medium leading-7 text-foreground [overflow-wrap:anywhere]",
+        "ai-readable-message max-w-none break-words text-[15px] font-medium leading-6 text-foreground [overflow-wrap:anywhere] sm:text-base sm:leading-7",
         className
       )}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }) => <h1 className="mb-3 mt-4 text-xl font-bold leading-snug text-foreground first:mt-0">{children}</h1>,
-          h2: ({ children }) => <h2 className="mb-2.5 mt-4 text-lg font-bold leading-snug text-foreground first:mt-0">{children}</h2>,
-          h3: ({ children }) => <h3 className="mb-2 mt-3.5 text-base font-bold leading-snug text-foreground first:mt-0">{children}</h3>,
-          p: ({ children }) => <p className="my-2 text-base font-medium leading-7 text-foreground first:mt-0 last:mb-0">{children}</p>,
+          h1: ({ children }) => <h1 className="mb-3 mt-4 text-lg font-bold leading-snug text-foreground first:mt-0 sm:text-xl">{children}</h1>,
+          h2: ({ children }) => <h2 className="mb-2.5 mt-4 text-base font-bold leading-snug text-foreground first:mt-0 sm:text-lg">{children}</h2>,
+          h3: ({ children }) => <h3 className="mb-2 mt-3.5 text-[15px] font-bold leading-snug text-foreground first:mt-0 sm:text-base">{children}</h3>,
+          p: ({ children }) => <p className="my-2 text-[15px] font-medium leading-6 text-foreground first:mt-0 last:mb-0 sm:text-base sm:leading-7">{children}</p>,
           strong: ({ children }) => <strong className="font-bold text-foreground">{children}</strong>,
           em: ({ children }) => <em className="text-foreground">{children}</em>,
           ul: ({ children }) => <ul className="my-3 list-disc space-y-1.5 pl-6 text-foreground marker:text-secondary">{children}</ul>,
           ol: ({ children }) => <ol className="my-3 list-decimal space-y-1.5 pl-6 text-foreground marker:text-secondary marker:font-semibold">{children}</ol>,
-          li: ({ children }) => <li className="pl-1 text-base font-medium leading-7 text-foreground">{children}</li>,
+          li: ({ children }) => <li className="pl-1 text-[15px] font-medium leading-6 text-foreground sm:text-base sm:leading-7">{children}</li>,
           a: ({ href, children }) => (
             <a href={href} target="_blank" rel="noreferrer" className="font-bold text-secondary underline underline-offset-4">
               {children}

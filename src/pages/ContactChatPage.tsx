@@ -693,7 +693,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
 
 
         {/* Messages */}
-        <div className="flex-1 min-h-[12rem] max-h-[38dvh] md:min-h-0 md:max-h-none overflow-auto space-y-3 mb-4 pr-1">
+        <div className="flex-1 min-h-[10rem] max-h-none overflow-visible space-y-3 mb-4 md:min-h-0 md:overflow-auto md:pr-1">
           {displayMessages.length === 0 && (
             <div className="flex items-center justify-center h-full">
               <div className="text-center text-muted-foreground space-y-2">
@@ -735,7 +735,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             }
             return (
             <div key={msg.id} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`group relative max-w-[calc(100%-1rem)] sm:max-w-[82%] rounded-xl px-4 py-3 text-base font-medium leading-7 text-foreground shadow-sm ${
+              <div className={`group relative max-w-[calc(100%-1rem)] sm:max-w-[82%] rounded-xl px-3 py-2.5 text-[15px] font-medium leading-6 text-foreground shadow-sm sm:px-4 sm:py-3 sm:text-base sm:leading-7 ${
                 msg.role === "user"
                   ? "bg-card border border-border"
                   : "bg-card border border-border"
@@ -786,7 +786,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
                     {msg.role === "assistant" ? (
                       <MarkdownMessage content={msg.content} />
                     ) : (
-                      <p className="whitespace-pre-wrap text-base font-medium leading-7 text-foreground">{msg.content}</p>
+                      <p className="whitespace-pre-wrap text-[15px] font-medium leading-6 text-foreground sm:text-base sm:leading-7">{msg.content}</p>
                     )}
                   </>
                 )}
