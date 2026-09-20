@@ -223,25 +223,27 @@ const InboxPage = () => {
                 New Chat
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-border max-w-md mx-auto">
+            <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto bg-card border-border max-w-md mx-auto">
               {dialogStep === "type" ? (
                 <>
                   <DialogHeader>
                     <DialogTitle className="text-foreground">New Chat</DialogTitle>
                     <DialogDescription className="text-muted-foreground">What type of conversation is this?</DialogDescription>
                   </DialogHeader>
-                  <div className="grid grid-cols-3 gap-3 mt-2">
+                  <div className="grid gap-2.5 mt-2 sm:grid-cols-3 sm:gap-3">
                     {(Object.entries(conversationTypes) as [ConversationType, typeof conversationTypes[ConversationType]][]).map(([key, type]) => (
                       <button
                         key={key}
                         onClick={() => { setSelectedType(key); setDialogStep("details"); }}
-                        className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-muted/50 hover:border-primary/50 hover:bg-accent/30 transition-all text-center group"
+                        className="flex min-h-20 flex-row items-center gap-3 rounded-lg border border-border bg-muted/50 p-3 text-left transition-all hover:border-primary/50 hover:bg-accent/30 sm:min-h-0 sm:flex-col sm:gap-2 sm:p-4 sm:text-center group"
                       >
                         <div className="text-muted-foreground group-hover:text-primary transition-colors">
                           {type.icon}
                         </div>
-                        <span className="text-xs sm:text-sm font-semibold text-foreground">{type.label}</span>
-                        <span className="text-[10px] sm:text-xs text-muted-foreground leading-tight">{type.description}</span>
+                        <div className="sm:contents">
+                          <span className="block text-sm font-semibold text-foreground">{type.label}</span>
+                          <span className="block text-xs text-muted-foreground leading-tight">{type.description}</span>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -402,8 +404,8 @@ const InboxPage = () => {
             </Card>
           ) : (
             filteredContacts.map((contact) => (
-              <Card key={contact.id} className="bg-card border-border hover:border-primary/30 transition-colors cursor-pointer" onClick={() => navigate(`/inbox/${contact.id}`)}>
-                <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-2">
+              <Card key={contact.id} className="bg-card border-border hover:border-primary/30 active:border-primary/50 transition-colors cursor-pointer" onClick={() => navigate(`/inbox/${contact.id}`)}>
+                <CardContent className="p-3 sm:p-4 flex items-center justify-between gap-2 min-h-[68px]">
                   <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                     <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-full bg-muted flex items-center justify-center overflow-hidden shrink-0">
                       {contact.profile_image_url ? (
@@ -442,7 +444,7 @@ const InboxPage = () => {
                     aria-label={`Delete ${contact.display_name || contact.username} from Inbox`}
                     title="Delete this Inbox client"
                     onClick={(event) => { event.stopPropagation(); setContactToDelete(contact); }}
-                    className="h-8 w-8 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    className="h-10 w-10 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>

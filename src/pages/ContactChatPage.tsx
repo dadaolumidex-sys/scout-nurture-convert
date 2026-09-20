@@ -786,7 +786,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
                 )}
 
                 {editingId !== msg.id && (
-                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-1 right-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
                     <DropdownMenu>
                       <DropdownMenuTrigger className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
                         <MoreVertical className="h-3 w-3" />
@@ -837,6 +837,8 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Composer stays above the phone navigation, so Send is always reachable. */}
+        <section className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-20 -mx-3 border-t border-border bg-background/95 px-3 pt-3 pb-3 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0 md:backdrop-blur-none">
         {/* Generate + Status */}
         <div className="flex flex-wrap gap-2 mb-3 items-center">
           <Button
@@ -937,7 +939,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             type="button"
             onClick={() => void handleSend()}
             disabled={(!input.trim() && pendingImages.length === 0 && !replyDirection.trim()) || loading}
-            className="gradient-primary text-primary-foreground h-10 w-10 p-0 shrink-0"
+            className="gradient-primary text-primary-foreground h-11 w-11 p-0 shrink-0"
             aria-label="Generate a reply — this does not send anything to the client"
             title="Generate a reply — this does not send anything to the client"
           >
@@ -967,6 +969,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
             <Button type="button" variant="ghost" size="sm" onClick={() => setPendingImages([])} className="h-7 text-xs">Remove all</Button>
           </div>
         )}
+        </section>
       </div>
     </DashboardLayout>
   );

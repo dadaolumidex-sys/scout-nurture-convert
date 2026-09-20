@@ -67,6 +67,20 @@
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
+    min-width: 320px;
+    overscroll-behavior-y: none;
+  }
+  button, a, input, select, textarea, summary {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  input, select, textarea {
+    font-size: 16px;
+  }
+  @media (min-width: 640px) {
+    input, select, textarea {
+      font-size: inherit;
+    }
   }
   code, pre, .font-mono {
     font-family: 'JetBrains Mono', monospace;
