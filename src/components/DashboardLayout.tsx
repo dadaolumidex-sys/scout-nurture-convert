@@ -23,7 +23,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </div>
             <NotificationsBell />
           </header>
-          <main className="flex-1 overflow-auto p-3 pb-40 sm:p-6 sm:pb-40 md:pb-20">
+          <main className="flex-1 overflow-auto p-3 pb-32 sm:p-6 sm:pb-32 md:pb-20">
             {children}
           </main>
         </div>

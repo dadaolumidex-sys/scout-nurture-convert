@@ -843,8 +843,8 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Composer stays above the phone navigation, so Send is always reachable. */}
-        <section className="sticky bottom-[calc(5rem+env(safe-area-inset-bottom))] z-20 -mx-3 border-t border-border bg-background/95 px-3 pt-3 pb-3 backdrop-blur md:static md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0 md:backdrop-blur-none">
+        {/* The composer follows the full reply on small screens, so it never covers text. */}
+        <section className="-mx-3 border-t border-border bg-background px-3 pt-3 pb-3 md:mx-0 md:border-0 md:bg-transparent md:px-0 md:pt-0 md:pb-0">
         {/* Generate + Status */}
         <div className="flex flex-wrap gap-2 mb-3 items-center">
           <Button
