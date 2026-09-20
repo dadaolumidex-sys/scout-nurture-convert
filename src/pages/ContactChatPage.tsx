@@ -616,7 +616,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
 
   return (
     <DashboardLayout>
-      <div className="max-w-3xl mx-auto flex flex-col min-h-[calc(100dvh-11rem-env(safe-area-inset-bottom))] md:h-[calc(100vh-8rem)] animate-slide-in">
+      <div className="max-w-3xl mx-auto flex flex-col animate-slide-in md:h-[calc(100vh-8rem)]">
         <ChatHeader
           contact={contact}
           persona={persona}
