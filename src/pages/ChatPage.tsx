@@ -512,12 +512,16 @@ const ChatPage = () => {
 
   const handleEditSave = async (index: number) => {
     if (!editContent.trim() || !activeId) return;
-    const updated = messages.slice(0, index).concat({ ...messages[index], content: editContent });
+    const editedMessage = messages[index];
+    const updated = editedMessage.role === "user"
+      ? messages.slice(0, index).concat({ ...editedMessage, content: editContent })
+      : messages.map((message, messageIndex) => messageIndex === index ? { ...message, content: editContent } : message);
     setMessages(updated);
     setEditingIndex(null);
     setEditContent("");
     await replaceMessages(activeId, updated);
-    await sendMessagesStream(activeId, updated);
+    if (editedMessage.role === "user") await sendMessagesStream(activeId, updated);
+    else toast.success("AI reply updated");
   };
 
   const handleResend = async (index: number) => {
@@ -684,11 +688,11 @@ const ChatPage = () => {
               <Bot className="h-3.5 w-3.5 text-secondary" />
             </div>
           )}
-          <div className={`flex min-w-0 flex-col gap-0.5 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+          <div className={`flex min-w-0 flex-col gap-0.5 ${editingIndex === i ? "w-full items-stretch" : msg.role === "user" ? "items-end" : "items-start"}`}>
             <span className={`px-1 text-[10px] font-medium text-muted-foreground ${msg.role === "user" ? "text-right" : "text-left"}`}>
               {msg.role === "user" ? "You" : "StreamScout AI"}
             </span>
-            <div className={`group relative rounded-2xl px-4 py-3 pr-10 text-base font-medium leading-7 text-foreground shadow-sm ${maxWidth} ${
+            <div className={`group relative rounded-2xl px-4 py-3 pr-10 text-base font-medium leading-7 text-foreground shadow-sm ${editingIndex === i ? "w-full max-w-none" : maxWidth} ${
               msg.role === "user"
                 ? "bg-card border border-border rounded-tr-sm"
                 : "bg-card border border-border rounded-tl-sm"
@@ -700,10 +704,11 @@ const ChatPage = () => {
               )}
               {editingIndex === i ? (
                 <div className="space-y-2">
-                  <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="bg-background border-border text-foreground text-sm min-h-[60px]" />
-                  <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" onClick={() => handleEditSave(i)} className="h-6 px-2 text-xs text-primary"><Check className="h-3 w-3 mr-1" /> Save</Button>
-                    <Button size="sm" variant="ghost" onClick={() => setEditingIndex(null)} className="h-6 px-2 text-xs text-muted-foreground"><X className="h-3 w-3 mr-1" /> Cancel</Button>
+                  <p className="text-xs text-muted-foreground">Edit your message, then save it.</p>
+                  <Textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} className="min-h-[140px] w-full resize-y bg-background p-3 text-base leading-6 text-foreground" />
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => void handleEditSave(i)} className="h-9 border-primary/30 px-3 text-xs text-primary hover:bg-primary/10"><Check className="mr-1.5 h-3.5 w-3.5" /> {msg.role === "user" ? "Save & regenerate" : "Save changes"}</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingIndex(null)} className="h-9 px-3 text-xs text-muted-foreground"><X className="mr-1.5 h-3.5 w-3.5" /> Cancel</Button>
                   </div>
                 </div>
               ) : (
