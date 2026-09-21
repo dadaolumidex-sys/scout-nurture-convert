@@ -677,7 +677,7 @@ const ChatPage = () => {
             <span className={`px-1 text-[10px] font-medium text-muted-foreground ${msg.role === "user" ? "text-right" : "text-left"}`}>
               {msg.role === "user" ? "You" : "StreamScout AI"}
             </span>
-            <div className={`group relative rounded-2xl px-4 py-3 text-base font-medium leading-7 text-foreground shadow-sm ${maxWidth} ${
+            <div className={`group relative rounded-2xl px-4 py-3 pr-10 text-base font-medium leading-7 text-foreground shadow-sm ${maxWidth} ${
               msg.role === "user"
                 ? "bg-card border border-border rounded-tr-sm"
                 : "bg-card border border-border rounded-tl-sm"
@@ -705,10 +705,10 @@ const ChatPage = () => {
                 </>
               )}
               {editingIndex !== i && (
-                <div className={`absolute top-1 right-1 transition-opacity ${isMobile ? "opacity-0 group-active:opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                <div className="absolute right-1 top-1 opacity-100">
                   <DropdownMenu>
-                    <DropdownMenuTrigger className="inline-flex h-6 w-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground">
-                      <MoreVertical className="h-3 w-3" />
+                    <DropdownMenuTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-muted/70 text-muted-foreground hover:bg-accent hover:text-foreground" aria-label="Message actions" title="Message actions">
+                      <MoreVertical className="h-4 w-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="bg-card border-border">
                       <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.content); toast.success("Copied!"); }}><Copy className="h-3 w-3 mr-2" /> Copy</DropdownMenuItem>
@@ -720,48 +720,6 @@ const ChatPage = () => {
                 </div>
               )}
             </div>
-            {editingIndex !== i && (
-              <div className={`flex flex-wrap gap-1 ${msg.role === "user" ? "self-end" : "self-start"}`} aria-label={`${msg.role === "user" ? "Your" : "AI"} message actions`}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { navigator.clipboard.writeText(msg.content); toast.success(msg.role === "user" ? "Message copied!" : "Reply copied!"); }}
-                  className="h-8 gap-1 px-2 text-xs text-primary hover:bg-primary/10"
-                >
-                  <Copy className="h-3.5 w-3.5" /> Copy
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { setEditingIndex(i); setEditContent(msg.content); }}
-                  className="h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                >
-                  <Pencil className="h-3.5 w-3.5" /> Edit
-                </Button>
-                {msg.role === "user" && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleResend(i)}
-                    className="h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" /> Resend
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDelete(i)}
-                  className="h-8 gap-1 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Delete
-                </Button>
-              </div>
-            )}
             {msgTimestamps[i] && (
               <span className={`text-[10px] text-muted-foreground px-1 ${msg.role === "user" ? "text-right" : "text-left"}`}>
                 {formatTime(msgTimestamps[i])}
