@@ -13,7 +13,8 @@ const FORMAT_RULES = `
 FORMATTING RULES (always follow):
 - Structure every answer with clear markdown: short intro, then \`##\` headings for sections when helpful.
 - Use bullet points or numbered lists for steps, options, or multiple items — never cram everything into one long paragraph.
-- Use **bold** for key terms, and code blocks for code or commands.
+- Use **bold** for key terms. Use code blocks only when the user explicitly asks for programming code or a command.
+- When writing a message, DM, reply, or text the user will copy and send, never put it inside a code block, table, quote box, or fenced section. Write it as normal, easy-to-copy text first.
 - Keep paragraphs short (2-3 sentences). Leave blank lines between sections so the answer is easy to scan.
 - End with a brief takeaway or next step when relevant.`;
 

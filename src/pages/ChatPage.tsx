@@ -713,6 +713,17 @@ const ChatPage = () => {
                 </div>
               )}
             </div>
+            {msg.role === "assistant" && editingIndex !== i && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => { navigator.clipboard.writeText(msg.content); toast.success("Reply copied!"); }}
+                className="h-8 self-start gap-1.5 border-primary/30 px-2.5 text-xs text-primary hover:bg-primary/10"
+              >
+                <Copy className="h-3.5 w-3.5" /> Copy reply
+              </Button>
+            )}
             {msgTimestamps[i] && (
               <span className={`text-[10px] text-muted-foreground px-1 ${msg.role === "user" ? "text-right" : "text-left"}`}>
                 {formatTime(msgTimestamps[i])}

@@ -48,7 +48,10 @@ function MarkdownMessageBase({ content, className }: MarkdownMessageProps) {
             </blockquote>
           ),
           code: ({ children }) => <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground">{children}</code>,
-          pre: ({ children }) => <pre className="my-3 overflow-x-auto rounded-lg border border-border bg-background p-3 text-sm text-foreground">{children}</pre>,
+          // A reply written for a client is sometimes returned in a Markdown
+          // code fence. Keep its line breaks, but show it as normal readable
+          // text instead of a cramped sideways-scrolling code box.
+          pre: ({ children }) => <pre className="my-3 whitespace-pre-wrap break-words font-sans text-[15px] leading-6 text-foreground [&>code]:!bg-transparent [&>code]:!p-0 [&>code]:!font-sans [&>code]:!text-[15px] sm:text-base sm:leading-7">{children}</pre>,
           table: ({ children }) => <table className="my-3 w-full border-collapse text-sm text-foreground">{children}</table>,
           th: ({ children }) => <th className="border border-border bg-muted px-2 py-2 text-left font-semibold text-foreground">{children}</th>,
           td: ({ children }) => <td className="border border-border px-2 py-2 text-foreground">{children}</td>,
