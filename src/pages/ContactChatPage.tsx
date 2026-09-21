@@ -88,6 +88,7 @@ const ContactChatPage = () => {
   const [editContent, setEditContent] = useState("");
   const [uploading, setUploading] = useState(false);
   const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [privatePendingImages, setPrivatePendingImages] = useState<string[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(null);
   const [suggestionsPersona, setSuggestionsPersona] = useState<Persona | null>(null);
@@ -95,6 +96,7 @@ const ContactChatPage = () => {
   const [clientProfile, setClientProfile] = useState<ClientProfile>({ ...EMPTY_CLIENT_PROFILE });
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const privateFileInputRef = useRef<HTMLInputElement>(null);
 
   const autogenRef = useRef(searchParams.get("autogen") === "1");
   const draftKey = `streamscout_inbox_draft_${user?.id || "guest"}_${contactId || "unknown"}`;
@@ -265,8 +267,9 @@ const ContactChatPage = () => {
     toast.success(`${contact?.display_name || contact?.username || "Client"} is now in the ${personaConfig[nextPersona].name} stage.`);
   };
 
-  const addImageFiles = async (selectedFiles: File[]) => {
-    const availableSlots = 3 - pendingImages.length;
+  const addImageFiles = async (selectedFiles: File[], target: "client" | "private" = "client") => {
+    const currentImages = target === "private" ? privatePendingImages : pendingImages;
+    const availableSlots = 3 - currentImages.length;
     if (!selectedFiles.length || availableSlots <= 0) {
       toast.error("You can attach up to 3 screenshots at once.");
       return;
@@ -276,9 +279,16 @@ const ContactChatPage = () => {
     setUploading(true);
     try {
       const imageUrls = await Promise.all(files.map((file) => compressImageFile(file)));
-      setPendingImages((current) => [...current, ...imageUrls].slice(0, 3));
-      if (fileInputRef.current) fileInputRef.current.value = "";
-      toast.success(`${imageUrls.length} screenshot${imageUrls.length === 1 ? "" : "s"} attached. Add your instruction, then press Send when ready.`);
+      if (target === "private") {
+        setPrivatePendingImages((current) => [...current, ...imageUrls].slice(0, 3));
+        if (privateFileInputRef.current) privateFileInputRef.current.value = "";
+      } else {
+        setPendingImages((current) => [...current, ...imageUrls].slice(0, 3));
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+      toast.success(target === "private"
+        ? `${imageUrls.length} private screenshot${imageUrls.length === 1 ? "" : "s"} attached. Add your question, then press Send when ready.`
+        : `${imageUrls.length} screenshot${imageUrls.length === 1 ? "" : "s"} attached. Add your instruction, then press Send when ready.`);
     } catch (error) {
       console.error(error);
       toast.error("Failed to upload image");
@@ -291,6 +301,10 @@ const ContactChatPage = () => {
     await addImageFiles(Array.from(e.target.files || []));
   };
 
+  const handlePrivateImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await addImageFiles(Array.from(e.target.files || []), "private");
+  };
+
   // Paste a copied screenshot straight into the reply box.
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     const files = Array.from(e.clipboardData?.files || []).filter((file) => file.type.startsWith("image/"));
@@ -299,18 +313,32 @@ const ContactChatPage = () => {
     void addImageFiles(files);
   };
 
+  const handlePrivatePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = Array.from(e.clipboardData?.files || []).filter((file) => file.type.startsWith("image/"));
+    if (!files.length) return;
+    e.preventDefault();
+    void addImageFiles(files, "private");
+  };
+
   const handleSend = async () => {
     const privateQuestion = replyDirection.trim();
+    const attachedPrivateImages = privatePendingImages;
     const hasClientMessage = Boolean(input.trim() || pendingImages.length > 0);
-    if ((!hasClientMessage && !privateQuestion) || loading) return;
+    const hasPrivateRequest = Boolean(privateQuestion || attachedPrivateImages.length > 0);
+    if ((!hasClientMessage && !hasPrivateRequest) || loading) return;
 
     // A private question is never saved as a client message. It lets the user
     // talk to the AI about this client without changing the client history.
     if (!hasClientMessage) {
       updateInboxDraft({ replyDirection: "" });
+      setPrivatePendingImages([]);
       setSuggestions([]);
       setSelectedSuggestion(null);
-      await generateSuggestions(persona, privateQuestion);
+      await generateSuggestions(
+        persona,
+        privateQuestion || "Please analyze the private screenshot and tell me the best way to respond.",
+        attachedPrivateImages,
+      );
       return;
     }
 
@@ -318,6 +346,7 @@ const ContactChatPage = () => {
     const attachedImages = pendingImages;
     updateInboxDraft({ input: "" });
     setPendingImages([]);
+    setPrivatePendingImages([]);
     setSuggestions([]);
     setSelectedSuggestion(null);
 
@@ -357,10 +386,10 @@ const ContactChatPage = () => {
     // still one continuous client conversation. Keep every public message in
     // context so a promoter or expert can continue exactly where friendship
     // left off.
-    await generateSuggestions(persona);
+    await generateSuggestions(persona, undefined, attachedPrivateImages);
   };
 
-  const generateSuggestions = async (targetPersona: Persona, privateQuestion?: string) => {
+  const generateSuggestions = async (targetPersona: Persona, privateQuestion?: string, privateImages: string[] = []) => {
     setLoading(true);
     setSuggestions([]);
     setSelectedSuggestion(null);
@@ -378,6 +407,12 @@ const ContactChatPage = () => {
       role: m.role === "assistant" ? "assistant" as const : "user" as const,
       content: m.content,
       imageUrl: m.image_url,
+    }));
+    const privateVisualContext = privateImages.map((imageUrl, index) => ({
+      role: "user" as const,
+      content: `Private screenshot ${index + 1} from the app user. Analyze it as private context, not as a message from the client.`,
+      imageUrl,
+      privateContext: true,
     }));
 
     // AI Chat exports belong to the client, not to one reply voice. Keep them
@@ -407,7 +442,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
 
     try {
       const data = await callEdgeFunction<{ suggestions?: Suggestion[]; websiteAudit?: string; answer?: string }>("chat-suggestions", {
-        messages: recentMessages,
+        messages: [...recentMessages, ...privateVisualContext],
         persona: targetPersona,
         contactContext,
         conversationType: contact?.growth_stage || contact?.conversation_type || "new_prospect",
@@ -889,19 +924,56 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
 
         {/* Input */}
         <label className="mb-1 block text-xs font-medium text-muted-foreground" htmlFor="reply-direction">Ask the AI privately — never sent to the client (optional)</label>
-        <Textarea
-          id="reply-direction"
-          aria-label="How you want the AI to reply"
-          placeholder="Example: Why might they have said this? Make the next reply warmer, but do not mention price."
-          value={replyDirection}
-          onChange={(e) => updateInboxDraft({ replyDirection: e.target.value })}
-          className="mb-2 bg-muted/60 border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[88px] text-sm"
-          rows={1}
-        />
+        <div className="flex gap-2 items-end">
+          <input type="file" ref={privateFileInputRef} accept="image/*" multiple className="hidden" onChange={handlePrivateImageUpload} />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => privateFileInputRef.current?.click()}
+            disabled={uploading}
+            className="mb-2 h-10 w-10 p-0 border-border text-muted-foreground hover:text-foreground shrink-0"
+            aria-label="Attach a private screenshot for the AI"
+            title="Attach a private screenshot for the AI"
+          >
+            <Image className="h-4 w-4" />
+          </Button>
+          <Textarea
+            id="reply-direction"
+            aria-label="How you want the AI to reply"
+            placeholder="Example: Why might they have said this? Make the next reply warmer, but do not mention price."
+            value={replyDirection}
+            onChange={(e) => updateInboxDraft({ replyDirection: e.target.value })}
+            onPaste={handlePrivatePaste}
+            className="mb-2 bg-muted/60 border-border text-foreground placeholder:text-muted-foreground resize-none min-h-[40px] max-h-[88px] text-sm"
+            rows={1}
+          />
+        </div>
+        {privatePendingImages.length > 0 && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2">
+            <div className="flex gap-1">
+              {privatePendingImages.map((imageUrl, index) => (
+                <div key={imageUrl} className="relative">
+                  <img src={imageUrl} alt={`Private screenshot ${index + 1} ready for AI`} className="h-10 w-10 rounded object-cover" />
+                  <button
+                    type="button"
+                    aria-label={`Remove private screenshot ${index + 1}`}
+                    onClick={() => setPrivatePendingImages((current) => current.filter((_, currentIndex) => currentIndex !== index))}
+                    className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-background text-muted-foreground shadow hover:text-destructive"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <p className="flex-1 text-xs text-muted-foreground">Private screenshot{privatePendingImages.length === 1 ? "" : "s"} — the AI can see these, but the client cannot.</p>
+            <Button type="button" variant="ghost" size="sm" onClick={() => setPrivatePendingImages([])} className="h-7 text-xs">Remove all</Button>
+          </div>
+        )}
         <p className="mb-2 text-xs text-muted-foreground">Use this alone to ask the AI a question, or together with the client message below to guide the reply.</p>
-        {(input || replyDirection) && (
+        {(input || replyDirection || privatePendingImages.length > 0) && (
           <div className="mb-2 flex justify-end">
-            <Button type="button" variant="ghost" size="sm" onClick={() => updateInboxDraft({ input: "", replyDirection: "" })} className="h-7 text-xs text-muted-foreground hover:text-foreground">
+            <Button type="button" variant="ghost" size="sm" onClick={() => { updateInboxDraft({ input: "", replyDirection: "" }); setPrivatePendingImages([]); }} className="h-7 text-xs text-muted-foreground hover:text-foreground">
               Clear unsent text
             </Button>
           </div>
@@ -944,7 +1016,7 @@ ${compactPrivateNotes ? `\nPrivate AI background (context only, never a real cli
           <Button
             type="button"
             onClick={() => void handleSend()}
-            disabled={(!input.trim() && pendingImages.length === 0 && !replyDirection.trim()) || loading}
+            disabled={(!input.trim() && pendingImages.length === 0 && !replyDirection.trim() && privatePendingImages.length === 0) || loading}
             className="gradient-primary text-primary-foreground h-11 w-11 p-0 shrink-0"
             aria-label="Generate a reply — this does not send anything to the client"
             title="Generate a reply — this does not send anything to the client"

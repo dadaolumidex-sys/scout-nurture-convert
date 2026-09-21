@@ -168,6 +168,7 @@ type IncomingMessage = {
   role: "user" | "assistant";
   content: string;
   imageUrl?: string | null;
+  privateContext?: boolean;
 };
 
 const legacyImagePattern = /\[Image:\s*(https?:\/\/[^\]\s]+)\]/i;
@@ -307,7 +308,7 @@ serve(async (req) => {
       }
     }
 
-    const latestUserText = [...(Array.isArray(messages) ? messages : [])].reverse().find((message) => message.role === "user")?.content || "";
+    const latestUserText = [...(Array.isArray(messages) ? messages : [])].reverse().find((message) => message.role === "user" && !message.privateContext)?.content || "";
     const latestClientMessage = latestUserText.slice(-2_400);
     const isSimpleGreeting = /^(hi|hello|hey|heya|yo|sup|what'?s up)[!?.\s]*$/i.test(latestUserText.trim());
     const liveUrlContext = await buildLiveUrlContext(latestUserText, apifyKeys);
