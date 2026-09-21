@@ -669,7 +669,10 @@ const ChatPage = () => {
               <Bot className="h-3.5 w-3.5 text-secondary" />
             </div>
           )}
-          <div className="flex min-w-0 flex-col gap-0.5">
+          <div className={`flex min-w-0 flex-col gap-0.5 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+            <span className={`px-1 text-[10px] font-medium text-muted-foreground ${msg.role === "user" ? "text-right" : "text-left"}`}>
+              {msg.role === "user" ? "You" : "StreamScout AI"}
+            </span>
             <div className={`group relative rounded-2xl px-4 py-3 text-base font-medium leading-7 text-foreground shadow-sm ${maxWidth} ${
               msg.role === "user"
                 ? "bg-card border border-border rounded-tr-sm"
