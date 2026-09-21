@@ -568,11 +568,12 @@ const ChatPage = () => {
       // Reuse a client with the same name when it already exists. Otherwise,
       // create a new manual Inbox client. The AI chat itself is never changed.
       let contact: { id: string } | null = null;
-      const { data: existing } = await (supabase.from("streamer_contacts" as any)
+      const { data: existing, error: lookupError } = await (supabase.from("streamer_contacts" as any)
         .select("id")
         .eq("user_id", user.id)
         .eq("display_name", clientName)
         .limit(1) as any);
+      if (lookupError) throw new Error(lookupError.message || "Couldn't check the Inbox client");
       if (existing?.[0]) {
         contact = existing[0];
       } else {
@@ -589,18 +590,22 @@ const ChatPage = () => {
         contact = created;
       }
 
-      await (supabase.from("streamer_contacts" as any).update({ conversation_type: exportPersona }).eq("id", contact.id) as any);
+      const { error: stageError } = await (supabase.from("streamer_contacts" as any)
+        .update({ conversation_type: exportPersona })
+        .eq("id", contact.id) as any);
+      if (stageError) throw new Error(stageError.message || "Couldn't save the reply voice");
 
       const transcript = messages.map((message) => (
         `${message.role === "user" ? "YOU / YOUR NOTE" : "AI ADVICE"}:\n${message.content}`
       )).join("\n\n");
       const privateNote = `PRIVATE AI CHAT CONTEXT — not a real client message.\nUse this only to understand the client, previous advice, and where the conversation left off.\n\n${transcript}`;
       const exportSource = `ai_chat_export:${activeConvo.id}`;
-      const { data: existingNote } = await (supabase.from("contact_messages" as any)
+      const { data: existingNote, error: noteLookupError } = await (supabase.from("contact_messages" as any)
         .select("id")
         .eq("contact_id", contact.id)
         .eq("source", exportSource)
         .limit(1) as any);
+      if (noteLookupError) throw new Error(noteLookupError.message || "Couldn't check the saved AI context");
 
       const note = {
         user_id: user.id,
