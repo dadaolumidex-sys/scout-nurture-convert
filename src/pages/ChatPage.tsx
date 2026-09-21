@@ -538,9 +538,20 @@ const ChatPage = () => {
     await sendMessagesStream(activeId, msgs);
   };
 
-  const handleDelete = (index: number) => {
-    setMessages((prev) => prev.filter((_, i) => i !== index));
-    toast.success("Message deleted");
+  const handleDelete = async (index: number) => {
+    if (!activeId) return;
+    if (!window.confirm("Delete this message? This cannot be undone.")) return;
+    const previous = messages;
+    const updated = previous.filter((_, messageIndex) => messageIndex !== index);
+    setMessages(updated);
+    try {
+      await replaceMessages(activeId, updated);
+      toast.success("Message deleted");
+    } catch (error) {
+      console.error("Could not delete chat message:", error);
+      setMessages(previous);
+      toast.error("Could not delete this message. Please try again.");
+    }
   };
 
   const activeConvo = activeId ? conversations.find(c => c.id === activeId) : null;
@@ -714,7 +725,7 @@ const ChatPage = () => {
                       <DropdownMenuItem onClick={() => { navigator.clipboard.writeText(msg.content); toast.success("Copied!"); }}><Copy className="h-3 w-3 mr-2" /> Copy</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => { setEditingIndex(i); setEditContent(msg.content); }}><Pencil className="h-3 w-3 mr-2" /> Edit</DropdownMenuItem>
                       {msg.role === "user" && <DropdownMenuItem onClick={() => handleResend(i)}><RotateCcw className="h-3 w-3 mr-2" /> Resend</DropdownMenuItem>}
-                      <DropdownMenuItem onClick={() => handleDelete(i)} className="text-destructive"><Trash2 className="h-3 w-3 mr-2" /> Delete</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => void handleDelete(i)} className="text-destructive"><Trash2 className="h-3 w-3 mr-2" /> Delete</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
