@@ -721,16 +721,47 @@ const ChatPage = () => {
                 </div>
               )}
             </div>
-            {msg.role === "assistant" && editingIndex !== i && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => { navigator.clipboard.writeText(msg.content); toast.success("Reply copied!"); }}
-                className="h-8 self-start gap-1.5 border-primary/30 px-2.5 text-xs text-primary hover:bg-primary/10"
-              >
-                <Copy className="h-3.5 w-3.5" /> Copy reply
-              </Button>
+            {editingIndex !== i && (
+              <div className={`flex flex-wrap gap-1 ${msg.role === "user" ? "self-end" : "self-start"}`} aria-label={`${msg.role === "user" ? "Your" : "AI"} message actions`}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { navigator.clipboard.writeText(msg.content); toast.success(msg.role === "user" ? "Message copied!" : "Reply copied!"); }}
+                  className="h-8 gap-1 px-2 text-xs text-primary hover:bg-primary/10"
+                >
+                  <Copy className="h-3.5 w-3.5" /> Copy
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setEditingIndex(i); setEditContent(msg.content); }}
+                  className="h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Pencil className="h-3.5 w-3.5" /> Edit
+                </Button>
+                {msg.role === "user" && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleResend(i)}
+                    className="h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" /> Resend
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDelete(i)}
+                  className="h-8 gap-1 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" /> Delete
+                </Button>
+              </div>
             )}
             {msgTimestamps[i] && (
               <span className={`text-[10px] text-muted-foreground px-1 ${msg.role === "user" ? "text-right" : "text-left"}`}>
