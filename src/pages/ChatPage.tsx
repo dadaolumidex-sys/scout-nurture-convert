@@ -437,21 +437,20 @@ const ChatPage = () => {
         knowledge: guestKnowledge,
         signal: requestController.signal,
         onDelta: upsertAssistant,
-        onDone: () => {
+        onDone: async () => {
           if (assistantSoFar) {
             paintAssistant();
             if (isStillActive()) setMsgTimestamps(prev => [...prev, new Date()]);
-            // Do not make the user wait for the database write before sending
-            // their next message. The visible reply is complete at this point;
-            // save it in the background for durable history and memory.
-            void (async () => {
-              try {
-                await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
-                await captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
-              } catch (error) {
-                console.error("Could not save AI reply:", error);
-              }
-            })();
+            // Persist before declaring the turn finished. Phones often pause
+            // a browser as soon as someone switches to Discord to use a reply;
+            // a fire-and-forget save could then leave only the user's message.
+            try {
+              await saveMessage(convoId, { role: "assistant", content: assistantSoFar });
+              void captureMemory([...msgs, { role: "assistant", content: assistantSoFar }]);
+            } catch (error) {
+              console.error("Could not save AI reply:", error);
+              toast.error("The reply is visible, but it could not be saved. Please copy it before leaving this chat.");
+            }
           }
           unlock();
         },
