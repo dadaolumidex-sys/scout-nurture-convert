@@ -279,6 +279,7 @@ const ChatPage = () => {
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportPersona, setExportPersona] = useState<InboxPersona>("friend");
+  const [exportClientName, setExportClientName] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -563,6 +564,7 @@ const ChatPage = () => {
   const openExportDialog = () => {
     const savedPersona = activeConvo?.persona;
     setExportPersona(savedPersona === "promoter" || savedPersona === "streamer" ? savedPersona : "friend");
+    setExportClientName(activeConvo?.title === "New Chat" ? "" : activeConvo?.title || "");
     setExportOpen(true);
   };
 
@@ -571,9 +573,9 @@ const ChatPage = () => {
       toast.error("Open a named AI Chat with messages first");
       return;
     }
-    const clientName = activeConvo.title.trim();
-    if (!clientName || clientName === "New Chat") {
-      toast.error("Name this AI Chat first so it can be linked to the right client");
+    const clientName = exportClientName.trim();
+    if (!clientName) {
+      toast.error("Enter the client or streamer name before saving to Inbox");
       return;
     }
 
@@ -654,7 +656,12 @@ const ChatPage = () => {
         <div className="space-y-3">
           <div>
             <Label className="text-foreground">Client name</Label>
-            <Input value={activeConvo?.title || ""} readOnly className="bg-muted border-border text-foreground" />
+            <Input
+              value={exportClientName}
+              onChange={(event) => setExportClientName(event.target.value)}
+              placeholder="Client or streamer name"
+              className="bg-muted border-border text-foreground"
+            />
           </div>
           <div>
             <Label className="text-foreground">Current stage / reply voice</Label>
@@ -668,7 +675,7 @@ const ChatPage = () => {
             </Select>
           </div>
           <p className="text-sm text-muted-foreground">
-            This creates or reuses this client in Inbox and saves this AI Chat as a private context note. It does not edit or remove your original AI Chat.
+            This creates or reuses the named client in Inbox, then opens that client. It saves this AI Chat as private context only; it never sends a Discord or client message.
           </p>
           <Button onClick={exportToInbox} disabled={exporting || !activeConvo || messages.length === 0} className="w-full gradient-primary text-primary-foreground">
             {exporting ? <><Bot className="h-4 w-4 mr-2 animate-pulse" /> Saving…</> : <><Inbox className="h-4 w-4 mr-2" /> Send to Inbox</>}
