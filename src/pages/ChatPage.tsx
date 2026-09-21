@@ -684,17 +684,17 @@ const ChatPage = () => {
       {messages.map((msg, i) => (
         <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
           {msg.role === "assistant" && (
-            <div className="h-7 w-7 rounded-full bg-card flex items-center justify-center shrink-0 mt-0.5 border border-border">
+            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-secondary/30 bg-secondary/10">
               <Bot className="h-3.5 w-3.5 text-secondary" />
             </div>
           )}
           <div className={`flex min-w-0 flex-col gap-0.5 ${editingIndex === i ? "w-full items-stretch" : msg.role === "user" ? "items-end" : "items-start"}`}>
-            <span className={`px-1 text-[10px] font-medium text-muted-foreground ${msg.role === "user" ? "text-right" : "text-left"}`}>
+            <span className={`px-1 text-[11px] font-semibold ${msg.role === "user" ? "text-right text-primary" : "text-left text-secondary"}`}>
               {msg.role === "user" ? "You" : "StreamScout AI"}
             </span>
-            <div className={`group relative rounded-2xl px-4 py-3 pr-10 text-base font-medium leading-7 text-foreground shadow-sm ${editingIndex === i ? "w-full max-w-none" : maxWidth} ${
+            <div className={`group relative rounded-2xl px-4 py-3 pr-10 text-base font-medium leading-7 text-foreground shadow-sm ${editingIndex === i ? "w-full max-w-none" : msg.role === "user" ? "ml-auto max-w-[86%] sm:max-w-[76%]" : maxWidth} ${
               msg.role === "user"
-                ? "bg-card border border-border rounded-tr-sm"
+                ? "border-primary/40 bg-primary/10 rounded-tr-sm"
                 : "bg-card border border-border rounded-tl-sm"
             }`}>
               {msg.images && msg.images.length > 0 && (
@@ -743,8 +743,8 @@ const ChatPage = () => {
             )}
           </div>
           {msg.role === "user" && (
-            <div className="h-7 w-7 rounded-full bg-card border border-border flex items-center justify-center shrink-0 mt-0.5">
-              <span className="text-xs font-bold text-foreground">Y</span>
+            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+              <span className="text-xs font-bold text-primary">Y</span>
             </div>
           )}
         </div>
