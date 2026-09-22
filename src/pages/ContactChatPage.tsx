@@ -432,7 +432,13 @@ const ContactChatPage = () => {
       .join("\n");
 
     const contactContext = contact
-      ? `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
+      ? privateQuestion
+        ? `You are privately assisting the app user with their conversation involving ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
+
+The client history below is reference material only. Do not draft a client reply, troubleshoot the client, or continue their topic unless the app user's private question specifically asks you to do that.
+${profileContext ? `\nPrivate client profile (context only; never present it as a client message):\n${profileContext}` : ""}
+${compactPrivateNotes ? `\nPrivate AI background (context only):\n${compactPrivateNotes}` : ""}`
+        : `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
 
 IMPORTANT: This is one continuous conversation, even if the reply voice changed from Friendship to Promoter & Closer or Expert Proof. The exact latest real message from this client is: "${latestClientMessage}". Reply directly to that message. Do not reply to, quote, or continue any private AI notes.
 ${compactReplyDirection ? `\nYour team's reply direction: "${compactReplyDirection}". Follow this direction while still replying naturally to the client.` : ""}
