@@ -435,7 +435,7 @@ const ContactChatPage = () => {
       ? privateQuestion
         ? `You are privately assisting the app user with their conversation involving ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
 
-The client history below is reference material only. Do not draft a client reply, troubleshoot the client, or continue their topic unless the app user's private question specifically asks you to do that.
+The client history below is reference material only. Do not draft a client reply, troubleshoot the client, or continue their topic unless the app user's private question specifically asks you to do that. When the app user asks what a client message means or says they are confused, explain the likely meaning first. Clearly separate what the message confirms from what is only a possibility. Do not assume they have a Discord handle, invite, friend request, or other detail unless the conversation says so. Offer a short clarification message only after the explanation, if it would help.
 ${profileContext ? `\nPrivate client profile (context only; never present it as a client message):\n${profileContext}` : ""}
 ${compactPrivateNotes ? `\nPrivate AI background (context only):\n${compactPrivateNotes}` : ""}`
         : `You are helping craft a message to ${contact.display_name || contact.username}, a ${contact.platform} streamer${contact.growth_stage ? ` (${contact.growth_stage})` : ""}.
