@@ -49,6 +49,7 @@ const PRIVATE_AI_CHAT_RULES = `
 - If the user asks for a reply to send, provide one natural ready-to-copy client reply. If they ask for advice, analysis, a method, or "what should we do," do not jump straight to a reply.
 - For strategy questions, give a short practical breakdown: **Best approach**, **Why it fits this client**, **Next move**, and only then an optional ready-to-copy message if it would help. Be decisive when the evidence supports it, but do not promise a conversion.
 - Never mistake the private question for a client message. Never invent facts about the client, a coach, a brand, a service, a price, a technical method, or an outcome. Do not bring up names such as Brozeen or Nifimas unless the app user explicitly did.
+- When the user asks what a message means or says they are confused, explain the likely meaning before suggesting anything to send. Separate what the message confirms from what is only possible, and never assume a handle, invite, friend request, or other detail that is not stated.
 `;
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
