@@ -73,11 +73,19 @@ upstream host/path/status and an allowlisted OAuth error category; credential
 values, request parameters, and response bodies are never logged. Surrounding
 whitespace is trimmed from the Twitch credential environment values.
 
-The local frontend release is pending Vercel deployment and signed-out share,
-owner revoke, and post-revocation checks. The live Vercel JavaScript bundle
-identified `bosqscioydkwmqilfwgg`; preserve its existing production environment.
-The tracked local `.env` still points at the older `uqbhrwpcmfbtxkvtuxeo` project
-and must not be copied into Vercel settings.
+The frontend release is live on Vercel from commit `559a50a`. The production
+`/analyzer` and `/audit-report` SPA routes return HTTP 200 and show the Channel
+Audit bundle. The deployed client bundle uses `bosqscioydkwmqilfwgg`; Vercel's
+existing production environment was preserved. The tracked local `.env` still
+points at the older `uqbhrwpcmfbtxkvtuxeo` project and was not used for deployment.
+
+The signed-in production app completed a `twitchdev` audit. Creating a share link
+then failed because the deployed `audit-share` function could not retrieve its
+fresh Twitch snapshot. Its Dashboard code editor reports a broken deployment
+lock and requires redeploying with the Supabase CLI. Deploy the current local
+`audit-share` function to `bosqscioydkwmqilfwgg`, then repeat the signed-in create,
+signed-out read, owner revoke, and post-revocation checks. Public unknown-token
+reads already return the expected HTTP 404.
 
 Hosted Supabase supplies `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and
 `SUPABASE_SERVICE_ROLE_KEY` to Edge Functions. Supply equivalents only in the
