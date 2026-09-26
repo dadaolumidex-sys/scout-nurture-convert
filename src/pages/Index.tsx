@@ -12,7 +12,7 @@ const stats = [
 ];
 
 const quickActions = [
-  { label: "Analyze Streamer", icon: Search, path: "/analyzer", description: "Paste a Twitch or Kick channel link" },
+  { label: "Channel Audit", icon: Search, path: "/analyzer", description: "Check facts from a Twitch channel" },
   { label: "Open Chat", icon: Bot, path: "/chat", description: "Get AI-powered reply suggestions" },
   { label: "View Inbox", icon: MessageSquare, path: "/inbox", description: "Manage your conversations" },
 ];
@@ -83,13 +83,13 @@ const Index = () => {
                 <h2 className="text-base sm:text-lg font-semibold text-foreground">Getting Started</h2>
               </div>
               <p className="text-muted-foreground text-xs sm:text-sm mb-3 sm:mb-4">
-                Start by analyzing a streamer's channel, then use the AI assistant to craft the perfect outreach message.
+                Start with a Twitch channel audit to review its profile, live status, and available broadcast facts.
               </p>
               <Button
                 onClick={() => navigate("/analyzer")}
                 className="gradient-primary text-primary-foreground font-semibold hover:opacity-90 w-full sm:w-auto"
               >
-                Analyze Your First Streamer
+                Run Your First Channel Audit
               </Button>
             </CardContent>
           </div>

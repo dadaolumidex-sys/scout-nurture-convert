@@ -13,7 +13,7 @@ import { preloadRoute } from "@/App";
 
 const mainTabs = [
   { label: "Home", icon: LayoutDashboard, path: "/" },
-  { label: "Analyze", icon: Search, path: "/analyzer" },
+  { label: "Audit", icon: Search, path: "/analyzer" },
   { label: "Inbox", icon: MessageSquare, path: "/inbox" },
   { label: "KB", icon: BookOpen, path: "/knowledge" },
   { label: "AI", icon: Bot, path: "/chat" },

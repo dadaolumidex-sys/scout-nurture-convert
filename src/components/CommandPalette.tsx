@@ -5,7 +5,7 @@ import { LayoutDashboard, BarChart3, MessageSquare, Inbox, Sparkles, Brain, Sett
 
 const ROUTES = [
   { path: "/", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/analyzer", label: "Streamer Analyzer", icon: BarChart3 },
+  { path: "/analyzer", label: "Channel Audit", icon: BarChart3 },
   { path: "/inbox", label: "Conversation Inbox", icon: Inbox },
   { path: "/chat", label: "AI Chat Assistant", icon: Sparkles },
   { path: "/knowledge", label: "Knowledge & Training", icon: Brain },

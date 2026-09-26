@@ -30,7 +30,7 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Streamer Analyzer", url: "/analyzer", icon: Search },
+  { title: "Channel Audit", url: "/analyzer", icon: Search },
   { title: "Conversation Inbox", url: "/inbox", icon: MessageSquare },
   { title: "AI Chat Assistant", url: "/chat", icon: Bot },
   { title: "Knowledge & Training", url: "/knowledge", icon: BookOpen },
