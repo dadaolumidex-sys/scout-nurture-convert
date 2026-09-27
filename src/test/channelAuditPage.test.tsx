@@ -33,11 +33,14 @@ describe("Channel Audit page", () => {
     render(<AnalyzerPage />);
     submit("https://www.twitch.tv/example");
     expect(await screen.findByText("Example")).toBeInTheDocument();
-    expect(screen.getByText("0")).toBeInTheDocument();
+    expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Offline at retrieval")).toBeInTheDocument();
     expect(screen.getByText("Not live")).toBeInTheDocument();
     expect(screen.getByText(/Twitch returned no archived broadcasts/)).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: /Source:/ })).toHaveLength(5);
+    expect(screen.getByText("What to work on next")).toBeInTheDocument();
+    expect(screen.getByText("Path to Affiliate / Partner")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Public setup checks completed" })).toHaveAttribute("aria-valuenow", "2");
+    expect(screen.getAllByRole("link", { name: /Source:/ })).toHaveLength(6);
     expect(callEdgeFunction).toHaveBeenCalledWith("analyze-twitch", { username: "example" });
   });
 

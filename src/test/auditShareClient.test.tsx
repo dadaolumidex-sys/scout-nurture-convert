@@ -40,6 +40,8 @@ describe("audit sharing controls", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Create share link" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Create share link" }));
     expect(await screen.findByLabelText("Report link")).toHaveValue(`https://app.test/audit-report#${token}`);
+    expect((screen.getByLabelText("Message to send with the report") as HTMLTextAreaElement).value).toContain(`https://app.test/audit-report#${token}`);
+    expect(screen.getByRole("button", { name: "Copy message" })).toBeInTheDocument();
     expect(createAuditShare).toHaveBeenCalledWith("example");
     expect(onShared).toHaveBeenCalledWith(freshReport);
     fireEvent.click(screen.getByText(/Manage your active links/));

@@ -4,14 +4,17 @@ import { Copy, Link2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { createAuditShare, listAuditShares, revokeAuditShare, type AuditShareListItem, type CreatedAuditShare } from "@/lib/auditShare";
 import { formatAuditDate, type ChannelAudit } from "@/lib/channelAudit";
+import { buildAuditInviteMessage } from "@/lib/auditInsights";
 
 export function AuditShareControls({ audit, onShared }: { audit: ChannelAudit; onShared: (report: ChannelAudit) => void }) {
   const { user } = useAuth();
   const userId = user?.is_anonymous ? undefined : user?.id;
   const [shared, setShared] = useState<CreatedAuditShare | null>(null);
+  const [inviteMessage, setInviteMessage] = useState("");
   const [shares, setShares] = useState<AuditShareListItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [loadingLinks, setLoadingLinks] = useState(true);
@@ -22,7 +25,7 @@ export function AuditShareControls({ audit, onShared }: { audit: ChannelAudit; o
 
   useEffect(() => {
     const current = ++generation.current;
-    setShared(null); setShares([]); setError(""); setNotice("");
+    setShared(null); setInviteMessage(""); setShares([]); setError(""); setNotice("");
     setLoadingLinks(!!userId);
     if (userId) void listAuditShares().then((rows) => {
       if (generation.current === current) setShares(rows);
@@ -49,7 +52,7 @@ export function AuditShareControls({ audit, onShared }: { audit: ChannelAudit; o
       const current = generation.current;
       const created = await createAuditShare(audit.profile.login);
       if (generation.current !== current) return;
-      setShared(created); onShared(created.report);
+      setShared(created); setInviteMessage(buildAuditInviteMessage(created.report, created.url)); onShared(created.report);
       setShares((rows) => [{ id: created.id, channel_login: created.report.profile.login, created_at: new Date().toISOString(), expires_at: created.expiresAt }, ...rows]);
       setNotice("Link created. The audit below now shows the saved snapshot.");
     })}>{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Link2 className="mr-2 h-4 w-4" />}Create share link</Button> : <div className="space-y-2">
@@ -59,6 +62,12 @@ export function AuditShareControls({ audit, onShared }: { audit: ChannelAudit; o
         <Button variant="outline" onClick={() => void navigator.clipboard.writeText(shared.url).then(() => setNotice("Link copied.")).catch(() => setNotice("Select the report link above and copy it manually."))}><Copy className="mr-2 h-4 w-4" />Copy link</Button>
       </div>
       <p className="text-xs text-muted-foreground">Expires {formatAuditDate(shared.expiresAt)}. Save this link now; it cannot be recovered after leaving this page.</p>
+      <div className="space-y-2 border-t border-border pt-3">
+        <label htmlFor="audit-invite-message" className="text-sm font-medium">Message to send with the report</label>
+        <p className="text-xs text-muted-foreground">You can edit this before copying. It mentions only findings supported by the saved Twitch snapshot.</p>
+        <Textarea id="audit-invite-message" rows={6} value={inviteMessage} onChange={(event) => setInviteMessage(event.target.value)} />
+        <Button variant="outline" onClick={() => void navigator.clipboard.writeText(inviteMessage).then(() => setNotice("Message copied.")).catch(() => setNotice("Select the message above and copy it manually."))}><Copy className="mr-2 h-4 w-4" />Copy message</Button>
+      </div>
       {(window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && <p className="text-xs text-muted-foreground">This preview link opens only on this computer. Use the hosted app when sharing with someone else.</p>}
     </div>}
     {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
@@ -71,7 +80,7 @@ export function AuditShareControls({ audit, onShared }: { audit: ChannelAudit; o
         <Button size="sm" variant="outline" disabled={busy} aria-label={`Revoke link for ${item.channel_login} created ${item.created_at}`} onClick={() => void run(async () => {
           await revokeAuditShare(item.id);
           setShares((rows) => rows.filter((row) => row.id !== item.id));
-          if (shared?.id === item.id) setShared(null);
+          if (shared?.id === item.id) { setShared(null); setInviteMessage(""); }
           setNotice("Link revoked.");
         })}>Revoke link</Button>
       </li>)}</ul>
