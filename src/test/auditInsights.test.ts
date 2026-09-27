@@ -1,18 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { buildAuditInsights, buildAuditInviteMessage } from "@/lib/auditInsights";
+import { buildAuditInsights, buildAuditInviteMessage, buildPresentationScore } from "@/lib/auditInsights";
 import type { ChannelAudit } from "@/lib/channelAudit";
 import { auditFixture } from "./fixtures/channelAudit";
 
 describe("evidence-based audit insights", () => {
   it("does not call zero followers or an offline channel a critical failure", () => {
     const { findings, checks } = buildAuditInsights(auditFixture);
-    expect(findings.map((finding) => finding.id)).toEqual(["vod-visibility"]);
-    expect(findings[0].priority).toBe("review");
+    expect(findings.map((finding) => finding.id)).toEqual(["bio-detail", "channel-title-clarity", "vod-visibility"]);
+    expect(findings.every((finding) => finding.priority === "review")).toBe(true);
     expect(checks).toEqual([
       { label: "Channel bio", complete: true },
       { label: "Channel title", complete: true },
     ]);
     expect(JSON.stringify(findings)).not.toMatch(/lost money|average viewers|follower count too low/i);
+    expect(buildPresentationScore(auditFixture).value).toBe(42);
   });
 
   it("prioritizes only confirmed empty public fields", () => {
@@ -39,6 +40,7 @@ describe("evidence-based audit insights", () => {
       videos: { status: "unavailable", data: null, reason: "Twitch timed out." },
     };
     expect(buildAuditInsights(report)).toEqual({ findings: [], checks: [] });
+    expect(buildPresentationScore(report)).toEqual({ value: null, covered: 0, criteria: [] });
     expect(buildAuditInviteMessage(report, "https://app.test/report")).toContain("Creator Dashboard");
   });
 
@@ -49,7 +51,30 @@ describe("evidence-based audit insights", () => {
       videos: { status: "available", data: [{ id: "123", title: "", createdAt: auditFixture.fetchedAt, duration: "1h", views: 80 }], reason: null },
     };
     const { findings } = buildAuditInsights(report);
-    expect(findings.map((finding) => finding.id)).toEqual(["live-title", "live-category", "vod-titles"]);
+    expect(findings.map((finding) => finding.id)).toEqual(["live-title", "live-category", "bio-detail", "vod-titles"]);
     expect(JSON.stringify(findings)).not.toMatch(/average live viewers|stream days|stream hours/i);
+  });
+
+  it("can award a full score when the disclosed presentation checklist is met", () => {
+    const report: ChannelAudit = {
+      ...auditFixture,
+      profile: { ...auditFixture.profile, description: "I stream cooperative puzzle games with viewers every week. Join for beginner-friendly challenges and community play sessions. Say hello in chat!" },
+      channel: { status: "available", data: { title: "Solving the hardest co-op puzzle with viewers tonight", category: "Games", language: "en" }, reason: null },
+      videos: { status: "available", data: [{ id: "123", title: "Can viewers solve this puzzle before the timer ends?", createdAt: auditFixture.fetchedAt, duration: "2h", views: 80 }], reason: null },
+    };
+    expect(buildPresentationScore(report).value).toBe(100);
+    expect(buildAuditInsights(report).findings).toEqual([]);
+  });
+
+  it("flags a vague live title as a test, without claiming a measured loss", () => {
+    const report: ChannelAudit = {
+      ...auditFixture,
+      stream: { status: "available", data: { isLive: true, title: "Animo time!", category: "Animo", viewers: 1, startedAt: auditFixture.fetchedAt }, reason: null },
+    };
+    const finding = buildAuditInsights(report).findings.find((item) => item.id === "live-title-clarity");
+    expect(finding?.priority).toBe("review");
+    expect(finding?.observation).toContain("Animo time!");
+    expect(finding?.whyItMatters).toMatch(/needs testing/i);
+    expect(buildPresentationScore(report).value).not.toBeNull();
   });
 });

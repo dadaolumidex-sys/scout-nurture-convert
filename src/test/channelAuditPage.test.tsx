@@ -39,8 +39,11 @@ describe("Channel Audit page", () => {
     expect(screen.getByText(/Twitch returned no archived broadcasts/)).toBeInTheDocument();
     expect(screen.getByText("What to work on next")).toBeInTheDocument();
     expect(screen.getByText("Path to Affiliate / Partner")).toBeInTheDocument();
+    expect(screen.getByText("Public presentation score")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar", { name: "Public presentation score" })).toHaveAttribute("aria-valuenow", "42");
+    expect(screen.getByText("How this score is calculated")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Public setup checks completed" })).toHaveAttribute("aria-valuenow", "2");
-    expect(screen.getAllByRole("link", { name: /Source:/ })).toHaveLength(6);
+    expect(screen.getAllByRole("link", { name: /Source:/ })).toHaveLength(8);
     expect(callEdgeFunction).toHaveBeenCalledWith("analyze-twitch", { username: "example" });
   });
 
