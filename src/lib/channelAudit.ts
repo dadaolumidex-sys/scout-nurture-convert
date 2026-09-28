@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AUDIT_VERSION } from "../../supabase/functions/_shared/twitchAuditContract";
 import type { ChannelAudit } from "../../supabase/functions/_shared/twitchAuditContract";
 
-export { parseTwitchChannel } from "../../supabase/functions/_shared/twitchAuditContract";
+export { parseTwitchChannel, recentReplaySample } from "../../supabase/functions/_shared/twitchAuditContract";
 export type { ChannelAudit } from "../../supabase/functions/_shared/twitchAuditContract";
 
 const timestamp = z.string().refine((value) => Number.isFinite(Date.parse(value)));

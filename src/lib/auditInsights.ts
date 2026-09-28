@@ -1,4 +1,4 @@
-import type { ChannelAudit } from "./channelAudit";
+import { recentReplaySample, type ChannelAudit } from "./channelAudit";
 
 export type AuditFinding = {
   id: string;
@@ -15,6 +15,22 @@ export type PublicSetupCheck = { label: string; complete: boolean };
 
 export type PresentationCriterion = { label: string; earned: number; possible: number; basis: string };
 export type PresentationScore = { value: number | null; covered: number; criteria: PresentationCriterion[] };
+
+export const LOW_REPLAY_REVIEW_VIEWS = 20;
+export type ReplayReview = { status: "attention" | "no-signal" | "insufficient"; sampleCount: number; lowCount: number; lowestViews: number | null };
+
+/** An editorial review cue, never a channel-health or live-viewer score. */
+export function buildReplayReview(audit: ChannelAudit): ReplayReview {
+  const sample = recentReplaySample(audit);
+  if (!sample.length) return { status: "insufficient", sampleCount: 0, lowCount: 0, lowestViews: null };
+  const lowCount = sample.filter((video) => video.views! <= LOW_REPLAY_REVIEW_VIEWS).length;
+  return {
+    status: lowCount ? "attention" : "no-signal",
+    sampleCount: sample.length,
+    lowCount,
+    lowestViews: Math.min(...sample.map((video) => video.views!)),
+  };
+}
 
 export function presentationScoreBand(value: number | null): "unavailable" | "danger" | "review" | "strong" {
   if (value === null) return "unavailable";
@@ -143,7 +159,23 @@ export function buildAuditInsights(audit: ChannelAudit): {
   }
 
   if (videos && videos.length > 0) {
+    const replay = buildReplayReview(audit);
+    if (replay.status === "attention") findings.push({
+      id: "replay-views", priority: "review", title: "Investigate the limited public replay activity",
+      observation: String(replay.lowCount) + " of " + String(replay.sampleCount) + " recent archived broadcasts at least two days old " + (replay.lowCount === 1 ? "has" : "have") + " 20 or fewer VOD views. The lowest returned count is " + String(replay.lowestViews) + ".",
+      whyItMatters: "Those broadcasts have little visible replay activity in this snapshot. VOD views do not measure live viewers, explain why people leave, or prove followers are bots.",
+      action: "For the next three broadcasts, test a specific gameplay title and publish a short highlight. Compare later VOD views and your private Creator Dashboard numbers.",
+      sourceEndpoint: "get-videos", sourceLabel: "Twitch archived videos",
+    });
     const knownTitles = videos.filter((video) => video.title !== null);
+    const followFirst = knownTitles.find((video) => /^\s*(?:drop\s+(?:a\s+)?follow|follow\s+(?:me|us)|please\s+follow)\b/i.test(video.title || ""));
+    if (followFirst) findings.push({
+      id: "follow-first-title", priority: "review", title: "Lead with the stream, not a follow request",
+      observation: "A returned broadcast title starts by asking for a follow: " + (followFirst.title || "").trim().slice(0, 110),
+      whyItMatters: "A new viewer sees a request before learning what the broadcast offers. Whether that affects clicks needs testing.",
+      action: "Put the game, challenge, or standout moment first in the title; make the follow invitation secondary.",
+      sourceEndpoint: "get-videos", sourceLabel: "Twitch archived videos",
+    });
     if (knownTitles.length === videos.length) {
       checks.push({ label: "Recent VOD titles", complete: knownTitles.every((video) => !!video.title?.trim()) });
     }
@@ -172,7 +204,8 @@ export function buildAuditInsights(audit: ChannelAudit): {
     });
   }
 
-  findings.sort((a, b) => Number(b.priority === "first") - Number(a.priority === "first"));
+  const rank = (finding: AuditFinding) => finding.priority === "first" ? 2 : finding.id === "replay-views" ? 1 : 0;
+  findings.sort((a, b) => rank(b) - rank(a));
   return { findings, checks };
 }
 
@@ -183,7 +216,7 @@ export function buildAuditInviteMessage(audit: ChannelAudit, url: string): strin
   const detail = aiFirst
     ? "I found a public channel detail worth improving: " + aiFirst.evidence + " My suggested first fix is: " + aiFirst.fix
     : first
-    ? (first.priority === "first" ? "I found a public setup issue to fix: " : "I found a public presentation change worth testing: ") + first.title + ". " + first.observation
+    ? (first.priority === "first" ? "I found a public setup issue to fix: " : "I found a public change worth testing: ") + first.title + ". " + first.observation + " First fix to test: " + first.action
     : "The public snapshot did not confirm a problem. Your private Twitch Creator Dashboard analytics may show what is limiting growth.";
   const invitation = aiFirst || first
     ? "Want help applying the first fix and checking whether it helps? Reply to this message."

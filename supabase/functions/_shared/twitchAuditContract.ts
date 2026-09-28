@@ -90,3 +90,15 @@ export type ChannelAudit = {
   videos: AuditSection<AuditVideo[]>;
   ai?: AiAudit;
 };
+
+/** A bounded public replay sample, not live viewership or follower conversion. */
+export function recentReplaySample(audit: ChannelAudit): AuditVideo[] {
+  const fetched = Date.parse(audit.fetchedAt);
+  if (!Number.isFinite(fetched) || audit.videos.data === null) return [];
+  const day = 86_400_000;
+  return audit.videos.data.filter((video) => {
+    if (video.views === null || video.createdAt === null) return false;
+    const age = fetched - Date.parse(video.createdAt);
+    return Number.isFinite(age) && age >= 2 * day && age <= 90 * day;
+  }).slice(0, 10);
+}

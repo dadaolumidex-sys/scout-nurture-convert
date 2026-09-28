@@ -9,6 +9,19 @@ const env = (name: string) => ({ SUPABASE_URL: "https://database.test", SUPABASE
 const request = new Request("https://local.test/audit", { method: "POST", headers: { Authorization: "Bearer user-jwt" } });
 
 describe("AI-assisted audit", () => {
+  it("gives the model real replay counts instead of an invented channel-health score", () => {
+    const report = { ...auditFixture, fetchedAt: "2026-09-28T12:00:00Z",
+      followers: { status: "available" as const, data: 167, reason: null },
+      videos: { status: "available" as const, data: [
+        { id: "1", title: "Drop follow guyz", createdAt: "2026-09-23T10:00:00Z", duration: "1h", views: 11 },
+      ], reason: null },
+    };
+    const replay = publicAuditEvidence(report).find((item) => item.id === "replay");
+    expect(replay?.fact).toContain("11");
+    expect(replay?.fact).toContain("167");
+    expect(replay?.fact).toContain("not average live viewers");
+  });
+
   it("uses saved user AI keys and only server-verified evidence in findings", async () => {
     expect(request.headers.get("Authorization")).toBe("Bearer user-jwt");
     expect(env("SUPABASE_URL")).toBe("https://database.test");
@@ -22,6 +35,7 @@ describe("AI-assisted audit", () => {
         return json({ choices: [{ message: { content: JSON.stringify({ findings: [
           { evidenceId: "bio", title: "Clarify your channel promise", possibleImpact: "A visitor may not know why to follow.", fix: "Say what you stream and for whom.", test: "Compare follows in your Creator Dashboard." },
           { evidenceId: "fake-metric", title: "Invented", possibleImpact: "Bad", fix: "Bad", test: "Bad" },
+          { evidenceId: "title", title: "Bot followers detected", possibleImpact: "You lost 90% of viewers.", fix: "Buy a service.", test: "Bad" },
         ] }) } }] });
       }
       throw new Error("Unexpected request");

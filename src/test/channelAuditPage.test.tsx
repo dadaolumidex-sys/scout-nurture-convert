@@ -39,10 +39,8 @@ describe("Channel Audit page", () => {
     expect(screen.getByText(/Twitch returned no archived broadcasts/)).toBeInTheDocument();
     expect(screen.getByText("What viewers see · What to fix")).toBeInTheDocument();
     expect(screen.getByText("Path to Affiliate / Partner")).toBeInTheDocument();
-    expect(screen.getByText("Public presentation score")).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "Public presentation score" })).toHaveAttribute("aria-valuenow", "42");
-    expect(screen.getByText("42/100")).toHaveClass("text-rose-500");
-    expect(screen.getByText("How this score is calculated")).toBeInTheDocument();
+    expect(screen.getByText("Public replay review")).toBeInTheDocument();
+    expect(screen.queryByText(/42\/100|100\/100/)).not.toBeInTheDocument();
     expect(screen.getByText("Verified setup checks (2/2)")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Source:/ })).toHaveLength(8);
     expect(callEdgeFunction).toHaveBeenCalledWith("analyze-twitch", { username: "example", includeAi: true }, 65_000);
@@ -76,6 +74,28 @@ describe("Channel Audit page", () => {
     expect(screen.getAllByText("Explain your channel promise")).toHaveLength(2);
     expect(screen.getByText("Channel bio: Test bio")).toBeInTheDocument();
     expect(screen.getByText(/hypothesis, not a measured cause/)).toBeInTheDocument();
+  });
+
+  it("does not present a complete setup checklist as channel health when VOD replay counts are small", async () => {
+    const report: ChannelAudit = {
+      ...audit,
+      fetchedAt: "2026-09-28T12:00:00Z",
+      profile: { ...audit.profile, description: "Gaming and community play every week. Join for Fortnite and Call of Duty challenges, highlights, and friendly chat sessions together." },
+      followers: { status: "available", data: 167, reason: null },
+      channel: { status: "available", data: { title: "Drop follow guyz and join me for Fortnite and COD", category: "Fortnite", language: "en" }, reason: null },
+      videos: { status: "available", data: [
+        { id: "1", title: "Drop follow guyz and join me for Fortnite and COD", createdAt: "2026-09-23T10:00:00Z", duration: "1h", views: 11 },
+        { id: "2", title: "Drop follow guyz and join me for Fortnite and COD", createdAt: "2026-09-22T10:00:00Z", duration: "1h", views: 8 },
+      ], reason: null },
+    };
+    vi.mocked(callEdgeFunction).mockResolvedValue(report);
+    render(<AnalyzerPage />);
+    submit();
+    expect(await screen.findByText("Recent broadcasts need a replay-reach review")).toBeInTheDocument();
+    expect(screen.getByText("Needs attention")).toHaveClass("text-rose-500");
+    expect(screen.getByText("Lead with the stream, not a follow request")).toBeInTheDocument();
+    expect(screen.queryByText("100/100")).not.toBeInTheDocument();
+    expect(screen.getByText(/not a Twitch health score/)).toBeInTheDocument();
   });
 
   it("rejects non-Twitch input without invoking the backend", async () => {
