@@ -38,7 +38,16 @@ describe("Channel Audit page", () => {
     expect(screen.getAllByText("Not live").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Twitch returned no archived broadcasts/)).toBeInTheDocument();
     expect(screen.getByText("What viewers see · What to fix")).toBeInTheDocument();
-    expect(screen.getByText("Path to Affiliate / Partner")).toBeInTheDocument();
+    expect(screen.getByText("Twitch Affiliate and Partner paths")).toBeInTheDocument();
+    expect(screen.getByText("Path to Affiliate")).toBeInTheDocument();
+    expect(screen.getByText("Path to Partner")).toBeInTheDocument();
+    expect(screen.getByText("25 followers")).toBeInTheDocument();
+    expect(screen.getByText("4 hours")).toBeInTheDocument();
+    expect(screen.getByText("4 days")).toBeInTheDocument();
+    expect(screen.getByText("3 average viewers on 4 days")).toBeInTheDocument();
+    expect(screen.getAllByText("6 streams on 6 unique days")).toHaveLength(2);
+    expect(screen.getByText(/Missing private metrics are not zero/)).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Achievements/ })).toHaveLength(2);
     expect(screen.getByText("Public opportunity score")).toBeInTheDocument();
     expect(screen.getByText("Not enough data")).toBeInTheDocument();
     expect(screen.queryByText(/42\/100|100\/100/)).not.toBeInTheDocument();
@@ -101,6 +110,30 @@ describe("Channel Audit page", () => {
     expect(screen.getByText("Lead with the stream, not a follow request")).toBeInTheDocument();
     expect(screen.queryByText("100/100")).not.toBeInTheDocument();
     expect(screen.getByText(/not a Twitch health score/)).toBeInTheDocument();
+  });
+
+  it("offers an urgent expert review when every sampled replay has low views without inventing a backend error", async () => {
+    const report: ChannelAudit = {
+      ...audit,
+      fetchedAt: "2026-09-28T12:00:00Z",
+      followers: { status: "available", data: 70, reason: null },
+      channel: { status: "available", data: { title: "Playing Animo with viewers tonight", category: "Animo", language: "en" }, reason: null },
+      videos: { status: "available", data: Array.from({ length: 10 }, (_, index) => ({
+        id: String(index + 1), title: "Playing Animo with viewers tonight",
+        createdAt: new Date(Date.parse("2026-09-23T10:00:00Z") - index * 86_400_000).toISOString(),
+        duration: "1h", views: index + 3,
+      })), reason: null },
+    };
+    vi.mocked(callEdgeFunction).mockResolvedValue(report);
+    render(<AnalyzerPage />);
+    submit();
+    expect(await screen.findByText("Critical review priority: repeated low replay activity")).toBeInTheDocument();
+    expect(screen.getByText("45/100")).toHaveClass("text-rose-500");
+    expect(screen.getByText("Critical issue to investigate")).toBeInTheDocument();
+    expect(screen.getByText(/70 followers are already present/)).toBeInTheDocument();
+    expect(screen.getByText("Get an expert review before the next broadcasts")).toBeInTheDocument();
+    expect(screen.getByText(/Public VOD counts do not reveal a hidden Twitch backend error/)).toBeInTheDocument();
+    expect(screen.queryByText(/backend error detected|bot followers confirmed/i)).not.toBeInTheDocument();
   });
 
   it("rejects non-Twitch input without invoking the backend", async () => {

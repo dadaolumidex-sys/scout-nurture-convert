@@ -20,6 +20,16 @@ function Fact({ label, value, note }: { label: string; value: string; note?: str
   </div>;
 }
 
+function RequirementItem({ label, target, progress }: { label: string; target: string; progress: string }) {
+  return <li className="rounded-lg border border-border/70 bg-background/60 p-3">
+    <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <span className="text-sm font-semibold">{label}</span>
+      <span className="text-sm font-bold text-primary">{target}</span>
+    </div>
+    <p className="mt-1 text-xs text-muted-foreground">{progress}</p>
+  </li>;
+}
+
 function FindingCard({ finding, index }: { finding: AuditFinding; index: number }) {
   const first = finding.priority === "first";
   const attention = first || finding.id === "replay-views";
@@ -51,6 +61,7 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
   const broadcaster = profile.broadcasterType === "" ? "Neither Affiliate nor Partner" : profile.broadcasterType === null ? "Unavailable" : profile.broadcasterType === "partner" ? "Partner" : "Affiliate";
   const { findings, checks } = buildAuditInsights(audit);
   const replay = buildReplayReview(audit);
+  const repeatedLowReplay = replay.sampleCount >= 3 && replay.lowCount === replay.sampleCount;
   const score = buildPublicOpportunityScore(audit);
   const scoreBand = presentationScoreBand(score.value);
   const completed = checks.filter((check) => check.complete).length;
@@ -58,7 +69,7 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
   const aiFindings = audit.ai?.status === "available" ? audit.ai.findings : [];
   const aiPriority = aiFindings[0];
   const urgent = verifiedIssues > 0 || replay.status === "attention" || scoreBand === "danger";
-  const headline = replay.status === "attention" ? "Recent broadcasts need a replay-reach review" : scoreBand === "danger" && followers.data !== null && followers.data < 25 ? "Build the audience and test replay reach" : aiPriority ? aiPriority.title : verifiedIssues > 0 ? verifiedIssues + " public channel " + (verifiedIssues === 1 ? "issue" : "issues") + " to fix" : findings.length > 0 ? findings.length + " channel opportunities to test" : "Public setup reviewed; audience performance unknown";
+  const headline = repeatedLowReplay ? "Critical review priority: repeated low replay activity" : replay.status === "attention" ? "Recent broadcasts need a replay-reach review" : scoreBand === "danger" && followers.data !== null && followers.data < 25 ? "Build the audience and test replay reach" : aiPriority ? aiPriority.title : verifiedIssues > 0 ? verifiedIssues + " public channel " + (verifiedIssues === 1 ? "issue" : "issues") + " to fix" : findings.length > 0 ? findings.length + " channel opportunities to test" : "Public setup reviewed; audience performance unknown";
   const knownVodViews = videos.data?.flatMap((video) => video.views === null ? [] : [video.views]) ?? [];
   const vodViewRange = videos.data === null ? "Unavailable" : videos.data.length === 0 ? "No public VODs" : knownVodViews.length === 0 ? "Unavailable" : Math.min(...knownVodViews) === Math.max(...knownVodViews) ? Math.min(...knownVodViews).toLocaleString() : Math.min(...knownVodViews).toLocaleString() + "–" + Math.max(...knownVodViews).toLocaleString();
 
@@ -73,13 +84,13 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
       <CardContent className="space-y-5 p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 max-w-2xl">
-            <p className={"text-xs font-bold uppercase tracking-[0.16em] " + (urgent ? "text-rose-500" : "text-amber-500")}>{replay.status === "attention" ? "Public replay signal needs attention" : aiPriority ? "AI-assisted first priority" : verifiedIssues > 0 ? "Verified channel issues" : "Public-channel review"}</p>
+            <p className={"text-xs font-bold uppercase tracking-[0.16em] " + (urgent ? "text-rose-500" : "text-amber-500")}>{repeatedLowReplay ? "Critical public replay issue" : replay.status === "attention" ? "Public replay signal needs attention" : aiPriority ? "AI-assisted first priority" : verifiedIssues > 0 ? "Verified channel issues" : "Public-channel review"}</p>
             <h2 className="mt-2 text-2xl font-bold leading-tight sm:text-3xl">{headline}</h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {replay.status === "attention" ? "Twitch returned " + replay.lowCount + " recent archived " + (replay.lowCount === 1 ? "broadcast" : "broadcasts") + " with 20 or fewer VOD views. That is a real replay signal to investigate, not proof of bot followers or a hidden Twitch error." : aiPriority ? "First fix to test: " + aiPriority.fix : findings.length ? "First fix to test: " + findings[0].action : "Completed setup fields do not measure audience growth. Review the creator's own analytics before claiming a cause."}
+              {repeatedLowReplay ? "Every sampled recent broadcast has 20 or fewer VOD views. This repeated pattern deserves a focused review before more streams go by without a plan." : replay.status === "attention" ? "Twitch returned " + replay.lowCount + " recent archived " + (replay.lowCount === 1 ? "broadcast" : "broadcasts") + " with 20 or fewer VOD views. That is a real replay signal to investigate, not proof of bot followers or a hidden Twitch error." : aiPriority ? "First fix to test: " + aiPriority.fix : findings.length ? "First fix to test: " + findings[0].action : "Completed setup fields do not measure audience growth. Review the creator's own analytics before claiming a cause."}
             </p>
           </div>
-          <Badge variant="outline" className={urgent ? "border-rose-500/60 text-rose-500" : "border-amber-500/50 text-amber-500"}><ShieldCheck className="mr-1 h-3 w-3" />{replay.status === "attention" ? "Action recommended" : aiPriority ? aiFindings.length + " AI " + (aiFindings.length === 1 ? "fix" : "fixes") : verifiedIssues > 0 ? verifiedIssues + " verified" : findings.length + " to test"}</Badge>
+          <Badge variant="outline" className={urgent ? "border-rose-500/60 text-rose-500" : "border-amber-500/50 text-amber-500"}><ShieldCheck className="mr-1 h-3 w-3" />{repeatedLowReplay ? "Review now" : replay.status === "attention" ? "Action recommended" : aiPriority ? aiFindings.length + " AI " + (aiFindings.length === 1 ? "fix" : "fixes") : verifiedIssues > 0 ? verifiedIssues + " verified" : findings.length + " to test"}</Badge>
         </div>
         <div className={"rounded-xl border bg-background/80 p-4 sm:p-5 " + (scoreBand === "danger" ? "border-rose-500/70" : "border-border/70")}>
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -90,16 +101,22 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
               </p>
             </div>
             <Badge variant="outline" className={scoreBand === "danger" ? "border-rose-500/70 text-rose-500" : scoreBand === "review" ? "border-amber-500/60 text-amber-500" : "border-border"}>
-              {scoreBand === "danger" ? "Priority: needs work" : scoreBand === "review" ? "Opportunities to test" : scoreBand === "strong" ? "Stronger public signals" : "Unscored"}
+              {repeatedLowReplay && scoreBand === "danger" ? "Critical issue to investigate" : scoreBand === "danger" ? "Priority: needs work" : scoreBand === "review" ? "Opportunities to test" : scoreBand === "strong" ? "Stronger public signals" : "Unscored"}
             </Badge>
           </div>
           {score.value !== null && <div role="meter" aria-label="Public opportunity score" aria-valuemin={0} aria-valuemax={100} aria-valuenow={score.value} className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
             <div className={"h-full rounded-full " + (scoreBand === "danger" ? "bg-rose-500" : scoreBand === "review" ? "bg-amber-500" : "bg-emerald-500")} style={{ width: score.value + "%" }} />
           </div>}
           <p className="mt-3 text-sm text-muted-foreground">{replay.status === "attention"
-            ? replay.lowCount + " of " + replay.sampleCount + " recent archived broadcasts have 20 or fewer VOD views. The lowest has " + replay.lowestViews + ". That is a concrete replay-reach signal worth testing."
+            ? replay.lowCount + " of " + replay.sampleCount + " recent archived broadcasts have 20 or fewer VOD views; the lowest has " + replay.lowestViews + ". " + (repeatedLowReplay ? "Repeated low replay activity is the top issue in this public review." : "That is a concrete replay signal worth investigating.")
             : replay.status === "insufficient" ? "There are not enough aged public VODs to score replay activity fairly." : "This sample did not show VODs at or below the 20-view review line."}</p>
-          <p className="mt-2 text-sm text-muted-foreground">{followers.data === null ? "Follower total unavailable; it is not scored as zero." : followers.data >= 25 ? followers.data.toLocaleString() + " followers returned by Twitch: the public follower milestone is met, so this report does not flag a follower deficit." : followers.data.toLocaleString() + " followers returned by Twitch: organic audience building is one area to work on."}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{followers.data === null ? "Follower total unavailable; it is not scored as zero." : followers.data >= 25 ? repeatedLowReplay ? followers.data.toLocaleString() + " followers are already present. That does not explain the low VOD counts; the next step is to investigate what can improve replay activity." : followers.data.toLocaleString() + " followers returned by Twitch: the public follower milestone is met, so this report does not flag a follower deficit." : followers.data.toLocaleString() + " followers returned by Twitch: organic audience building is one area to work on."}</p>
+          {repeatedLowReplay && <div className="mt-4 rounded-lg border border-rose-500/60 bg-rose-500/10 p-4">
+            <p className="font-bold text-rose-500">Get an expert review before the next broadcasts</p>
+            <p className="mt-2 text-sm">Review the VOD titles, category choices, highlights, promotion path, and the creator's private analytics. An expert can prioritize specific fixes and measure whether the next broadcasts improve.</p>
+            <p className="mt-2 text-sm font-semibold">{readOnly ? "Reply to the person who sent this report to request a channel review and fix plan." : "Share this finding and offer the streamer a focused channel review and fix plan."}</p>
+            <p className="mt-2 text-xs text-muted-foreground">Public VOD counts do not reveal a hidden Twitch backend error or prove why viewers leave.</p>
+          </div>}
           <details className="mt-4 border-t border-border/70 pt-3">
             <summary className="cursor-pointer text-sm font-semibold">How this score is calculated</summary>
             <p className="mt-2 text-xs text-muted-foreground">An editorial public-signal score, not a Twitch health score, live-viewer average, SEO ranking, bot diagnosis, or proof of lost revenue. Red is below 50; amber is 50-79; green is 80-100. Missing inputs make the whole score unavailable, never zero.</p>
@@ -206,23 +223,40 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
     <Card className="border-primary/20">
       <CardHeader className="pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <CardTitle className="text-base">Path to Affiliate / Partner</CardTitle>
-          <Badge variant="outline">Eligibility not scored</Badge>
+          <CardTitle className="text-base">Twitch Affiliate and Partner paths</CardTitle>
+          <Badge variant="outline">Requirements shown, eligibility not scored</Badge>
         </div>
-        <p className="text-xs text-muted-foreground">A public report cannot see the creator's achievement progress or decide monetization eligibility.</p>
+        <p className="text-xs text-muted-foreground">Current Twitch requirements are listed below. Public channel data cannot show the creator's private achievement progress or decide eligibility.</p>
       </CardHeader>
       <CardContent className="space-y-4">
         <dl className="grid gap-2 sm:grid-cols-2">
           <Fact label="Status returned by Twitch" value={broadcaster} />
           <Fact label="Verified follower total" value={followers.data === null ? "Unavailable" : followers.data.toLocaleString()} />
-          <Fact label="Qualifying stream hours and days" value="Not publicly available" />
-          <Fact label="Average live viewers" value="Not publicly available" note="Current live viewers and VOD views are different metrics." />
         </dl>
-        <p className="text-xs text-muted-foreground">For actual progress, the streamer should check Achievements in their Twitch Creator Dashboard. An unavailable metric does not mean zero.</p>
-        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs">
-          <a href="https://help.twitch.tv/s/article/joining-the-affiliate-program?language=en_US" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline underline-offset-4">Current Affiliate requirements <ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
-          <a href="https://help.twitch.tv/s/article/partner-program-overview?language=en_US" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline underline-offset-4">Partner criteria <ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
-        </div>
+        <section aria-labelledby="affiliate-requirements" className="space-y-3 rounded-xl border border-border p-4">
+          <h3 id="affiliate-requirements" className="font-bold">Path to Affiliate</h3>
+          <p className="text-xs text-muted-foreground">Twitch requires all four achievements within a 30-day period.</p>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            <RequirementItem label="Followers" target="25 followers" progress={followers.data === null
+              ? "Public total unavailable. Check the creator's Achievements page."
+              : "Public total: " + followers.data.toLocaleString() + (followers.data >= 25 ? " — at or above this target by public count." : " — below this target by public count.") + " Confirm achievement status in the Creator Dashboard."} />
+            <RequirementItem label="Time streamed" target="4 hours" progress="Qualifying 30-day progress is only available to the creator." />
+            <RequirementItem label="Distinct stream days" target="4 days" progress="Qualifying 30-day progress is only available to the creator." />
+            <RequirementItem label="Concurrent viewers" target="3 average viewers on 4 days" progress="This is a live-viewer achievement, not VOD views. Progress is only available to the creator." />
+          </ul>
+          <p className="text-xs text-muted-foreground">Source: Twitch Help, <a href="https://help.twitch.tv/s/article/achievements?language=en_US" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline underline-offset-4">Achievements <ExternalLink className="h-3 w-3" aria-hidden="true" /></a>.</p>
+        </section>
+        <section aria-labelledby="partner-requirements" className="space-y-3 rounded-xl border border-border p-4">
+          <h3 id="partner-requirements" className="font-bold">Path to Partner</h3>
+          <p className="text-xs text-muted-foreground">Twitch describes two consecutive 30-day periods with qualifying broadcasts.</p>
+          <ul className="grid gap-2">
+            <RequirementItem label="Most recent 30 days" target="6 streams on 6 unique days" progress="Each qualifying stream needs at least 75 average viewers. The creator's qualifying progress is not public." />
+            <RequirementItem label="Previous 30 days" target="6 streams on 6 unique days" progress="Each qualifying stream needs at least 75 average viewers. The creator's qualifying progress is not public." />
+          </ul>
+          <p className="text-xs text-muted-foreground">Completing the path unlocks an application, not automatic Partner status. Twitch also reviews the channel and content.</p>
+          <p className="text-xs text-muted-foreground">Source: Twitch Help, <a href="https://help.twitch.tv/s/article/achievements?language=en_US" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline underline-offset-4">Achievements <ExternalLink className="h-3 w-3" aria-hidden="true" /></a> and <a href="https://help.twitch.tv/s/article/partner-program-overview?language=en_US" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary underline underline-offset-4">Partner Program Overview <ExternalLink className="h-3 w-3" aria-hidden="true" /></a>.</p>
+        </section>
+        <p className="text-xs text-muted-foreground">Only the follower total is available from this public snapshot. Missing private metrics are not zero; the streamer should check their Twitch Creator Dashboard for actual progress.</p>
       </CardContent>
     </Card>
 

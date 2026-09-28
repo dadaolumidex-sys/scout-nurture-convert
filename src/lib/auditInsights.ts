@@ -228,10 +228,10 @@ export function buildAuditInsights(audit: ChannelAudit): {
   if (videos && videos.length > 0) {
     const replay = buildReplayReview(audit);
     if (replay.status === "attention") findings.push({
-      id: "replay-views", priority: "review", title: "Investigate the limited public replay activity",
+      id: "replay-views", priority: "review", title: replay.sampleCount >= 3 && replay.lowCount === replay.sampleCount ? "Critical review: repeated low VOD replay" : "Investigate the limited public replay activity",
       observation: String(replay.lowCount) + " of " + String(replay.sampleCount) + " recent archived broadcasts at least two days old " + (replay.lowCount === 1 ? "has" : "have") + " 20 or fewer VOD views. The lowest returned count is " + String(replay.lowestViews) + ".",
-      whyItMatters: "Those broadcasts have little visible replay activity in this snapshot. VOD views do not measure live viewers, explain why people leave, or prove followers are bots.",
-      action: "For the next three broadcasts, test a specific gameplay title and publish a short highlight. Compare later VOD views and your private Creator Dashboard numbers.",
+      whyItMatters: "Repeatedly low VOD counts mean these archived broadcasts have little visible replay activity. Public data cannot identify the cause, a hidden platform error, or the quality of the follower audience.",
+      action: "Get a focused channel review of titles, category choices, highlights, distribution, and private Creator Dashboard data. Prioritize specific changes, then compare replay activity on the next three broadcasts.",
       sourceEndpoint: "get-videos", sourceLabel: "Twitch archived videos",
     });
     const knownTitles = videos.filter((video) => video.title !== null);
