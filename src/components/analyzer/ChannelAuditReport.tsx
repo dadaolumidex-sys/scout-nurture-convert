@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, ExternalLink, Radio, ShieldCheck, Target } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChannelGrowthRoadmap } from "./ChannelGrowthRoadmap";
 import { Badge } from "@/components/ui/badge";
 import { formatAuditDate, type ChannelAudit } from "@/lib/channelAudit";
 import { buildAuditInsights, buildPublicOpportunityScore, buildReplayReview, presentationScoreBand, type AuditFinding } from "@/lib/auditInsights";
@@ -193,6 +194,8 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
         </div>
       </CardContent>
     </Card>
+
+    <ChannelGrowthRoadmap audit={audit} />
 
     <Card>
       <CardHeader className="space-y-3">

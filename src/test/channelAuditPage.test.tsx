@@ -28,6 +28,18 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
 describe("Channel Audit page", () => {
+  it("reveals all ten roadmap actions in one click", async () => {
+    vi.mocked(callEdgeFunction).mockResolvedValue(audit);
+    render(<AnalyzerPage />);
+    submit();
+    expect(await screen.findByText("Streamer channel growth roadmap")).toBeInTheDocument();
+    expect(screen.queryByText("Campaign Growth Token", { exact: false })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show all 10 steps" }));
+    expect(screen.getAllByText("What needs to be done")).toHaveLength(10);
+    expect(screen.getByText(/Campaign Growth Token may be included/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse all steps" }));
+    expect(screen.queryByText(/Campaign Growth Token may be included/)).not.toBeInTheDocument();
+  });
   it("renders facts, source links and an honest empty archive state", async () => {
     vi.mocked(callEdgeFunction).mockResolvedValue(audit);
     render(<AnalyzerPage />);
