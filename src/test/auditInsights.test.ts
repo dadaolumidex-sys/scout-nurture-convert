@@ -35,6 +35,7 @@ describe("evidence-based audit insights", () => {
     const message = buildAuditInviteMessage(report, "https://app.test/audit-report#token");
     expect(message).toMatch(/tell visitors what your channel is about/i);
     expect(message).toContain("https://app.test/audit-report#token");
+    expect(message).toContain("no Twitch sign-in or channel access needed");
     expect(message).not.toMatch(/0%|losing money|guarantee/i);
   });
 

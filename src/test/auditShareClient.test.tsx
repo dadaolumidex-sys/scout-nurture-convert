@@ -66,7 +66,8 @@ describe("standalone public report", () => {
     vi.mocked(readAuditShare).mockResolvedValue({ report: auditFixture, expiresAt });
     render(<MemoryRouter initialEntries={[`/audit-report#${token}`]}><SharedAuditPage /></MemoryRouter>);
     expect(await screen.findByText("Example")).toBeInTheDocument();
-    expect(screen.getByText(/saved snapshot, not a live dashboard/)).toBeInTheDocument();
+    expect(screen.getByText(/saved public snapshot, not a live dashboard/)).toBeInTheDocument();
+    expect(screen.getByText(/No Twitch sign-in or channel access is needed/)).toBeInTheDocument();
     expect(screen.queryByText("Conversation Inbox")).not.toBeInTheDocument();
     expect(useAuth).not.toHaveBeenCalled();
     expect(document.querySelector('meta[name="referrer"]')).toHaveAttribute("content", "no-referrer");

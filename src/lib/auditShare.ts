@@ -2,7 +2,7 @@ import { z } from "zod";
 import { callEdgeFunction } from "@/lib/edgeFunction";
 import { readChannelAudit, type ChannelAudit } from "@/lib/channelAudit";
 
-import { SHARE_TOKEN } from "@/lib/readAuditShare";
+import { compactAuditToken, SHARE_TOKEN } from "@/lib/auditShareToken";
 const timestamp = z.string().datetime({ offset: true });
 const createdSchema = z.object({ id: z.string().uuid(), token: z.string().regex(SHARE_TOKEN), createdAt: timestamp, expiresAt: timestamp, report: z.unknown() });
 const listSchema = z.object({ shares: z.array(z.object({ id: z.string().uuid(), channel_login: z.string().regex(/^[a-z0-9_]{1,25}$/), created_at: timestamp, expires_at: timestamp })) });
@@ -12,7 +12,7 @@ export type CreatedAuditShare = { id: string; url: string; expiresAt: string; re
 export function auditShareUrl(token: string, origin = window.location.origin): string {
   if (!SHARE_TOKEN.test(token)) throw new Error("Invalid report link.");
   // Fragments are never sent to the hosting server or as HTTP referrers.
-  return `${origin}/audit-report#${token}`;
+  return `${origin.replace(/\/$/, "")}/r#${compactAuditToken(token)}`;
 }
 
 export async function createAuditShare(username: string): Promise<CreatedAuditShare> {

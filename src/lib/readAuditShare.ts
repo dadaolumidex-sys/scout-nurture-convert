@@ -1,15 +1,15 @@
 import { z } from "zod";
 import { readChannelAudit, type ChannelAudit } from "@/lib/channelAudit";
+import { expandAuditToken } from "@/lib/auditShareToken";
 
-export const SHARE_TOKEN = /^[a-f0-9]{64}$/;
 const timestamp = z.string().datetime({ offset: true });
 export async function readAuditShare(token: string, signal: AbortSignal): Promise<{ report: ChannelAudit; expiresAt: string }> {
-  if (!SHARE_TOKEN.test(token)) throw new Error("Report unavailable or link expired.");
+  const rawToken = expandAuditToken(token);
   // Public reading does not load the visitor's account session or use their JWT.
   const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/audit-share`, {
     method: "POST", headers: { "Content-Type": "application/json", apikey: apiKey },
-    body: JSON.stringify({ action: "read", token }), signal, cache: "no-store", referrerPolicy: "no-referrer",
+    body: JSON.stringify({ action: "read", token: rawToken }), signal, cache: "no-store", referrerPolicy: "no-referrer",
   });
   if (response.status === 404) throw new Error("Report unavailable or link expired.");
   if (!response.ok) throw new Error("This report could not be loaded. Please try again later.");

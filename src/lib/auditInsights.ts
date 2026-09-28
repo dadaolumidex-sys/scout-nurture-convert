@@ -289,5 +289,5 @@ export function buildAuditInviteMessage(audit: ChannelAudit, url: string): strin
     ? "Want help applying the first fix and checking whether it helps? Reply to this message."
     : "If you want a real audience diagnosis, we can review your Stream Summary together with your permission.";
   const lineBreak = String.fromCharCode(10);
-  return "Hi @" + audit.profile.login + " — I reviewed your public Twitch channel. " + detail + lineBreak + lineBreak + "See the evidence and first fix: " + url + lineBreak + lineBreak + invitation;
+  return "Hi @" + audit.profile.login + " — I put together a read-only StreamScout report from your public Twitch channel. " + detail + lineBreak + lineBreak + "Your report (no Twitch sign-in or channel access needed): " + url + lineBreak + lineBreak + invitation;
 }

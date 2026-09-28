@@ -35,9 +35,9 @@ export default function SharedAuditPage() {
 
   return <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
     <header className="space-y-2">
-      <p className="text-sm text-muted-foreground">StreamScout · Public Twitch report</p>
-      <h1 className="text-2xl font-bold">Channel Audit</h1>
-      <p className="text-sm text-muted-foreground">This is a saved snapshot, not a live dashboard. Facts and live status reflect the retrieval time shown below.</p>
+      <p className="text-sm text-muted-foreground">StreamScout AI · Read-only channel report</p>
+      <h1 className="text-2xl font-bold">Your Twitch Channel Audit</h1>
+      <p className="text-sm text-muted-foreground">No Twitch sign-in or channel access is needed to view this report. It is a saved public snapshot, not a live dashboard or an official Twitch notice.</p>
     </header>
     {loading && <p role="status">Loading shared report...</p>}
     {error && <p role="alert" className="rounded-lg border border-border p-4">{error}</p>}

@@ -56,6 +56,7 @@ function AppRoutes() {
         <Route path="/" element={<Index />} />
         <Route path="/analyzer" element={<AnalyzerPage />} />
         <Route path="/audit-report" element={<SharedAuditPage />} />
+        <Route path="/r" element={<SharedAuditPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/inbox" element={<InboxPage />} />
         <Route path="/inbox/:contactId" element={<ContactChatPage />} />
@@ -72,7 +73,7 @@ function AppRoutes() {
 
 const App = () => {
   useEffect(() => {
-    if (window.location.pathname === "/audit-report") return;
+    if (window.location.pathname === "/audit-report" || window.location.pathname === "/r") return;
     // After the first screen is usable, quietly warm the pages used most.
     // Navigation then feels instant instead of waiting for a new JS chunk.
     const warmRoutes = () => ["/chat", "/inbox", "/analyzer", "/knowledge", "/search"].forEach(preloadRoute);

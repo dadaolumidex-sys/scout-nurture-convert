@@ -1,10 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { readAuditShare } from "@/lib/readAuditShare";
+import { compactAuditToken } from "@/lib/auditShareToken";
 import { auditFixture } from "./fixtures/channelAudit";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("public report transport", () => {
+  it("decodes a compact link before calling the unchanged share service", async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: auditFixture, expiresAt: "2026-10-25T12:00:00Z" })));
+    vi.stubGlobal("fetch", fetcher);
+    const raw = "0123456789abcdef".repeat(4);
+    await readAuditShare(compactAuditToken(raw), new AbortController().signal);
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({ action: "read", token: raw });
+  });
   it("sends the bearer token in the request body, without the visitor's authorization or referrer", async () => {
     const fetcher = vi.fn().mockResolvedValue(new Response(JSON.stringify({ report: auditFixture, expiresAt: "2026-10-25T12:00:00Z" })));
     vi.stubGlobal("fetch", fetcher);
