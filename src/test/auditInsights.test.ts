@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAuditInsights, buildAuditInviteMessage, buildPresentationScore, buildReplayReview, presentationScoreBand } from "@/lib/auditInsights";
+import { buildAuditInsights, buildAuditInviteMessage, buildPresentationScore, buildPublicOpportunityScore, buildReplayReview, presentationScoreBand } from "@/lib/auditInsights";
 import type { ChannelAudit } from "@/lib/channelAudit";
 import { auditFixture } from "./fixtures/channelAudit";
 
@@ -103,5 +103,37 @@ describe("evidence-based audit insights", () => {
     expect(findings.map((finding) => finding.id)).toEqual(["replay-views", "follow-first-title"]);
     expect(buildAuditInviteMessage(report, "https://app.test/report")).toContain("20 or fewer VOD views");
     expect(JSON.stringify(findings)).not.toMatch(/bot followers are confirmed|live viewer loss was caused/i);
+  });
+
+  it("scores low replay views in red while crediting an established follower count", () => {
+    const report: ChannelAudit = {
+      ...auditFixture,
+      fetchedAt: "2026-09-28T12:00:00Z",
+      followers: { status: "available", data: 4495, reason: null },
+      channel: { status: "available", data: { title: "Drop follow guyz and join me for Fortnite and COD", category: "Fortnite", language: "en" }, reason: null },
+      videos: { status: "available", data: [
+        { id: "1", title: "Drop follow guyz and join me for Fortnite and COD", createdAt: "2026-09-23T10:00:00Z", duration: "1h", views: 3 },
+        { id: "2", title: "Drop follow guyz and join me for Fortnite and COD", createdAt: "2026-09-22T10:00:00Z", duration: "1h", views: 6 },
+        { id: "3", title: "Drop follow guyz and join me for Fortnite and COD", createdAt: "2026-09-21T10:00:00Z", duration: "1h", views: 11 },
+      ], reason: null },
+    };
+    const score = buildPublicOpportunityScore(report);
+    expect(score.value).toBe(24);
+    expect(score.criteria.map((criterion) => criterion.earned)).toEqual([4, 0, 20]);
+    expect(score.criteria[2].basis).toContain("not flagged as a deficit");
+    expect(presentationScoreBand(score.value)).toBe("danger");
+    expect(buildAuditInsights(report).findings.some((finding) => finding.id === "follower-milestone")).toBe(false);
+  });
+
+  it("shows a follower gap only below the milestone and does not zero missing replay data", () => {
+    const report: ChannelAudit = {
+      ...auditFixture,
+      profile: { ...auditFixture.profile, broadcasterType: "" },
+      followers: { status: "available", data: 10, reason: null },
+    };
+    expect(buildAuditInsights(report).findings.some((finding) => finding.id === "follower-milestone")).toBe(true);
+    const score = buildPublicOpportunityScore(report);
+    expect(score.value).toBeNull();
+    expect(score.criteria.map((criterion) => criterion.earned)).toEqual([null, 10, 8]);
   });
 });

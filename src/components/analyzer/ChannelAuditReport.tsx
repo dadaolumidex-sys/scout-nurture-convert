@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, ExternalLink, Radio, ShieldCheck, Target }
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatAuditDate, type ChannelAudit } from "@/lib/channelAudit";
-import { buildAuditInsights, buildReplayReview, type AuditFinding } from "@/lib/auditInsights";
+import { buildAuditInsights, buildPublicOpportunityScore, buildReplayReview, presentationScoreBand, type AuditFinding } from "@/lib/auditInsights";
 
 const docs = "https://dev.twitch.tv/docs/api/reference/";
 
@@ -51,12 +51,14 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
   const broadcaster = profile.broadcasterType === "" ? "Neither Affiliate nor Partner" : profile.broadcasterType === null ? "Unavailable" : profile.broadcasterType === "partner" ? "Partner" : "Affiliate";
   const { findings, checks } = buildAuditInsights(audit);
   const replay = buildReplayReview(audit);
+  const score = buildPublicOpportunityScore(audit);
+  const scoreBand = presentationScoreBand(score.value);
   const completed = checks.filter((check) => check.complete).length;
   const verifiedIssues = findings.filter((finding) => finding.priority === "first").length;
   const aiFindings = audit.ai?.status === "available" ? audit.ai.findings : [];
   const aiPriority = aiFindings[0];
-  const urgent = verifiedIssues > 0 || replay.status === "attention";
-  const headline = replay.status === "attention" ? "Recent broadcasts need a replay-reach review" : aiPriority ? aiPriority.title : verifiedIssues > 0 ? verifiedIssues + " public channel " + (verifiedIssues === 1 ? "issue" : "issues") + " to fix" : findings.length > 0 ? findings.length + " channel opportunities to test" : "Public setup reviewed; audience performance unknown";
+  const urgent = verifiedIssues > 0 || replay.status === "attention" || scoreBand === "danger";
+  const headline = replay.status === "attention" ? "Recent broadcasts need a replay-reach review" : scoreBand === "danger" && followers.data !== null && followers.data < 25 ? "Build the audience and test replay reach" : aiPriority ? aiPriority.title : verifiedIssues > 0 ? verifiedIssues + " public channel " + (verifiedIssues === 1 ? "issue" : "issues") + " to fix" : findings.length > 0 ? findings.length + " channel opportunities to test" : "Public setup reviewed; audience performance unknown";
   const knownVodViews = videos.data?.flatMap((video) => video.views === null ? [] : [video.views]) ?? [];
   const vodViewRange = videos.data === null ? "Unavailable" : videos.data.length === 0 ? "No public VODs" : knownVodViews.length === 0 ? "Unavailable" : Math.min(...knownVodViews) === Math.max(...knownVodViews) ? Math.min(...knownVodViews).toLocaleString() : Math.min(...knownVodViews).toLocaleString() + "–" + Math.max(...knownVodViews).toLocaleString();
 
@@ -79,16 +81,34 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
           </div>
           <Badge variant="outline" className={urgent ? "border-rose-500/60 text-rose-500" : "border-amber-500/50 text-amber-500"}><ShieldCheck className="mr-1 h-3 w-3" />{replay.status === "attention" ? "Action recommended" : aiPriority ? aiFindings.length + " AI " + (aiFindings.length === 1 ? "fix" : "fixes") : verifiedIssues > 0 ? verifiedIssues + " verified" : findings.length + " to test"}</Badge>
         </div>
-        <div className={"rounded-xl border bg-background/80 p-4 sm:p-5 " + (replay.status === "attention" ? "border-rose-500/60" : "border-border/70")}>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public replay review</p>
-          <p className={"mt-1 text-2xl font-bold " + (replay.status === "attention" ? "text-rose-500" : "text-foreground")}>
-            {replay.status === "attention" ? "Needs attention" : replay.status === "insufficient" ? "Not enough public data" : "No low replay count in this sample"}
-          </p>
-          <p className="mt-2 text-sm text-muted-foreground">{replay.status === "attention"
-            ? replay.lowCount + " of " + replay.sampleCount + " sampled VODs have 20 or fewer public views; the lowest has " + replay.lowestViews + ". Review title hooks and distribution, then compare future results."
-            : "A filled-in bio, title, and category are setup checks—not proof that viewers discover or stay with the channel."}</p>
-          <p className="mt-3 text-xs text-muted-foreground">Review rule: archived broadcasts 2–90 days old with 20 or fewer VOD views. This is an editorial prompt, not a Twitch health score, live-viewer average, bot diagnosis, or proof of a platform penalty.</p>
-          <p className="mt-2 text-xs text-muted-foreground">{checks.length ? completed + " of " + checks.length + " visible setup fields are filled. " : "Visible setup fields were unavailable. "}Setup completion is not a performance grade.</p>
+        <div className={"rounded-xl border bg-background/80 p-4 sm:p-5 " + (scoreBand === "danger" ? "border-rose-500/70" : "border-border/70")}>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public opportunity score</p>
+              <p className={"mt-1 text-3xl font-extrabold " + (scoreBand === "danger" ? "text-rose-500" : scoreBand === "review" ? "text-amber-500" : scoreBand === "strong" ? "text-emerald-500" : "text-foreground")}>
+                {score.value === null ? "Not enough data" : score.value + "/100"}
+              </p>
+            </div>
+            <Badge variant="outline" className={scoreBand === "danger" ? "border-rose-500/70 text-rose-500" : scoreBand === "review" ? "border-amber-500/60 text-amber-500" : "border-border"}>
+              {scoreBand === "danger" ? "Priority: needs work" : scoreBand === "review" ? "Opportunities to test" : scoreBand === "strong" ? "Stronger public signals" : "Unscored"}
+            </Badge>
+          </div>
+          {score.value !== null && <div role="meter" aria-label="Public opportunity score" aria-valuemin={0} aria-valuemax={100} aria-valuenow={score.value} className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
+            <div className={"h-full rounded-full " + (scoreBand === "danger" ? "bg-rose-500" : scoreBand === "review" ? "bg-amber-500" : "bg-emerald-500")} style={{ width: score.value + "%" }} />
+          </div>}
+          <p className="mt-3 text-sm text-muted-foreground">{replay.status === "attention"
+            ? replay.lowCount + " of " + replay.sampleCount + " recent archived broadcasts have 20 or fewer VOD views. The lowest has " + replay.lowestViews + ". That is a concrete replay-reach signal worth testing."
+            : replay.status === "insufficient" ? "There are not enough aged public VODs to score replay activity fairly." : "This sample did not show VODs at or below the 20-view review line."}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{followers.data === null ? "Follower total unavailable; it is not scored as zero." : followers.data >= 25 ? followers.data.toLocaleString() + " followers returned by Twitch: the public follower milestone is met, so this report does not flag a follower deficit." : followers.data.toLocaleString() + " followers returned by Twitch: organic audience building is one area to work on."}</p>
+          <details className="mt-4 border-t border-border/70 pt-3">
+            <summary className="cursor-pointer text-sm font-semibold">How this score is calculated</summary>
+            <p className="mt-2 text-xs text-muted-foreground">An editorial public-signal score, not a Twitch health score, live-viewer average, SEO ranking, bot diagnosis, or proof of lost revenue. Red is below 50; amber is 50-79; green is 80-100. Missing inputs make the whole score unavailable, never zero.</p>
+            <ul className="mt-3 space-y-3">{score.criteria.map((criterion) => <li key={criterion.label} className="rounded-lg border border-border/70 p-3">
+              <div className="flex justify-between gap-3 text-sm font-semibold"><span>{criterion.label}</span><span className="shrink-0">{criterion.earned === null ? "Unavailable" : criterion.earned + "/" + criterion.possible}</span></div>
+              <p className="mt-1 text-xs text-muted-foreground">{criterion.basis}</p>
+            </li>)}</ul>
+            <a href="https://help.twitch.tv/s/article/twitch-affiliate-program-faq?language=en_US" target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs text-primary underline underline-offset-4">Twitch Affiliate requirements <ExternalLink className="h-3 w-3" aria-hidden="true" /></a>
+          </details>
         </div>
         {findings.length > 0 && <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{verifiedIssues} verified setup {verifiedIssues === 1 ? "issue" : "issues"} · {findings.length - verifiedIssues} improvement {findings.length - verifiedIssues === 1 ? "test" : "tests"}</p>}
         <div className="grid gap-2 sm:grid-cols-3">

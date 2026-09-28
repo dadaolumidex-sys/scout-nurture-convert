@@ -16,6 +16,14 @@ export type PublicSetupCheck = { label: string; complete: boolean };
 export type PresentationCriterion = { label: string; earned: number; possible: number; basis: string };
 export type PresentationScore = { value: number | null; covered: number; criteria: PresentationCriterion[] };
 
+export type PublicOpportunityCriterion = { label: string; earned: number | null; possible: number; basis: string };
+export type PublicOpportunityScore = {
+  value: number | null;
+  criteria: PublicOpportunityCriterion[];
+  sampleCount: number;
+  medianViews: number | null;
+};
+
 export const LOW_REPLAY_REVIEW_VIEWS = 20;
 export type ReplayReview = { status: "attention" | "no-signal" | "insufficient"; sampleCount: number; lowCount: number; lowestViews: number | null };
 
@@ -40,6 +48,57 @@ export function presentationScoreBand(value: number | null): "unavailable" | "da
 }
 
 const words = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
+const isFollowFirst = (value: string) => /^\s*(?:drop\s+(?:a\s+)?follow|follow\s+(?:me|us)|please\s+follow)\b/i.test(value);
+
+/** Editorial public-signal rubric. It cannot measure live audience health or explain causation. */
+export function buildPublicOpportunityScore(audit: ChannelAudit): PublicOpportunityScore {
+  const sample = recentReplaySample(audit);
+  const sortedViews = sample.map((video) => video.views!).sort((a, b) => a - b);
+  const middle = Math.floor(sortedViews.length / 2);
+  const medianViews = sortedViews.length
+    ? sortedViews.length % 2 ? sortedViews[middle] : (sortedViews[middle - 1] + sortedViews[middle]) / 2
+    : null;
+  const title = audit.stream.data?.isLive ? audit.stream.data.title : audit.channel.data?.title;
+  const followerCount = audit.followers.data;
+  const replayPoints = sample.length >= 2 && medianViews !== null ? Math.round(60 * Math.min(medianViews, 100) / 100) : null;
+  const titlePoints = title === null || title === undefined ? null
+    : !title.trim() || isFollowFirst(title) ? 0
+    : words(title) >= 4 && title.trim().length >= 24 ? 20 : 10;
+  const followerPoints = followerCount === null ? null : Math.round(20 * Math.min(followerCount, 25) / 25);
+  const criteria: PublicOpportunityCriterion[] = [
+    {
+      label: "Recent public VOD replay",
+      earned: replayPoints, possible: 60,
+      basis: sample.length < 2
+        ? "Need at least 2 archived broadcasts aged 2–90 days with known view counts; missing data is not zero."
+        : "Median " + medianViews + " VOD views across " + sample.length + " archived broadcasts aged 2–90 days. Earn 60 × min(median views, 100) / 100, rounded. 100 views is an editorial comparison target, not a Twitch rule or live-viewer metric.",
+    },
+    {
+      label: "Viewer-facing title",
+      earned: titlePoints, possible: 20,
+      basis: title === null || title === undefined
+        ? "The stream or channel title was unavailable, not scored as zero."
+        : "20 points for a title with at least 4 words and 24 characters; 10 for a shorter nonempty title; 0 for an empty title or one that leads with a follow request. This is an editorial clarity proxy, not SEO ranking.",
+    },
+    {
+      label: "Public follower milestone",
+      earned: followerPoints, possible: 20,
+      basis: followerCount === null
+        ? "Follower total was unavailable, not scored as zero."
+        : followerCount >= 25
+        ? followerCount.toLocaleString() + " followers returned by Twitch. The 25-follower Affiliate milestone is met; follower count is not flagged as a deficit. Other eligibility requirements are not scored."
+        : followerCount.toLocaleString() + " followers returned by Twitch; " + (25 - followerCount) + " below the 25-follower Affiliate milestone. Earn 20 × min(followers, 25) / 25, rounded. Organic audience growth is worth testing; other eligibility requirements are not scored.",
+    },
+  ];
+  return {
+    value: criteria.every((criterion) => criterion.earned !== null)
+      ? criteria.reduce((sum, criterion) => sum + criterion.earned!, 0)
+      : null,
+    criteria,
+    sampleCount: sample.length,
+    medianViews,
+  };
+}
 const titlePoints = (value: string, possible: number) => {
   const title = value.trim();
   return Math.round(possible * ((title ? 0.4 : 0) + (words(title) >= 4 ? 0.3 : 0) + (title.length >= 24 ? 0.3 : 0)));
@@ -92,6 +151,14 @@ export function buildAuditInsights(audit: ChannelAudit): {
   const live = audit.stream.data?.isLive ? audit.stream.data : null;
   const channel = audit.channel.data;
   const videos = audit.videos.data;
+
+  if (audit.profile.broadcasterType === "" && audit.followers.data !== null && audit.followers.data < 25) findings.push({
+    id: "follower-milestone", priority: "review", title: "Build toward the public follower milestone",
+    observation: "Twitch returned " + audit.followers.data + " followers, " + (25 - audit.followers.data) + " below the 25-follower Affiliate milestone.",
+    whyItMatters: "The public follower milestone is one part of Affiliate eligibility. The other requirements are visible only to the creator; this does not diagnose reach or follower quality.",
+    action: "Test organic discovery: share one useful clip, give the next stream a clear topic, and invite relevant viewers to return. Check actual progress in the Creator Dashboard.",
+    sourceEndpoint: "get-channel-followers", sourceLabel: "Twitch follower total",
+  });
 
   if (live?.title !== null && live?.title !== undefined) {
     checks.push({ label: "Live title", complete: live.title.trim().length > 0 });
@@ -168,7 +235,7 @@ export function buildAuditInsights(audit: ChannelAudit): {
       sourceEndpoint: "get-videos", sourceLabel: "Twitch archived videos",
     });
     const knownTitles = videos.filter((video) => video.title !== null);
-    const followFirst = knownTitles.find((video) => /^\s*(?:drop\s+(?:a\s+)?follow|follow\s+(?:me|us)|please\s+follow)\b/i.test(video.title || ""));
+    const followFirst = knownTitles.find((video) => isFollowFirst(video.title || ""));
     if (followFirst) findings.push({
       id: "follow-first-title", priority: "review", title: "Lead with the stream, not a follow request",
       observation: "A returned broadcast title starts by asking for a follow: " + (followFirst.title || "").trim().slice(0, 110),

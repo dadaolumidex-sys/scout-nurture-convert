@@ -39,7 +39,8 @@ describe("Channel Audit page", () => {
     expect(screen.getByText(/Twitch returned no archived broadcasts/)).toBeInTheDocument();
     expect(screen.getByText("What viewers see · What to fix")).toBeInTheDocument();
     expect(screen.getByText("Path to Affiliate / Partner")).toBeInTheDocument();
-    expect(screen.getByText("Public replay review")).toBeInTheDocument();
+    expect(screen.getByText("Public opportunity score")).toBeInTheDocument();
+    expect(screen.getByText("Not enough data")).toBeInTheDocument();
     expect(screen.queryByText(/42\/100|100\/100/)).not.toBeInTheDocument();
     expect(screen.getByText("Verified setup checks (2/2)")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Source:/ })).toHaveLength(8);
@@ -92,7 +93,11 @@ describe("Channel Audit page", () => {
     render(<AnalyzerPage />);
     submit();
     expect(await screen.findByText("Recent broadcasts need a replay-reach review")).toBeInTheDocument();
-    expect(screen.getByText("Needs attention")).toHaveClass("text-rose-500");
+    expect(screen.getByText("Priority: needs work")).toHaveClass("text-rose-500");
+    expect(screen.getByText("26/100")).toHaveClass("text-rose-500");
+    fireEvent.click(screen.getByText("How this score is calculated"));
+    expect(screen.getByText("Public follower milestone")).toBeInTheDocument();
+    expect(screen.getByText("20/20")).toBeInTheDocument();
     expect(screen.getByText("Lead with the stream, not a follow request")).toBeInTheDocument();
     expect(screen.queryByText("100/100")).not.toBeInTheDocument();
     expect(screen.getByText(/not a Twitch health score/)).toBeInTheDocument();
