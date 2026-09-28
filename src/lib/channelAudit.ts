@@ -38,6 +38,18 @@ const auditSchema = z.object({
     id: z.string().regex(/^\d+$/), title: z.string().nullable(), createdAt: timestamp.nullable(),
     duration: z.string().nullable(), views: count.nullable(),
   })).max(10)),
+  ai: z.object({
+    status: z.enum(["available", "unavailable"]),
+    reason: z.string().nullable(),
+    findings: z.array(z.object({
+      evidenceId: z.string().min(1).max(40),
+      evidence: z.string().min(1).max(500),
+      title: z.string().min(1).max(110),
+      possibleImpact: z.string().min(1).max(240),
+      fix: z.string().min(1).max(280),
+      test: z.string().min(1).max(220),
+    })).max(3),
+  }).optional(),
 });
 
 /** Reject the old analyzer payload instead of rendering its estimates as facts. */

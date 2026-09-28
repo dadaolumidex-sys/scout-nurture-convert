@@ -2,7 +2,7 @@ import { AlertTriangle, CheckCircle2, ExternalLink, Radio, ShieldCheck, Target }
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatAuditDate, type ChannelAudit } from "@/lib/channelAudit";
-import { buildAuditInsights, buildPresentationScore, type AuditFinding } from "@/lib/auditInsights";
+import { buildAuditInsights, buildPresentationScore, presentationScoreBand, type AuditFinding } from "@/lib/auditInsights";
 
 const docs = "https://dev.twitch.tv/docs/api/reference/";
 
@@ -22,15 +22,23 @@ function Fact({ label, value, note }: { label: string; value: string; note?: str
 
 function FindingCard({ finding, index }: { finding: AuditFinding; index: number }) {
   const first = finding.priority === "first";
-  return <li className={"rounded-xl border p-4 " + (first ? "border-amber-500/35 bg-amber-500/5" : "border-border bg-muted/25")}>
-    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
-      {first ? <AlertTriangle className="h-4 w-4 text-amber-500" aria-hidden="true" /> : <Target className="h-4 w-4 text-primary" aria-hidden="true" />}
-      <span>{first ? "Confirmed setup gap" : "Editorial opportunity to test"} · Step {index + 1}</span>
+  return <li className={"rounded-xl border p-4 sm:p-5 " + (first ? "border-rose-500/55 bg-rose-500/10" : "border-amber-500/35 bg-amber-500/5")}>
+    <div className={"flex items-center gap-2 text-xs font-bold uppercase tracking-wide " + (first ? "text-rose-500" : "text-amber-500")}>
+      {first ? <AlertTriangle className="h-4 w-4" aria-hidden="true" /> : <Target className="h-4 w-4" aria-hidden="true" />}
+      <span>{first ? "Verified public issue" : "Opportunity to test"} · {index + 1}</span>
     </div>
-    <h4 className="mt-2 text-base font-semibold">{finding.title}</h4>
-    <p className="mt-2 text-sm text-muted-foreground"><span className="font-medium text-foreground">What Twitch showed:</span> {finding.observation}</p>
-    <p className="mt-2 text-sm text-muted-foreground"><span className="font-medium text-foreground">Why review it:</span> {finding.whyItMatters}</p>
-    <p className="mt-2 text-sm"><span className="font-medium">First action:</span> {finding.action}</p>
+    <h4 className="mt-2 text-lg font-bold">{finding.title}</h4>
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className="rounded-lg bg-background/70 p-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Evidence</p>
+        <p className="mt-1 text-sm">{finding.observation}</p>
+      </div>
+      <div className="rounded-lg bg-background/70 p-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Why it matters</p>
+        <p className="mt-1 text-sm">{finding.whyItMatters}</p>
+      </div>
+    </div>
+    <p className="mt-3 rounded-lg border border-border/70 p-3 text-sm"><span className="font-bold">Fix to test:</span> {finding.action}</p>
     <div className="mt-3"><Source endpoint={finding.sourceEndpoint} label={finding.sourceLabel} /></div>
   </li>;
 }
@@ -43,10 +51,17 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
   const { findings, checks } = buildAuditInsights(audit);
   const presentation = buildPresentationScore(audit);
   const completed = checks.filter((check) => check.complete).length;
-  const headline = findings.length > 0 ? findings[0].title : "Public setup reviewed—look deeper with your own analytics";
-  const scoreColor = presentation.value === null ? "text-muted-foreground" : presentation.value < 50 ? "text-rose-500" : presentation.value < 80 ? "text-amber-500" : "text-emerald-500";
-  const scoreFill = presentation.value === null ? "bg-muted-foreground" : presentation.value < 50 ? "bg-rose-500" : presentation.value < 80 ? "bg-amber-500" : "bg-emerald-500";
-  const scoreStatus = presentation.value === null ? "Insufficient public data" : presentation.value < 50 ? "Public presentation needs attention" : presentation.value < 80 ? "Room to improve public presentation" : "Strong public presentation";
+  const verifiedIssues = findings.filter((finding) => finding.priority === "first").length;
+  const aiFindings = audit.ai?.status === "available" ? audit.ai.findings : [];
+  const aiPriority = aiFindings[0];
+  const scoreBand = presentationScoreBand(presentation.value);
+  const urgent = verifiedIssues > 0 || scoreBand === "danger";
+  const headline = aiPriority ? aiPriority.title : verifiedIssues > 0 ? verifiedIssues + " public channel " + (verifiedIssues === 1 ? "issue" : "issues") + " to fix" : findings.length > 0 ? findings.length + " channel opportunities to test" : urgent ? "Public presentation needs attention" : "No public issue confirmed";
+  const scoreColor = scoreBand === "unavailable" ? "text-muted-foreground" : scoreBand === "danger" ? "text-rose-500" : scoreBand === "review" ? "text-amber-500" : "text-emerald-500";
+  const scoreFill = scoreBand === "unavailable" ? "bg-muted-foreground" : scoreBand === "danger" ? "bg-rose-500" : scoreBand === "review" ? "bg-amber-500" : "bg-emerald-500";
+  const scoreStatus = scoreBand === "unavailable" ? "Insufficient public data" : scoreBand === "danger" ? "Public presentation needs attention" : scoreBand === "review" ? "Room to improve public presentation" : "Strong public presentation";
+  const knownVodViews = videos.data?.flatMap((video) => video.views === null ? [] : [video.views]) ?? [];
+  const vodViewRange = videos.data === null ? "Unavailable" : videos.data.length === 0 ? "No public VODs" : knownVodViews.length === 0 ? "Unavailable" : Math.min(...knownVodViews) === Math.max(...knownVodViews) ? Math.min(...knownVodViews).toLocaleString() : Math.min(...knownVodViews).toLocaleString() + "–" + Math.max(...knownVodViews).toLocaleString();
 
   return <div className="space-y-4 animate-slide-in" aria-label={`Audit for ${profile.displayName}`}>
     <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
@@ -55,17 +70,17 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
     </div>
     {partial && <p role="status" className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">Partial report: some Twitch data could not be retrieved. Available facts are shown below.{!readOnly && " Run the audit again to retry."}</p>}
 
-    <Card className="overflow-hidden border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-card to-card">
+    <Card className={"overflow-hidden border bg-gradient-to-br via-card to-card " + (urgent ? "border-rose-500/50 from-rose-500/15" : "border-amber-500/30 from-amber-500/10")}>
       <CardContent className="space-y-5 p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 max-w-2xl">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-amber-600 dark:text-amber-400">Your next channel improvement</p>
+            <p className={"text-xs font-bold uppercase tracking-[0.16em] " + (urgent ? "text-rose-500" : "text-amber-500")}>{aiPriority ? "AI-assisted first priority" : verifiedIssues > 0 ? "Verified channel issues" : "Public-channel opportunities"}</p>
             <h2 className="mt-2 text-2xl font-bold leading-tight sm:text-3xl">{headline}</h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {findings.length ? "Before your next stream: " + findings[0].action : "The public fields checked here did not show a clear presentation opportunity. Your private Creator Dashboard can reveal performance questions this report cannot answer."}
+              {aiPriority ? "First fix to test: " + aiPriority.fix : findings.length ? "First fix to test: " + findings[0].action : "No public problem was confirmed by this limited snapshot. A true audience diagnosis needs the creator's own analytics."}
             </p>
           </div>
-          <Badge variant="outline" className="border-primary/40 text-primary"><ShieldCheck className="mr-1 h-3 w-3" />Twitch facts + editorial review</Badge>
+          <Badge variant="outline" className={urgent ? "border-rose-500/60 text-rose-500" : "border-amber-500/50 text-amber-500"}><ShieldCheck className="mr-1 h-3 w-3" />{aiPriority ? aiFindings.length + " AI " + (aiFindings.length === 1 ? "fix" : "fixes") : verifiedIssues > 0 ? verifiedIssues + " verified" : findings.length + " to test"}</Badge>
         </div>
         <div className="rounded-xl border border-border/70 bg-background/80 p-4 sm:p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-3">
@@ -76,9 +91,9 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
             <p className={"text-sm font-semibold " + scoreColor}>{scoreStatus}</p>
           </div>
           {presentation.value !== null && <div role="progressbar" aria-label="Public presentation score" aria-valuemin={0} aria-valuemax={100} aria-valuenow={presentation.value} className="mt-4 h-3 overflow-hidden rounded-full bg-muted">
-            <div className={"h-full rounded-full " + scoreFill} style={{ width: presentation.value + "%" }} />
+            <div className={"h-full rounded-full " + scoreFill} style={{ width: presentation.value + "%", minWidth: presentation.value > 0 ? "4px" : undefined }} />
           </div>}
-          <p className="mt-3 text-xs text-muted-foreground">Our disclosed title, bio, category, and VOD-presentation checklist—not a Twitch score, SEO ranking, audience metric, or proof of lost revenue. Unavailable fields are excluded.</p>
+          <p className="mt-3 text-xs text-muted-foreground">Public presentation only—not a Twitch health score, audience metric, or proof of lost revenue.</p>
           <details className="mt-3 text-xs text-muted-foreground">
             <summary className="cursor-pointer font-medium text-foreground">How this score is calculated</summary>
             <p className="mt-2">Only public fields Twitch returned are scored. {presentation.covered} of 100 weighted points were available. A score requires at least 50 points of available fields; available points are scaled to 100.</p>
@@ -86,29 +101,51 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
             <p className="mt-2">These editorial length thresholds are prompts for a human review, not Twitch requirements or guarantees of better discovery.</p>
           </details>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-border/70 bg-background/70 p-4">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Improvement opportunities</p>
-            <p className="mt-1 text-2xl font-bold">{findings.length}</p>
-            <p className="text-xs text-muted-foreground">Suggestions to test, based on returned public fields.</p>
+        {findings.length > 0 && <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{verifiedIssues} verified setup {verifiedIssues === 1 ? "issue" : "issues"} · {findings.length - verifiedIssues} improvement {findings.length - verifiedIssues === 1 ? "test" : "tests"}</p>}
+        <div className="grid gap-2 sm:grid-cols-3">
+          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+            <p className="text-xs text-muted-foreground">Followers returned</p>
+            <p className="mt-1 text-xl font-bold">{followers.data === null ? "Unavailable" : followers.data.toLocaleString()}</p>
           </div>
-          <div className="rounded-xl border border-border/70 bg-background/70 p-4">
-            <div className="flex items-center justify-between gap-2 text-xs uppercase tracking-wide text-muted-foreground">
-              <span>Public setup checks</span><span>{checks.length ? String(completed) + " of " + String(checks.length) : "Unavailable"}</span>
-            </div>
-            {checks.length > 0 && <div role="progressbar" aria-label="Public setup checks completed" aria-valuemin={0} aria-valuemax={checks.length} aria-valuenow={completed} className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-primary transition-all" style={{ width: String((completed / checks.length) * 100) + "%" }} />
-            </div>}
-            <p className="mt-2 text-xs text-muted-foreground">Visible field completion only. “Set” does not mean optimized.</p>
+          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+            <p className="text-xs text-muted-foreground">Live viewers at retrieval</p>
+            <p className="mt-1 text-xl font-bold">{live?.isLive ? live.viewers?.toLocaleString() ?? "Unavailable" : stream.status === "unavailable" ? "Unavailable" : "Not live"}</p>
+          </div>
+          <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+            <p className="text-xs text-muted-foreground">Views on returned recent VODs</p>
+            <p className="mt-1 text-xl font-bold">{vodViewRange}</p>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground">These public snapshots are not average viewers, a follower-conversion rate, or evidence that a title caused low views.</p>
       </CardContent>
     </Card>
 
+    {audit.ai && <Card className="border-orange-500/40">
+      <CardHeader className="pb-3">
+        <p className="text-xs font-bold uppercase tracking-wide text-orange-500">AI-assisted channel review</p>
+        <CardTitle className="text-xl">What may be holding this channel back—and what to change</CardTitle>
+        <p className="text-sm text-muted-foreground">Each recommendation uses a real public channel detail. The possible effect is a hypothesis, not a measured cause of lost viewers.</p>
+      </CardHeader>
+      <CardContent>
+        {audit.ai.status === "available" && audit.ai.findings.length ? <ol className="grid gap-3">
+          {audit.ai.findings.map((finding, index) => <li key={finding.evidenceId} className={"rounded-xl border p-4 sm:p-5 " + (index === 0 ? "border-rose-500/50 bg-rose-500/10" : "border-orange-500/30 bg-orange-500/5")}>
+            <p className={"text-xs font-bold uppercase tracking-wide " + (index === 0 ? "text-rose-500" : "text-orange-500")}>Priority {index + 1} · AI recommendation</p>
+            <h4 className="mt-2 text-lg font-bold">{finding.title}</h4>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg bg-background/70 p-3"><dt className="text-xs font-semibold uppercase text-muted-foreground">Verified Twitch detail</dt><dd className="mt-1 text-sm break-words">{finding.evidence}</dd></div>
+              <div className="rounded-lg bg-background/70 p-3"><dt className="text-xs font-semibold uppercase text-muted-foreground">Possible viewer friction</dt><dd className="mt-1 text-sm">{finding.possibleImpact}</dd></div>
+            </dl>
+            <p className="mt-3 text-sm"><span className="font-bold">Fix:</span> {finding.fix}</p>
+            <p className="mt-2 text-sm"><span className="font-bold">Check the result:</span> {finding.test}</p>
+          </li>)}
+        </ol> : <p className="rounded-lg bg-muted/40 p-4 text-sm text-muted-foreground">{audit.ai.reason || "AI review is unavailable. Verified Twitch facts are shown below."}</p>}
+      </CardContent>
+    </Card>}
+
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">What to work on next</CardTitle>
-        <p className="text-sm text-muted-foreground">Prioritized actions based on visible Twitch fields. Editorial suggestions are ideas to test, not confirmed losses. Missing or private metrics are never treated as zero.</p>
+        <CardTitle className="text-lg">What viewers see · What to fix</CardTitle>
+        <p className="text-sm text-muted-foreground">Verified missing setup is red. Presentation ideas to test are amber. Neither is a claim that lost viewers or revenue have been measured.</p>
       </CardHeader>
       <CardContent className="space-y-4">
         {findings.length ? <ol className="grid gap-3">
@@ -116,17 +153,17 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
         </ol> : <div className="rounded-xl border border-border bg-muted/25 p-4 text-sm text-muted-foreground">
           This limited public checklist did not identify a presentation opportunity. It cannot establish how the channel is performing; the creator's own analytics can reveal more.
         </div>}
-        {checks.length > 0 && <div className="border-t border-border pt-4">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Visible setup checklist</p>
+        {checks.length > 0 && <details className="border-t border-border pt-4">
+          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-muted-foreground">Verified setup checks ({completed}/{checks.length})</summary>
           <ul className="flex flex-wrap gap-2">{checks.map((check) => <li key={check.label} className={"inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs " + (check.complete ? "border-primary/30 text-primary" : "border-amber-500/40 text-amber-700 dark:text-amber-300")}>
             {check.complete ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
             {check.label}: {check.complete ? "Set" : "Needs attention"}
           </li>)}</ul>
-        </div>}
-        <div className="rounded-xl bg-primary/10 p-4 text-sm">
-          <p className="font-semibold">Want a channel-specific improvement plan?</p>
-          <p className="mt-1 text-muted-foreground">A useful next session would turn the observations above into title and bio rewrites, VOD presentation ideas, and a small before-and-after test using the creator's own analytics. Results cannot be guaranteed from public data.</p>
-          <p className="mt-2 font-medium">{readOnly ? "Reply to the person who shared this report and ask which first step they would work on with you." : "Share the report and offer to walk through one concrete change with the streamer."}</p>
+        </details>}
+        <div className="rounded-xl border border-orange-500/40 bg-gradient-to-r from-rose-500/15 to-orange-500/15 p-4 sm:p-5">
+          <p className="text-base font-bold">Turn the first finding into a real fix</p>
+          <p className="mt-2 text-sm">{findings.length ? "First priority: " + findings[0].title + "." : "First priority: review the creator's private Stream Summary with permission."} Then compare results in Twitch Analytics instead of guessing about growth.</p>
+          <p className="mt-3 text-sm font-semibold">{readOnly ? "Reply to the sender and ask for a concrete fix plan for your channel." : "Send this report with an offer to show the streamer the first concrete change."}</p>
         </div>
       </CardContent>
     </Card>
@@ -244,11 +281,11 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
       </CardContent>
     </Card>
 
-    <Card className="bg-muted/20">
-      <CardHeader className="pb-3"><CardTitle className="text-base">Not available from this audit</CardTitle></CardHeader>
+    <Card className="border-primary/20 bg-muted/20">
+      <CardHeader className="pb-3"><CardTitle className="text-base">To diagnose why viewers leave, ask for the Creator Dashboard</CardTitle></CardHeader>
       <CardContent className="text-sm text-muted-foreground space-y-2">
-        <p>Average live viewers, historical growth, streaming frequency, and engagement are unavailable from these snapshots.</p>
-        <p>The public presentation score above is our disclosed editorial checklist, not a growth or Twitch performance score. No revenue or promotion claims are generated. A missing metric stays unavailable.</p>
+        <p>Average viewers, follows gained per stream, minutes watched, and performance over time are private Twitch Analytics. This public link cannot prove a retention problem or a revenue loss.</p>
+        <p>With the streamer's permission, those numbers can turn this public first impression into a real growth diagnosis. Missing metrics stay unavailable—not zero.</p>
       </CardContent>
     </Card>
   </div>;

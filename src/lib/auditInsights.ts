@@ -16,6 +16,13 @@ export type PublicSetupCheck = { label: string; complete: boolean };
 export type PresentationCriterion = { label: string; earned: number; possible: number; basis: string };
 export type PresentationScore = { value: number | null; covered: number; criteria: PresentationCriterion[] };
 
+export function presentationScoreBand(value: number | null): "unavailable" | "danger" | "review" | "strong" {
+  if (value === null) return "unavailable";
+  if (value < 50) return "danger";
+  if (value < 80) return "review";
+  return "strong";
+}
+
 const words = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
 const titlePoints = (value: string, possible: number) => {
   const title = value.trim();
@@ -165,17 +172,22 @@ export function buildAuditInsights(audit: ChannelAudit): {
     });
   }
 
+  findings.sort((a, b) => Number(b.priority === "first") - Number(a.priority === "first"));
   return { findings, checks };
 }
 
 export function buildAuditInviteMessage(audit: ChannelAudit, url: string): string {
   const { findings } = buildAuditInsights(audit);
-  const detail = findings.length
-    ? "One public-presentation opportunity worth testing is to " + findings[0].title.toLowerCase() + ". The report shows the Twitch evidence and explains what is only an editorial suggestion."
-    : "The limited public checklist did not confirm a presentation issue. The report also shows what only your Creator Dashboard can verify.";
-  const invitation = findings.length
-    ? "If you'd like, I can turn this into three concrete edits and a short test plan you can check against your own analytics."
-    : "If you want, we can review your private analytics together with your permission and choose a useful next step.";
+  const first = findings[0];
+  const aiFirst = audit.ai?.status === "available" ? audit.ai.findings[0] : undefined;
+  const detail = aiFirst
+    ? "I found a public channel detail worth improving: " + aiFirst.evidence + " My suggested first fix is: " + aiFirst.fix
+    : first
+    ? (first.priority === "first" ? "I found a public setup issue to fix: " : "I found a public presentation change worth testing: ") + first.title + ". " + first.observation
+    : "The public snapshot did not confirm a problem. Your private Twitch Creator Dashboard analytics may show what is limiting growth.";
+  const invitation = aiFirst || first
+    ? "Want help applying the first fix and checking whether it helps? Reply to this message."
+    : "If you want a real audience diagnosis, we can review your Stream Summary together with your permission.";
   const lineBreak = String.fromCharCode(10);
-  return "Hi @" + audit.profile.login + " — I made a short, source-linked snapshot of your Twitch channel. " + detail + lineBreak + lineBreak + url + lineBreak + lineBreak + invitation;
+  return "Hi @" + audit.profile.login + " — I reviewed your public Twitch channel. " + detail + lineBreak + lineBreak + "See the evidence and first fix: " + url + lineBreak + lineBreak + invitation;
 }

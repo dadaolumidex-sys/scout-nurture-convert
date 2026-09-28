@@ -29,7 +29,7 @@ const AnalyzerPage = () => {
     inFlight.current = true;
     setLoading(true);
     try {
-      const data = await callEdgeFunction<unknown>("analyze-twitch", { username });
+      const data = await callEdgeFunction<unknown>("analyze-twitch", { username, includeAi: true }, 65_000);
       setResult(readChannelAudit(data, username));
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not complete the Twitch audit. Please try again.";
@@ -46,7 +46,7 @@ const AnalyzerPage = () => {
         <div>
           <div className="mb-2 flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-primary"><ShieldCheck className="h-4 w-4" />Twitch only</div>
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">Channel Audit</h1>
-          <p className="text-sm text-muted-foreground mt-1">Check a channel using facts returned by Twitch. No estimates or AI-generated metrics.</p>
+          <p className="text-sm text-muted-foreground mt-1">Verify a real Twitch channel, then get AI-assisted fixes based on its public details. Suggestions are tests, not measured causes of lost viewers.</p>
         </div>
 
         <Card>
@@ -69,14 +69,14 @@ const AnalyzerPage = () => {
         </Card>
 
         {error && <div id="audit-error" role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-foreground">{error}</div>}
-        {loading && <div role="status" className="flex items-center gap-2 rounded-lg border border-border p-5 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Fetching channel facts from Twitch...</div>}
+        {loading && <div role="status" className="flex items-center gap-2 rounded-lg border border-border p-5 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Verifying Twitch details and preparing tailored fixes...</div>}
         {result && <><AuditShareControls key={result.profile.login} audit={result} onShared={setResult} /><ChannelAuditReport audit={result} /></>}
         {!loading && !result && !error && <Card className="border-dashed bg-muted/10">
           <CardContent className="p-6 sm:p-8">
             <ClipboardCheck className="mb-3 h-7 w-7 text-primary" />
-            <h2 className="font-semibold">A factual channel snapshot</h2>
-            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">View the channel profile, follower total when available, current live status, and recent archived broadcasts. Every section includes its Twitch source.</p>
-            <p className="mt-3 text-xs text-muted-foreground">Average viewers, growth, and streaming frequency are not inferred from VOD views.</p>
+            <h2 className="font-semibold">A verified channel with a tailored action plan</h2>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">Twitch supplies the real channel details. AI reviews that public snapshot for presentation gaps and specific fixes to test.</p>
+            <p className="mt-3 text-xs text-muted-foreground">Public data cannot reveal why an individual viewer left; private Creator Dashboard analytics are needed to measure results.</p>
           </CardContent>
         </Card>}
       </div>

@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { buildAuditInsights, buildAuditInviteMessage, buildPresentationScore } from "@/lib/auditInsights";
+import { buildAuditInsights, buildAuditInviteMessage, buildPresentationScore, presentationScoreBand } from "@/lib/auditInsights";
 import type { ChannelAudit } from "@/lib/channelAudit";
 import { auditFixture } from "./fixtures/channelAudit";
 
 describe("evidence-based audit insights", () => {
+  it("shows genuinely low scores, including 1, in the danger band without forcing other scores low", () => {
+    expect(presentationScoreBand(1)).toBe("danger");
+    expect(presentationScoreBand(49)).toBe("danger");
+    expect(presentationScoreBand(50)).toBe("review");
+    expect(presentationScoreBand(100)).toBe("strong");
+    expect(presentationScoreBand(null)).toBe("unavailable");
+  });
   it("does not call zero followers or an offline channel a critical failure", () => {
     const { findings, checks } = buildAuditInsights(auditFixture);
     expect(findings.map((finding) => finding.id)).toEqual(["bio-detail", "channel-title-clarity", "vod-visibility"]);
@@ -26,7 +33,7 @@ describe("evidence-based audit insights", () => {
     expect(findings.map((finding) => finding.id)).toEqual(["bio", "channel-title", "vod-visibility"]);
     expect(checks.every((check) => !check.complete)).toBe(true);
     const message = buildAuditInviteMessage(report, "https://app.test/audit-report#token");
-    expect(message).toContain("tell visitors what your channel is about");
+    expect(message).toMatch(/tell visitors what your channel is about/i);
     expect(message).toContain("https://app.test/audit-report#token");
     expect(message).not.toMatch(/0%|losing money|guarantee/i);
   });

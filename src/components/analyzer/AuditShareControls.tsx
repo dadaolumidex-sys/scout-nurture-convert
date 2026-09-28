@@ -47,7 +47,7 @@ export function AuditShareControls({ audit, onShared }: { audit: ChannelAudit; o
 
   return <Card><CardContent className="space-y-3 p-4 sm:p-5">
     <h2 className="font-semibold">Share a public report</h2>
-    <p className="text-sm text-muted-foreground">Create a fresh Twitch snapshot that anyone with the link can view for 30 days. It contains public Twitch facts only. Private conversations, account details, and AI data are excluded.</p>
+    <p className="text-sm text-muted-foreground">Create a fresh Twitch snapshot and AI-assisted action plan that anyone with the link can view for 30 days. Private conversations, private account details, and API keys are excluded.</p>
     {!shared ? <Button disabled={busy || loadingLinks} onClick={() => void run(async () => {
       const current = generation.current;
       const created = await createAuditShare(audit.profile.login);

@@ -63,6 +63,21 @@ export type AuditVideo = {
   views: number | null;
 };
 
+export type AiAuditFinding = {
+  evidenceId: string;
+  evidence: string;
+  title: string;
+  possibleImpact: string;
+  fix: string;
+  test: string;
+};
+
+export type AiAudit = {
+  status: "available" | "unavailable";
+  findings: AiAuditFinding[];
+  reason: string | null;
+};
+
 export type ChannelAudit = {
   version: typeof AUDIT_VERSION;
   platform: "twitch";
@@ -73,4 +88,5 @@ export type ChannelAudit = {
   stream: AuditSection<AuditStream>;
   channel: AuditSection<AuditChannel>;
   videos: AuditSection<AuditVideo[]>;
+  ai?: AiAudit;
 };

@@ -35,16 +35,47 @@ describe("Channel Audit page", () => {
     expect(await screen.findByText("Example")).toBeInTheDocument();
     expect(screen.getAllByText("0").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("Offline at retrieval")).toBeInTheDocument();
-    expect(screen.getByText("Not live")).toBeInTheDocument();
+    expect(screen.getAllByText("Not live").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/Twitch returned no archived broadcasts/)).toBeInTheDocument();
-    expect(screen.getByText("What to work on next")).toBeInTheDocument();
+    expect(screen.getByText("What viewers see · What to fix")).toBeInTheDocument();
     expect(screen.getByText("Path to Affiliate / Partner")).toBeInTheDocument();
     expect(screen.getByText("Public presentation score")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Public presentation score" })).toHaveAttribute("aria-valuenow", "42");
+    expect(screen.getByText("42/100")).toHaveClass("text-rose-500");
     expect(screen.getByText("How this score is calculated")).toBeInTheDocument();
-    expect(screen.getByRole("progressbar", { name: "Public setup checks completed" })).toHaveAttribute("aria-valuenow", "2");
+    expect(screen.getByText("Verified setup checks (2/2)")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Source:/ })).toHaveLength(8);
-    expect(callEdgeFunction).toHaveBeenCalledWith("analyze-twitch", { username: "example" });
+    expect(callEdgeFunction).toHaveBeenCalledWith("analyze-twitch", { username: "example", includeAi: true }, 65_000);
+  });
+
+  it("puts actual follower, live-viewer, and VOD-view snapshots up front without calling them averages", async () => {
+    const report: ChannelAudit = {
+      ...audit,
+      followers: { status: "available", data: 70, reason: null },
+      stream: { status: "available", data: { isLive: true, title: "Animo time!", category: "Animo", viewers: 1, startedAt: audit.fetchedAt }, reason: null },
+      videos: { status: "available", data: [3, 6, 11].map((views, index) => ({ id: String(index + 1), title: "Playing Animo with viewers tonight", createdAt: audit.fetchedAt, duration: "1h", views })), reason: null },
+    };
+    vi.mocked(callEdgeFunction).mockResolvedValue(report);
+    render(<AnalyzerPage />);
+    submit();
+    expect(await screen.findByText("Example")).toBeInTheDocument();
+    expect(screen.getByText("Views on returned recent VODs")).toBeInTheDocument();
+    expect(screen.getByText("3–11")).toBeInTheDocument();
+    expect(screen.getByText(/These public snapshots are not average viewers/)).toBeInTheDocument();
+  });
+
+  it("shows AI fixes alongside verified Twitch facts without claiming measured viewer loss", async () => {
+    vi.mocked(callEdgeFunction).mockResolvedValue({ ...audit, ai: { status: "available", reason: null, findings: [{
+      evidenceId: "bio", evidence: "Channel bio: Test bio", title: "Explain your channel promise",
+      possibleImpact: "New visitors may not know why to follow.", fix: "Add a clear content promise.",
+      test: "Compare follows in Creator Dashboard after changing the bio.",
+    }] } });
+    render(<AnalyzerPage />);
+    submit();
+    expect(await screen.findByText("AI-assisted channel review")).toBeInTheDocument();
+    expect(screen.getAllByText("Explain your channel promise")).toHaveLength(2);
+    expect(screen.getByText("Channel bio: Test bio")).toBeInTheDocument();
+    expect(screen.getByText(/hypothesis, not a measured cause/)).toBeInTheDocument();
   });
 
   it("rejects non-Twitch input without invoking the backend", async () => {

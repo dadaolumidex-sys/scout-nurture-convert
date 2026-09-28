@@ -1,5 +1,6 @@
 import { AUDIT_VERSION, parseTwitchChannel } from "./twitchAuditContract.ts";
 import type { AuditChannel, AuditProfile, AuditSection, AuditStream, AuditVideo, ChannelAudit } from "./twitchAuditContract.ts";
+import { generateAiAudit } from "./auditAI.ts";
 
 type Env = (name: string) => string | undefined;
 type JsonObject = Record<string, unknown>;
@@ -163,7 +164,11 @@ export function createTwitchAuditHandler(env: Env, fetcher: typeof fetch = fetch
     catch { return json({ error: "Send a valid JSON request." }, 400); }
     const login = parseTwitchChannel(object(body).username);
     if (!login) return json({ error: "Enter a Twitch username or channel URL, such as https://www.twitch.tv/twitchdev." }, 400);
-    try { return json(await audit(login)); }
+    try {
+      const result = await audit(login);
+      if (object(body).includeAi === true) result.ai = await generateAiAudit(result, req, env, fetcher);
+      return json(result);
+    }
     catch (error) {
       return json({ error: error instanceof AuditError ? error.message : "Could not complete the Twitch audit. Please try again." }, error instanceof AuditError ? error.status : 500);
     }

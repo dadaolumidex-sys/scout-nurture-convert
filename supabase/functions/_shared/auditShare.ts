@@ -21,6 +21,9 @@ export function publicAuditSnapshot(audit: ChannelAudit): ChannelAudit {
     stream: section(audit.stream, (s) => ({ isLive: s.isLive, title: s.title, category: s.category, viewers: s.viewers, startedAt: s.startedAt })),
     channel: section(audit.channel, (c) => ({ title: c.title, category: c.category, language: c.language })),
     videos: section(audit.videos, (videos) => videos.map((v) => ({ id: v.id, title: v.title, createdAt: v.createdAt, duration: v.duration, views: v.views }))),
+    ...(audit.ai ? { ai: { status: audit.ai.status, reason: audit.ai.reason, findings: audit.ai.findings.map((finding) => ({
+      evidenceId: finding.evidenceId, evidence: finding.evidence, title: finding.title, possibleImpact: finding.possibleImpact, fix: finding.fix, test: finding.test,
+    })) } } : {}),
   };
 }
 
@@ -106,7 +109,8 @@ export function createAuditShareHandler(env: Env, fetcher: typeof fetch = fetch,
       }
 
       // Never accept report JSON from the browser; re-fetch facts from Twitch.
-      const auditResponse = await runAudit(new Request("https://internal.invalid/audit", { method: "POST", body: JSON.stringify({ username: login }) }));
+      const auditResponse = await runAudit(new Request("https://internal.invalid/audit", { method: "POST", headers: { Authorization: authorization },
+        body: JSON.stringify({ username: login, includeAi: true }) }));
       if (!auditResponse.ok) return json({ error: "Could not retrieve a fresh Twitch snapshot. Please retry the audit before sharing." }, 502);
       const report = publicAuditSnapshot(await auditResponse.json());
       const token = hex(cryptography.getRandomValues(new Uint8Array(32)));
