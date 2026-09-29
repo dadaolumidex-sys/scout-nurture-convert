@@ -1,5 +1,6 @@
 import type { KickAudit } from "./kickAudit";
 import { copy } from "./auditRoadmap";
+import { buildKickInsights } from "./kickInsights";
 
 export function buildKickRoadmap(audit: KickAudit) {
   const name = audit.profile.displayName;
@@ -7,10 +8,17 @@ export function buildKickRoadmap(audit: KickAudit) {
   const title = audit.channel.title?.trim();
   const category = audit.channel.category?.trim();
   const hasUnavailableFields = !bio || !title || !category;
-  const recommendedStart = hasUnavailableFields ? 1 : 10;
-  const recommendedReason = hasUnavailableFields
-    ? "Verify fields Kick's API did not return against the channel page before recommending changes. Missing API data is not a channel problem."
-    : "Kick returned the public presentation fields. Review audience analytics with the creator to decide what to test first.";
+  const findings = buildKickInsights(audit).findings;
+  const followFirst = findings.some((finding) => finding.id === "follow-first-title");
+  const lowLive = findings.some((finding) => finding.id === "live-snapshot");
+  const recommendedStart = followFirst ? 4 : lowLive ? 2 : hasUnavailableFields ? 1 : 10;
+  const recommendedReason = followFirst
+    ? "Kick returned a follow-first stream title. Start by making the content clear before asking viewers to follow, then compare the next broadcasts."
+    : lowLive
+      ? "Kick returned a small live-viewer snapshot. Start with a discovery plan and check audience trends with the creator; one count cannot diagnose the cause."
+      : hasUnavailableFields
+        ? "Verify fields Kick's API did not return against the channel page before recommending changes. Missing API data is not a channel problem."
+        : "Kick returned the public presentation fields. Review audience analytics with the creator to decide what to test first.";
   const notes = [
     bio ? name + " has a public description. Review whether it explains the content and why to return." : "Kick's API did not return the About description. Check the channel page before suggesting a rewrite.",
     category ? "Kick returned " + category + " as the category. Check it matches the next broadcast." : "Kick's API did not return a category. Check the channel page before suggesting a change.",

@@ -1,6 +1,7 @@
 import { ExternalLink, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChannelGrowthRoadmap } from "./ChannelGrowthRoadmap";
+import { KickScoreSummary } from "./KickScoreSummary";
 import { buildKickRoadmap } from "@/lib/kickRoadmap";
 import type { KickAudit } from "@/lib/kickAudit";
 import { formatAuditDate } from "@/lib/channelAudit";
@@ -14,6 +15,7 @@ export function KickAuditReport({ audit, readOnly = false }: { audit: KickAudit;
   ];
   const returned = checks.filter((item) => Boolean(item.value?.trim())).length;
   return <div className="space-y-4">
+    <KickScoreSummary audit={audit} />
     <Card className="border-orange-500/40">
       <CardHeader className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-wider text-orange-500">Kick public-channel audit</p>

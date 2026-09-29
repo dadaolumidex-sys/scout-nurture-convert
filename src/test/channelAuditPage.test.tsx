@@ -43,9 +43,10 @@ describe("Channel Audit page", () => {
     fireEvent.change(screen.getByLabelText("Twitch channel"), { target: { value: "https://kick.com/example" } });
     expect(screen.getByLabelText("Kick channel")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Run audit" }));
-    expect(await screen.findByText("Channel presentation needs attention")).toBeInTheDocument();
+    expect(await screen.findByText("Priority: review live reach and viewer-facing setup")).toBeInTheDocument();
+    expect(screen.getByText("40/100")).toBeInTheDocument();
     expect(screen.getByText("Follower total")).toBeInTheDocument();
-    expect(screen.getAllByText("Not publicly available").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Not supplied by Kick API")).toBeInTheDocument();
     expect(screen.getByText("Streamer channel growth roadmap")).toBeInTheDocument();
     expect(callEdgeFunction).toHaveBeenCalledWith("analyze-kick", { username: "example", includeAi: true }, 65_000);
   });
