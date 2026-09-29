@@ -1,6 +1,8 @@
 import { createTwitchAuditHandler } from "./twitchAudit.ts";
 import { parseTwitchChannel } from "./twitchAuditContract.ts";
 import type { AuditSection, ChannelAudit } from "./twitchAuditContract.ts";
+import { createKickAuditHandler } from "./kickAudit.ts";
+import { parseKickChannel, type KickAudit } from "./kickAuditContract.ts";
 
 type Env = (name: string) => string | undefined;
 const TOKEN = /^[a-f0-9]{64}$/;
@@ -27,6 +29,26 @@ export function publicAuditSnapshot(audit: ChannelAudit): ChannelAudit {
   };
 }
 
+/** Only explicitly approved public Kick fields enter a shareable snapshot. */
+export function publicKickSnapshot(audit: KickAudit): KickAudit {
+  return {
+    version: "kick-audit-v1", platform: "kick", source: "Kick Developer Public API", fetchedAt: audit.fetchedAt,
+    profile: {
+      id: audit.profile.id, slug: audit.profile.slug, displayName: audit.profile.displayName,
+      description: audit.profile.description, profileImageUrl: audit.profile.profileImageUrl,
+    },
+    channel: { title: audit.channel.title, category: audit.channel.category, bannerUrl: audit.channel.bannerUrl },
+    stream: { isLive: audit.stream.isLive, viewers: audit.stream.viewers, startedAt: audit.stream.startedAt },
+    ai: {
+      status: audit.ai.status, reason: audit.ai.reason,
+      findings: audit.ai.findings.map((finding) => ({
+        evidenceId: finding.evidenceId, evidence: finding.evidence, title: finding.title,
+        possibleImpact: finding.possibleImpact, fix: finding.fix, test: finding.test,
+      })),
+    },
+  };
+}
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -35,6 +57,7 @@ const cors = {
 
 export function createAuditShareHandler(env: Env, fetcher: typeof fetch = fetch, cryptography: Crypto = crypto) {
   const runAudit = createTwitchAuditHandler(env, fetcher);
+  const runKickAudit = createKickAuditHandler(env, fetcher);
   const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {
     status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store, private", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow, noarchive" },
   });
@@ -47,7 +70,7 @@ export function createAuditShareHandler(env: Env, fetcher: typeof fetch = fetch,
       // Bound body consumption as well as response headers. Never reflect error bodies.
       const data: unknown = response.ok ? await response.json() : null;
       if (!response.ok) void response.body?.cancel().catch(() => {});
-      return { ok: response.ok, json: async () => data };
+      return { ok: response.ok, status: response.status, json: async () => data };
     } finally { clearTimeout(timer); }
   };
 
@@ -63,12 +86,14 @@ export function createAuditShareHandler(env: Env, fetcher: typeof fetch = fetch,
       if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error();
     } catch { return json({ error: "Invalid request." }, 400); }
     const action = input.action;
-    const allowed = action === "create" ? ["action", "username"] : action === "read" ? ["action", "token"] : action === "revoke" ? ["action", "id"] : action === "list" ? ["action"] : [];
+    const allowed = action === "create" ? ["action", "username", "platform"] : action === "read" ? ["action", "token"] : action === "revoke" ? ["action", "id", "platform"] : action === "list" ? ["action", "platform"] : [];
     if (!allowed.length || Object.keys(input).some((key) => !allowed.includes(key))) return json({ error: "Invalid share request." }, 400);
+    const platform = input.platform === undefined ? "twitch" : input.platform;
+    if (action !== "read" && platform !== "twitch" && platform !== "kick") return json({ error: "Invalid platform." }, 400);
     if (action === "read" && (typeof input.token !== "string" || !TOKEN.test(input.token))) return json({ error: "Report unavailable or link expired." }, 404);
     if (action === "revoke" && (typeof input.id !== "string" || !UUID.test(input.id))) return json({ error: "Invalid share ID." }, 400);
-    const login = action === "create" ? parseTwitchChannel(input.username) : null;
-    if (action === "create" && !login) return json({ error: "Enter a Twitch channel." }, 400);
+    const login = action === "create" ? platform === "kick" ? parseKickChannel(input.username) : parseTwitchChannel(input.username) : null;
+    if (action === "create" && !login) return json({ error: "Enter a valid channel for the selected platform." }, 400);
 
     const url = env("SUPABASE_URL");
     const anon = env("SUPABASE_ANON_KEY");
@@ -78,12 +103,19 @@ export function createAuditShareHandler(env: Env, fetcher: typeof fetch = fetch,
     try {
       if (action === "read") {
         const tokenHash = await hash(input.token as string);
-        const res = await boundedFetch(`${url}/rest/v1/twitch_audit_shares?token_hash=eq.${tokenHash}&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=report,created_at,expires_at&limit=1`, { headers: serviceHeaders });
-        if (!res.ok) return json({ error: "Report sharing is temporarily unavailable." }, 503);
-        const rows = await res.json() as { report: ChannelAudit; created_at: string; expires_at: string }[];
-        if (!Array.isArray(rows) || !rows[0]) return json({ error: "Report unavailable or link expired." }, 404);
+        let rows: { report: ChannelAudit | KickAudit; created_at: string; expires_at: string }[] = [];
+        for (const table of ["twitch_audit_shares", "kick_audit_shares"]) {
+          const res = await boundedFetch(`${url}/rest/v1/${table}?token_hash=eq.${tokenHash}&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&select=report,created_at,expires_at&limit=1`, { headers: serviceHeaders });
+          if (!res.ok) return table === "kick_audit_shares" && res.status === 404
+            ? json({ error: "Report unavailable or link expired." }, 404)
+            : json({ error: "Report sharing is temporarily unavailable." }, 503);
+          const found = await res.json() as typeof rows;
+          if (Array.isArray(found) && found[0]) { rows = found; break; }
+        }
+        if (!rows[0]) return json({ error: "Report unavailable or link expired." }, 404);
         // Deliberately omit owner ID, row ID, and token hash from public responses.
-        return json({ report: publicAuditSnapshot(rows[0].report), createdAt: rows[0].created_at, expiresAt: rows[0].expires_at });
+        const report = rows[0].report.platform === "kick" ? publicKickSnapshot(rows[0].report) : publicAuditSnapshot(rows[0].report);
+        return json({ report, createdAt: rows[0].created_at, expiresAt: rows[0].expires_at });
       }
 
       const authorization = req.headers.get("Authorization") || "";
@@ -99,7 +131,8 @@ export function createAuditShareHandler(env: Env, fetcher: typeof fetch = fetch,
         const path = action === "list"
           ? `?select=id,channel_login,created_at,expires_at&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&order=created_at.desc`
           : `?id=eq.${input.id}&select=id`;
-        const res = await boundedFetch(`${url}/rest/v1/twitch_audit_shares${path}`, {
+        const table = platform === "kick" ? "kick_audit_shares" : "twitch_audit_shares";
+        const res = await boundedFetch(`${url}/rest/v1/${table}${path}`, {
           method: action === "list" ? "GET" : "DELETE",
           headers: { ...userHeaders, Prefer: "return=representation" },
         });
@@ -108,16 +141,17 @@ export function createAuditShareHandler(env: Env, fetcher: typeof fetch = fetch,
         return action === "list" ? json({ shares: rows }) : json({ revoked: true });
       }
 
-      // Never accept report JSON from the browser; re-fetch facts from Twitch.
-      const auditResponse = await runAudit(new Request("https://internal.invalid/audit", { method: "POST", headers: { Authorization: authorization },
+      // Never accept report JSON from the browser; re-fetch facts from the selected platform.
+      const auditResponse = await (platform === "kick" ? runKickAudit : runAudit)(new Request("https://internal.invalid/audit", { method: "POST", headers: { Authorization: authorization },
         body: JSON.stringify({ username: login, includeAi: true }) }));
-      if (!auditResponse.ok) return json({ error: "Could not retrieve a fresh Twitch snapshot. Please retry the audit before sharing." }, 502);
-      const report = publicAuditSnapshot(await auditResponse.json());
+      if (!auditResponse.ok) return json({ error: "Could not retrieve a fresh channel snapshot. Please retry the audit before sharing." }, 502);
+      const report = platform === "kick" ? publicKickSnapshot(await auditResponse.json()) : publicAuditSnapshot(await auditResponse.json());
       const token = hex(cryptography.getRandomValues(new Uint8Array(32)));
       const tokenHash = await hash(token);
       const createdAt = new Date().toISOString();
       const expiresAt = new Date(Date.parse(createdAt) + 30 * 86400_000).toISOString();
-      const saved = await boundedFetch(`${url}/rest/v1/twitch_audit_shares?select=id`, {
+      const table = platform === "kick" ? "kick_audit_shares" : "twitch_audit_shares";
+      const saved = await boundedFetch(`${url}/rest/v1/${table}?select=id`, {
         method: "POST", headers: { ...serviceHeaders, Prefer: "return=representation" },
         body: JSON.stringify({ owner_id: user.id, channel_login: report.profile.login, token_hash: tokenHash, report, created_at: createdAt, expires_at: expiresAt }),
       });

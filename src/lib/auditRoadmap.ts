@@ -6,7 +6,7 @@ export type RoadmapStep = {
   number: number; title: string; hook: string; needsDoing: string;
   whatWeDo: string; whyItMatters: string; outcome: string; channelNote: string;
 };
-const copy: Copy[] = [
+export const copy: Copy[] = [
   ["Channel foundation", "Before bringing more people to your channel, make sure your channel is ready to receive them.", "Review the profile, bio, panels, links, branding, channel information, and first-time visitor experience.", "We optimize the profile, bio, panels, links, branding, and overall presentation with you.", "Visitors need to understand the channel before deciding to return.", "A stronger first impression and a channel prepared to turn relevant visits into follows."],
   ["Discoverability & SEO", "If people can't discover you, they can't become your audience.", "Use accurate game or topic language in titles, descriptions, categories, and profile text.", "We review keywords, titles, descriptions, categories, and other discoverability opportunities.", "Clear labels help relevant people find content; they do not guarantee ranking.", "More opportunities for relevant viewers to discover your content."],
   ["Content positioning", "Give viewers a clear reason to choose your stream.", "Choose a recognizable content focus, target viewer, and promise for recurring streams.", "We analyze your niche and position content for its intended audience.", "A clear identity makes the channel easier to remember.", "Clearer content identity and stronger audience targeting."],

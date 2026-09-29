@@ -29,7 +29,7 @@ export function publicAuditEvidence(audit: ChannelAudit): Evidence[] {
   return evidence;
 }
 
-async function userKeys(req: Request, env: Env, fetcher: typeof fetch): Promise<{ provider: string; key: string }[]> {
+export async function userKeys(req: Request, env: Env, fetcher: typeof fetch): Promise<{ provider: string; key: string }[]> {
   const token = req.headers.get("Authorization");
   const url = env("SUPABASE_URL");
   const anon = env("SUPABASE_ANON_KEY");
@@ -67,7 +67,7 @@ async function userKeys(req: Request, env: Env, fetcher: typeof fetch): Promise<
   } catch { return []; }
 }
 
-async function signedIn(req: Request, env: Env, fetcher: typeof fetch): Promise<boolean> {
+export async function signedIn(req: Request, env: Env, fetcher: typeof fetch): Promise<boolean> {
   const token = req.headers.get("Authorization");
   const url = env("SUPABASE_URL");
   const anon = env("SUPABASE_ANON_KEY");

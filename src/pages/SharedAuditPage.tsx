@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { ChannelAuditReport } from "@/components/analyzer/ChannelAuditReport";
+import { KickAuditReport } from "@/components/analyzer/KickAuditReport";
 import { readAuditShare } from "@/lib/readAuditShare";
 import { formatAuditDate } from "@/lib/channelAudit";
 
@@ -36,11 +37,11 @@ export default function SharedAuditPage() {
   return <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
     <header className="space-y-2">
       <p className="text-sm text-muted-foreground">StreamScout AI · Read-only channel report</p>
-      <h1 className="text-2xl font-bold">Your Twitch Channel Audit</h1>
-      <p className="text-sm text-muted-foreground">No Twitch sign-in or channel access is needed to view this report. It is a saved public snapshot, not a live dashboard or an official Twitch notice.</p>
+      <h1 className="text-2xl font-bold">Your {result ? result.report.platform === "kick" ? "Kick " : "Twitch " : ""}Channel Audit</h1>
+      <p className="text-sm text-muted-foreground">No platform sign-in or channel access is needed to view this report. It is a saved public snapshot, not a live dashboard or an official platform notice.</p>
     </header>
     {loading && <p role="status">Loading shared report...</p>}
     {error && <p role="alert" className="rounded-lg border border-border p-4">{error}</p>}
-    {result && <><p className="text-xs text-muted-foreground">Link expires {formatAuditDate(result.expiresAt)}.</p><ChannelAuditReport audit={result.report} readOnly /></>}
+    {result && <><p className="text-xs text-muted-foreground">Link expires {formatAuditDate(result.expiresAt)}.</p>{result.report.platform === "kick" ? <KickAuditReport audit={result.report} readOnly /> : <ChannelAuditReport audit={result.report} readOnly />}</>}
   </main>;
 }

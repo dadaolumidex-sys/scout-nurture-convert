@@ -4,10 +4,12 @@ import type { ReactNode } from "react";
 import AnalyzerPage from "@/pages/AnalyzerPage";
 import { callEdgeFunction } from "@/lib/edgeFunction";
 import type { ChannelAudit } from "@/lib/channelAudit";
+import type { KickAudit } from "@/lib/kickAudit";
 
 vi.mock("@/components/DashboardLayout", () => ({ DashboardLayout: ({ children }: { children: ReactNode }) => <main>{children}</main> }));
 vi.mock("@/lib/edgeFunction", () => ({ callEdgeFunction: vi.fn() }));
 vi.mock("@/components/analyzer/AuditShareControls", () => ({ AuditShareControls: () => null }));
+vi.mock("@/components/analyzer/KickAuditShareControls", () => ({ KickAuditShareControls: () => null }));
 
 // Deliberately synthetic data, only used by this test suite.
 const audit: ChannelAudit = {
@@ -28,6 +30,25 @@ beforeEach(() => vi.clearAllMocks());
 afterEach(cleanup);
 
 describe("Channel Audit page", () => {
+  it("audits a Kick link with verified Kick facts and a ten-step roadmap", async () => {
+    const kick: KickAudit = {
+      version: "kick-audit-v1", platform: "kick", source: "Kick Developer Public API", fetchedAt: "2026-09-28T12:00:00Z",
+      profile: { id: "123", slug: "example", displayName: "Example", description: "", profileImageUrl: null },
+      channel: { title: "Game night", category: "Gaming", bannerUrl: null },
+      stream: { isLive: true, viewers: 7, startedAt: "2026-09-28T12:00:00Z" },
+      ai: { status: "unavailable", reason: "No AI key.", findings: [] },
+    };
+    vi.mocked(callEdgeFunction).mockResolvedValue(kick);
+    render(<AnalyzerPage />);
+    fireEvent.change(screen.getByLabelText("Twitch channel"), { target: { value: "https://kick.com/example" } });
+    expect(screen.getByLabelText("Kick channel")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Run audit" }));
+    expect(await screen.findByText("Channel presentation needs attention")).toBeInTheDocument();
+    expect(screen.getByText("Follower total")).toBeInTheDocument();
+    expect(screen.getAllByText("Not publicly available").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("Streamer channel growth roadmap")).toBeInTheDocument();
+    expect(callEdgeFunction).toHaveBeenCalledWith("analyze-kick", { username: "example", includeAi: true }, 65_000);
+  });
   it("reveals all ten roadmap actions in one click", async () => {
     vi.mocked(callEdgeFunction).mockResolvedValue(audit);
     render(<AnalyzerPage />);

@@ -2,13 +2,14 @@
 
 ## Current Channel Audit
 
-Analyze has been replaced locally with a Twitch-only Channel Audit using Twitch API
-facts. It does not estimate followers, average viewers, frequency, or growth, and
-does not generate AI promotion claims. Inbox, AI Chat, and Search are unchanged.
-See [Channel Audit setup and data contract](docs/channel-audit.md).
+The Channel Audit supports Twitch and Kick as separate verified public snapshots.
+It does not invent followers, average viewers, frequency, or growth. Kick requires
+a Kick Developer app and Supabase deployment before it can run live. Inbox, AI
+Chat, and Search are unchanged. See [Twitch Channel Audit setup](docs/channel-audit.md)
+and [Kick Channel Audit setup](docs/kick-audit.md).
 
-The original product brief below is historical; its analyzer estimates and Kick
-support do not describe the current Channel Audit.
+The original product brief below is historical; its analyzer estimates do not
+describe the current Channel Audit.
 
 ## Original product brief
 

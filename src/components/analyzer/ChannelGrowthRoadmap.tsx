@@ -4,8 +4,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ChannelAudit } from "@/lib/channelAudit";
 import { buildAuditRoadmap } from "@/lib/auditRoadmap";
 
-export function ChannelGrowthRoadmap({ audit }: { audit: ChannelAudit }) {
-  const roadmap = buildAuditRoadmap(audit);
+export function ChannelGrowthRoadmap({ audit, providedRoadmap, platform = "twitch" }: {
+  audit?: ChannelAudit;
+  providedRoadmap?: ReturnType<typeof buildAuditRoadmap>;
+  platform?: "twitch" | "kick";
+}) {
+  const roadmap = providedRoadmap ?? buildAuditRoadmap(audit!);
   const [openSteps, setOpenSteps] = useState<number[]>([]);
   const allOpen = openSteps.length === roadmap.steps.length;
 
@@ -60,7 +64,7 @@ export function ChannelGrowthRoadmap({ audit }: { audit: ChannelAudit }) {
           </li>;
         })}
       </ol>
-      <p className="text-xs text-muted-foreground">These steps are a plan to test, not a promise of viewers, followers, Affiliate or Partner approval, subscribers, or earnings. Private analytics and the creator's participation are needed to measure results.</p>
+      <p className="text-xs text-muted-foreground">These steps are a plan to test, not a promise of viewers, followers, {platform === "twitch" ? "Affiliate or Partner approval, " : ""}subscribers, or earnings. Private analytics and the creator's participation are needed to measure results.</p>
     </CardContent>
   </Card>;
 }
