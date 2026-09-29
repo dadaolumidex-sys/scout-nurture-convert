@@ -6,17 +6,17 @@ export function buildKickRoadmap(audit: KickAudit) {
   const bio = audit.profile.description?.trim();
   const title = audit.channel.title?.trim();
   const category = audit.channel.category?.trim();
-  const recommendedStart = !bio ? 1 : !title ? 4 : !category ? 2 : 10;
-  const recommendedReason = !bio ? "The public description is empty or unavailable. Explain the content and reason to return before inviting new people."
-    : !title ? "The current stream title is empty or unavailable. Test a content-led title before promotion."
-    : !category ? "The category is empty or unavailable. Set an accurate category so visitors can understand the content."
-    : "Public presentation fields are filled. Review private audience analytics with the creator to decide what to test first.";
+  const hasUnavailableFields = !bio || !title || !category;
+  const recommendedStart = hasUnavailableFields ? 1 : 10;
+  const recommendedReason = hasUnavailableFields
+    ? "Verify fields Kick's API did not return against the channel page before recommending changes. Missing API data is not a channel problem."
+    : "Kick returned the public presentation fields. Review audience analytics with the creator to decide what to test first.";
   const notes = [
-    bio ? name + " has a public description. Review whether it explains the content and why to return." : "Kick did not return a filled description. Confirm and improve it with the creator.",
-    category ? "Kick returned " + category + " as the category. Check it matches the next broadcast." : "No category was returned. Confirm an accurate category before the next stream.",
+    bio ? name + " has a public description. Review whether it explains the content and why to return." : "Kick's API did not return the About description. Check the channel page before suggesting a rewrite.",
+    category ? "Kick returned " + category + " as the category. Check it matches the next broadcast." : "Kick's API did not return a category. Check the channel page before suggesting a change.",
     category ? "Position " + name + "'s " + category + " content for a specific audience." : "Define the target audience and content identity with the creator.",
-    title ? "Current public title: " + title.slice(0, 120) + ". Test a clearer content-led alternative." : "Kick did not return a filled stream title. Write one for the next broadcast.",
-    "Kick's public channel endpoint does not provide a verified follower total. Confirm audience baselines with the creator.",
+    title ? "Current public title: " + title.slice(0, 120) + ". Test a clearer content-led alternative." : "Kick's API did not return a stream title. Check the channel page before suggesting a change.",
+    "Kick's public channel endpoint does not provide follower totals. Check the current number on the channel page and confirm audience baselines with the creator.",
     "Do not buy traffic based on public profile details alone. Agree on targeting, budget, and success measures first.",
     "Public Kick data cannot show visitor-to-follower conversion. Ask the creator to compare follows after specific changes.",
     "Chat participation is not measured by this public audit. Review real chat activity with the creator.",

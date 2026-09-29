@@ -6,6 +6,9 @@ const object = (value: unknown): Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const text = (value: unknown, max = 300): string | null =>
   typeof value === "string" ? value.trim().slice(0, max) : null;
+// Kick can return blank presentation fields even when its channel page shows them.
+// A blank API value is unavailable evidence, not a confirmed channel gap.
+const presentedText = (value: unknown, max: number): string | null => text(value, max) || null;
 const count = (value: unknown): number | null =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
 const date = (value: unknown): string | null =>
@@ -76,12 +79,12 @@ export function createKickAuditHandler(env: Env, fetcher: typeof fetch = fetch) 
         version: KICK_AUDIT_VERSION, platform: "kick", source: "Kick Developer Public API", fetchedAt: new Date().toISOString(),
         profile: {
           id: String(id), slug, displayName: text(user.name, 80) || slug,
-          description: text(channel.channel_description, 1000),
+          description: presentedText(channel.channel_description, 1000),
           profileImageUrl: safeUrl(user.profile_picture),
         },
         channel: {
-          title: text(channel.stream_title, 200),
-          category: text(object(channel.category).name, 100),
+          title: presentedText(channel.stream_title, 200),
+          category: presentedText(object(channel.category).name, 100),
           bannerUrl: safeUrl(channel.banner_picture),
         },
         stream: {

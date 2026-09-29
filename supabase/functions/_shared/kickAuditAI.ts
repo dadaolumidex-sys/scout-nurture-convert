@@ -10,9 +10,9 @@ const unavailable = (reason: string): KickAudit["ai"] => ({ status: "unavailable
 
 export async function generateKickAiAudit(audit: KickAudit, req: Request, env: Env, fetcher: typeof fetch): Promise<KickAudit["ai"]> {
   const evidence: Evidence[] = [];
-  if (audit.profile.description !== null) evidence.push({ id: "bio", fact: audit.profile.description ? "Channel description: " + audit.profile.description.slice(0, 300) : "Channel description is empty." });
-  if (audit.channel.title !== null) evidence.push({ id: "title", fact: audit.channel.title ? "Stream title: " + audit.channel.title : "Stream title is empty." });
-  if (audit.channel.category !== null) evidence.push({ id: "category", fact: audit.channel.category ? "Category: " + audit.channel.category : "Category is empty." });
+  if (audit.profile.description?.trim()) evidence.push({ id: "bio", fact: "Channel description: " + audit.profile.description.slice(0, 300) });
+  if (audit.channel.title?.trim()) evidence.push({ id: "title", fact: "Stream title: " + audit.channel.title });
+  if (audit.channel.category?.trim()) evidence.push({ id: "category", fact: "Category: " + audit.channel.category });
   if (audit.stream.isLive && audit.stream.viewers !== null) evidence.push({ id: "live", fact: "Current live viewers at retrieval: " + audit.stream.viewers + ". This is not average viewership." });
   if (!evidence.length) return unavailable("Kick did not return enough public presentation details for AI review.");
   if (!await signedIn(req, env, fetcher)) return unavailable("Sign in to generate the AI-assisted action plan.");

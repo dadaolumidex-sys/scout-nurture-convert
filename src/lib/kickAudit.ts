@@ -34,5 +34,21 @@ export function readKickAudit(payload: unknown, expectedSlug: string): KickAudit
   const result = schema.safeParse(payload);
   if (!result.success) throw new Error("Kick did not return a verified report. Deploy the updated Kick audit service first.");
   if (result.data.profile.slug !== expectedSlug) throw new Error("Kick returned a different channel. Please retry.");
-  return result.data as KickAudit;
+  // Older shared reports may contain blank API fields and AI findings that
+  // incorrectly describe those fields as empty on the actual channel.
+  const audit = result.data as KickAudit;
+  const description = audit.profile.description?.trim() || null;
+  const title = audit.channel.title?.trim() || null;
+  const category = audit.channel.category?.trim() || null;
+  const findings = audit.ai.findings.filter((finding) =>
+    (finding.evidenceId !== "bio" || description !== null) &&
+    (finding.evidenceId !== "title" || title !== null) &&
+    (finding.evidenceId !== "category" || category !== null)
+  );
+  return {
+    ...audit,
+    profile: { ...audit.profile, description },
+    channel: { ...audit.channel, title, category },
+    ai: { ...audit.ai, findings },
+  };
 }
