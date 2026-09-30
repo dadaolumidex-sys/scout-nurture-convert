@@ -1,6 +1,7 @@
 import { AlertTriangle, CheckCircle2, ExternalLink, Radio, ShieldCheck, Target } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChannelGrowthRoadmap } from "./ChannelGrowthRoadmap";
+import { AuditDiscordReply } from "./AuditDiscordReply";
 import { Badge } from "@/components/ui/badge";
 import { formatAuditDate, type ChannelAudit } from "@/lib/channelAudit";
 import { buildAuditInsights, buildPublicOpportunityScore, buildReplayReview, presentationScoreBand, type AuditFinding } from "@/lib/auditInsights";
@@ -146,6 +147,8 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
         <p className="text-xs text-muted-foreground">These public snapshots are not average viewers, a follower-conversion rate, or evidence that a title caused low views.</p>
       </CardContent>
     </Card>
+
+    {readOnly && <AuditDiscordReply audit={audit} />}
 
     {audit.ai && <Card className="border-orange-500/40">
       <CardHeader className="pb-3">
@@ -334,5 +337,6 @@ export function ChannelAuditReport({ audit, readOnly = false }: { audit: Channel
         <p>With the streamer's permission, those numbers can turn this public first impression into a real growth diagnosis. Missing metrics stay unavailable—not zero.</p>
       </CardContent>
     </Card>
+    {readOnly && <AuditDiscordReply audit={audit} compact />}
   </div>;
 }

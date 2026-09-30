@@ -1,6 +1,7 @@
 import { ExternalLink, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChannelGrowthRoadmap } from "./ChannelGrowthRoadmap";
+import { AuditDiscordReply } from "./AuditDiscordReply";
 import { KickScoreSummary } from "./KickScoreSummary";
 import { buildKickRoadmap } from "@/lib/kickRoadmap";
 import type { KickAudit } from "@/lib/kickAudit";
@@ -16,6 +17,7 @@ export function KickAuditReport({ audit, readOnly = false }: { audit: KickAudit;
   const returned = checks.filter((item) => Boolean(item.value?.trim())).length;
   return <div className="space-y-4">
     <KickScoreSummary audit={audit} />
+    {readOnly && <AuditDiscordReply audit={audit} />}
     <Card className="border-orange-500/40">
       <CardHeader className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-wider text-orange-500">Kick public-channel audit</p>
@@ -97,6 +99,6 @@ export function KickAuditReport({ audit, readOnly = false }: { audit: KickAudit;
       </CardContent>
     </Card>
     <ChannelGrowthRoadmap providedRoadmap={buildKickRoadmap(audit)} platform="kick" />
-    {readOnly && <p className="text-xs text-muted-foreground">Want help prioritizing these tests? Ask for a review of your own channel analytics before paying for promotion.</p>}
+    {readOnly && <AuditDiscordReply audit={audit} compact />}
   </div>;
 }
