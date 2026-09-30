@@ -19,7 +19,14 @@ const schema = z.object({
     profileImageUrl: url,
   }),
   channel: z.object({ title: z.string().nullable(), category: z.string().nullable(), bannerUrl: url }),
-  stream: z.object({ isLive: z.boolean().nullable(), viewers: z.number().int().nonnegative().nullable(), startedAt: date.nullable() }),
+  stream: z.object({
+    isLive: z.boolean().nullable(),
+    viewers: z.number().int().nonnegative().nullable(),
+    startedAt: date.nullable(),
+    thumbnailUrl: url.optional(),
+    language: z.string().nullable().optional(),
+    tags: z.array(z.string()).max(8).optional(),
+  }),
   ai: z.object({
     status: z.enum(["available", "unavailable"]),
     reason: z.string().nullable(),

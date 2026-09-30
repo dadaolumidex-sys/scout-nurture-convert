@@ -46,7 +46,9 @@ describe("Channel Audit page", () => {
     expect(await screen.findByText("Priority: review live reach and viewer-facing setup")).toBeInTheDocument();
     expect(screen.getByText("40/100")).toBeInTheDocument();
     expect(screen.getByText("Follower total")).toBeInTheDocument();
-    expect(screen.getByText("Not supplied by Kick API")).toBeInTheDocument();
+    expect(screen.getByText("Shown on Kick, not supplied by its Developer API")).toBeInTheDocument();
+    expect(screen.getByText("Live broadcast at retrieval")).toBeInTheDocument();
+    expect(screen.getByText("Recent videos and replays")).toBeInTheDocument();
     expect(screen.getByText("Streamer channel growth roadmap")).toBeInTheDocument();
     expect(callEdgeFunction).toHaveBeenCalledWith("analyze-kick", { username: "example", includeAi: true }, 65_000);
   });

@@ -34,7 +34,12 @@ describe("verified Kick audits", () => {
         stream_title: "Ranked night", category: { name: "Games" }, banner_picture: "https://cdn.kick.com/banner.jpg",
         stream: { key: "PRIVATE-STREAM-KEY" }, active_subscribers_count: 42,
       }] });
-      if (url.includes("/users/livestreams?")) return json({ data: [{ broadcaster_user: { id: 123 }, viewer_count: 7, started_at: "2026-09-28T12:00:00Z" }] });
+      if (url.includes("/users/livestreams?")) return json({ data: [{
+        broadcaster_user: { id: 123 }, viewer_count: 7, started_at: "2026-09-28T12:00:00Z",
+        title: "Live ranked match with friends", category: { name: "PUBG Mobile" },
+        thumbnail: "https://cdn.kick.com/live.jpg", language_code: "en", tags: ["ranked", "gaming"],
+        stream_key: "PRIVATE-LIVE-KEY",
+      }] });
       if (url.includes("/users?")) return json({ data: [{ user_id: 123, name: "Example", profile_picture: "https://cdn.kick.com/avatar.jpg", email: "PRIVATE-EMAIL" }] });
       return json({}, 404);
     });
@@ -43,7 +48,14 @@ describe("verified Kick audits", () => {
     const raw = await response.json();
     const audit = readKickAudit(raw, "example");
     expect(audit.profile.displayName).toBe("Example");
+    expect(audit.profile.profileImageUrl).toBe("https://cdn.kick.com/avatar.jpg");
+    expect(audit.channel.bannerUrl).toBe("https://cdn.kick.com/banner.jpg");
+    expect(audit.channel.title).toBe("Live ranked match with friends");
+    expect(audit.channel.category).toBe("PUBG Mobile");
     expect(audit.stream.viewers).toBe(7);
+    expect(audit.stream.thumbnailUrl).toBe("https://cdn.kick.com/live.jpg");
+    expect(audit.stream.language).toBe("en");
+    expect(audit.stream.tags).toEqual(["ranked", "gaming"]);
     expect(audit).not.toHaveProperty("followers");
     expect(audit).not.toHaveProperty("avgViewers");
     expect(JSON.stringify(raw)).not.toMatch(/PRIVATE|private-token|active_subscribers_count/);
@@ -98,6 +110,26 @@ describe("verified Kick audits", () => {
     const audit = readKickAudit(oldReport, "example");
     expect(audit.profile.description).toBeNull();
     expect(audit.ai.findings).toHaveLength(0);
+  });
+
+  it("accepts older Kick reports without the newer live-detail fields", async () => {
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("id.kick.com")) return json({ access_token: "private-token" });
+      if (url.includes("/channels?")) return json({ data: [{ broadcaster_user_id: 123, slug: "example" }] });
+      if (url.includes("/users/livestreams?")) return json({ data: [] });
+      if (url.includes("/users?")) return json({ data: [{ user_id: 123, name: "Example" }] });
+      return json({}, 404);
+    });
+    const response = await createKickAuditHandler(
+      (name) => ({ KICK_CLIENT_ID: "client", KICK_CLIENT_SECRET: "secret" })[name],
+      fetcher,
+    )(request("example"));
+    const oldReport = await response.json();
+    delete oldReport.stream.thumbnailUrl;
+    delete oldReport.stream.language;
+    delete oldReport.stream.tags;
+    expect(readKickAudit(oldReport, "example").stream.isLive).toBe(false);
   });
 
   it("rejects a response for another channel", () => {

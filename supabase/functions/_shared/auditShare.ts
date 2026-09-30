@@ -38,7 +38,11 @@ export function publicKickSnapshot(audit: KickAudit): KickAudit {
       description: audit.profile.description, profileImageUrl: audit.profile.profileImageUrl,
     },
     channel: { title: audit.channel.title, category: audit.channel.category, bannerUrl: audit.channel.bannerUrl },
-    stream: { isLive: audit.stream.isLive, viewers: audit.stream.viewers, startedAt: audit.stream.startedAt },
+    stream: {
+      isLive: audit.stream.isLive, viewers: audit.stream.viewers, startedAt: audit.stream.startedAt,
+      thumbnailUrl: audit.stream.thumbnailUrl ?? null, language: audit.stream.language ?? null,
+      tags: audit.stream.tags ?? [],
+    },
     ai: {
       status: audit.ai.status, reason: audit.ai.reason,
       findings: audit.ai.findings.map((finding) => ({
@@ -153,7 +157,8 @@ export function createAuditShareHandler(env: Env, fetcher: typeof fetch = fetch,
       const table = platform === "kick" ? "kick_audit_shares" : "twitch_audit_shares";
       const saved = await boundedFetch(`${url}/rest/v1/${table}?select=id`, {
         method: "POST", headers: { ...serviceHeaders, Prefer: "return=representation" },
-        body: JSON.stringify({ owner_id: user.id, channel_login: report.profile.login, token_hash: tokenHash, report, created_at: createdAt, expires_at: expiresAt }),
+        body: JSON.stringify({ owner_id: user.id, channel_login: report.platform === "kick" ? report.profile.slug : report.profile.login,
+          token_hash: tokenHash, report, created_at: createdAt, expires_at: expiresAt }),
       });
       if (!saved.ok) return json({ error: "Could not save the report. Check that report sharing is set up, then retry." }, 503);
       const rows = await saved.json() as { id: string }[];

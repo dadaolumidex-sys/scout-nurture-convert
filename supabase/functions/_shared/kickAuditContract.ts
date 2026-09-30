@@ -30,6 +30,9 @@ export type KickAudit = {
     isLive: boolean | null;
     viewers: number | null;
     startedAt: string | null;
+    thumbnailUrl?: string | null;
+    language?: string | null;
+    tags?: string[];
   };
   ai: {
     status: "available" | "unavailable";

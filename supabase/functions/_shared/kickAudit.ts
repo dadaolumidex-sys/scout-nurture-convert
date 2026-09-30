@@ -75,22 +75,30 @@ export function createKickAuditHandler(env: Env, fetcher: typeof fetch = fetch) 
       const broadcasts = liveResponse.status === "fulfilled" && Array.isArray(liveResponse.value.data) ? liveResponse.value.data : [];
       const live = object(broadcasts.map(object).find((item) => count(object(item.broadcaster_user).id) === id));
       const isLive = liveResponse.status === "fulfilled" ? Object.keys(live).length > 0 : null;
+      const liveCategory = object(live.category);
+      const liveUser = object(live.broadcaster_user);
+      const tags = Array.isArray(live.tags)
+        ? live.tags.map((tag) => presentedText(tag, 40)).filter((tag): tag is string => tag !== null).slice(0, 8)
+        : [];
       const audit: KickAudit = {
         version: KICK_AUDIT_VERSION, platform: "kick", source: "Kick Developer Public API", fetchedAt: new Date().toISOString(),
         profile: {
           id: String(id), slug, displayName: text(user.name, 80) || slug,
           description: presentedText(channel.channel_description, 1000),
-          profileImageUrl: safeUrl(user.profile_picture),
+          profileImageUrl: safeUrl(user.profile_picture) || safeUrl(liveUser.profile_picture),
         },
         channel: {
-          title: presentedText(channel.stream_title, 200),
-          category: presentedText(object(channel.category).name, 100),
+          title: presentedText(live.title, 200) || presentedText(channel.stream_title, 200),
+          category: presentedText(liveCategory.name, 100) || presentedText(object(channel.category).name, 100),
           bannerUrl: safeUrl(channel.banner_picture),
         },
         stream: {
           isLive,
           viewers: isLive ? count(live.viewer_count) : null,
           startedAt: isLive ? date(live.started_at) : null,
+          thumbnailUrl: isLive ? safeUrl(live.thumbnail) : null,
+          language: isLive ? presentedText(live.language_code, 20) : null,
+          tags: isLive ? tags : [],
         },
         ai: { status: "unavailable", reason: "AI review was not requested.", findings: [] },
       };

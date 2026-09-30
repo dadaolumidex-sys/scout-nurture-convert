@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { webcrypto } from "node:crypto";
-import { createAuditShareHandler, publicAuditSnapshot } from "../../supabase/functions/_shared/auditShare";
+import { createAuditShareHandler, publicAuditSnapshot, publicKickSnapshot } from "../../supabase/functions/_shared/auditShare";
 import { auditFixture } from "./fixtures/channelAudit";
+import type { KickAudit } from "@/lib/kickAudit";
 
 const owner = "11111111-1111-4111-8111-111111111111";
 const id = "22222222-2222-4222-8222-222222222222";
@@ -113,5 +114,52 @@ describe("public Twitch share service", () => {
   it("projects out unknown nested keys and replaces potentially sensitive failure reasons", () => {
     const contaminated = { ...auditFixture, privateChat: "PRIVATE", profile: { ...auditFixture.profile, email: "PRIVATE" }, followers: { status: "unavailable" as const, data: null, reason: "PRIVATE" }, channel: { ...auditFixture.channel, data: { ...auditFixture.channel.data!, internalKey: "PRIVATE" } } };
     expect(JSON.stringify(publicAuditSnapshot(contaminated))).not.toContain("PRIVATE");
+  });
+});
+
+describe("public Kick share projection", () => {
+  it("keeps documented live details but removes unknown upstream fields", () => {
+    const audit: KickAudit = {
+      version: "kick-audit-v1", platform: "kick", source: "Kick Developer Public API",
+      fetchedAt: "2026-09-28T12:00:00Z",
+      profile: { id: "123", slug: "example", displayName: "Example", description: "About", profileImageUrl: null },
+      channel: { title: "Game night", category: "Games", bannerUrl: null },
+      stream: {
+        isLive: true, viewers: 7, startedAt: "2026-09-28T12:00:00Z",
+        thumbnailUrl: "https://cdn.kick.com/live.jpg", language: "en", tags: ["ranked"],
+      },
+      ai: { status: "unavailable", reason: null, findings: [] },
+    };
+    const contaminated = { ...audit, privateData: "PRIVATE", stream: { ...audit.stream, streamKey: "PRIVATE" } };
+    const projected = publicKickSnapshot(contaminated);
+    expect(projected.stream.thumbnailUrl).toBe("https://cdn.kick.com/live.jpg");
+    expect(projected.stream.tags).toEqual(["ranked"]);
+    expect(JSON.stringify(projected)).not.toContain("PRIVATE");
+  });
+
+  it("saves a Kick share under the channel slug", async () => {
+    const secrets: Record<string, string> = {
+      SUPABASE_URL: "https://database.test", SUPABASE_ANON_KEY: "public-key",
+      SUPABASE_SERVICE_ROLE_KEY: "service-secret", KICK_CLIENT_ID: "client", KICK_CLIENT_SECRET: "secret",
+    };
+    const fetcher = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("id.kick.com")) return json({ access_token: "private-token" });
+      if (url.includes("api.kick.com/public/v1/channels?")) return json({ data: [{ broadcaster_user_id: 123, slug: "example" }] });
+      if (url.includes("api.kick.com/public/v1/users/livestreams?")) return json({ data: [] });
+      if (url.includes("api.kick.com/public/v1/users?")) return json({ data: [{ user_id: 123, name: "Example" }] });
+      if (url.includes("/auth/v1/user")) return json({ id: owner });
+      if (url.includes("/rest/v1/kick_audit_shares") && init?.method === "POST") return json([{ id }], 201);
+      return json({}, 404);
+    });
+    const handler = createAuditShareHandler((key) => secrets[key], fetcher, webcrypto as unknown as Crypto);
+    const response = await handler(request({ action: "create", username: "example", platform: "kick" }));
+    expect(response.status).toBe(201);
+    const insert = fetcher.mock.calls.find(([url, init]) => String(url).includes("/rest/v1/kick_audit_shares") && init?.method === "POST");
+    expect(insert).toBeDefined();
+    const saved = JSON.parse(String(insert![1]?.body));
+    expect(saved.channel_login).toBe("example");
+    expect(saved.report.platform).toBe("kick");
+    expect(JSON.stringify(saved)).not.toContain("private-token");
   });
 });
