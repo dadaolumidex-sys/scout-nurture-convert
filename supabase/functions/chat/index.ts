@@ -90,7 +90,7 @@ const NORMAL_TRAINING_CHARS = 2_500;
 // to finish while the browser still protects against a genuinely idle request.
 const NORMAL_PROVIDER_TIMEOUT_MS = 90_000;
 const DEEP_RESEARCH_TIMEOUT_MS = 180_000;
-const CHAT_FUNCTION_VERSION = "gemini-3-routing-v1";
+const CHAT_FUNCTION_VERSION = "vision-routing-v2";
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
@@ -265,11 +265,11 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
   // appears to work normally.
   const startCompact = !hasImage && groqRequestTextSize(body) > 9_000;
   const initialBody = startCompact ? compactBodyForGroq(body) : body;
-  // Llama is the clean, fast normal-chat model. Qwen is used only for an
-  // actual image because it supports vision but may expose reasoning text.
+  // Image requests must stay on a vision model. Text-only fallbacks cannot
+  // inspect the screenshot and would give the user a misleading answer.
   const models = hasImage
-    ? ["qwen/qwen3.6-27b", "llama-3.3-70b-versatile", "openai/gpt-oss-20b"]
-    : ["llama-3.3-70b-versatile", "openai/gpt-oss-20b", "llama-3.1-8b-instant"];
+    ? ["qwen/qwen3.8-27b"]
+    : ["openai/gpt-oss-20b", "openai/gpt-oss-120b"];
   let lastResponse: Response | null = null;
   let usedEmergencyRecovery = false;
   for (const model of models) {
@@ -281,6 +281,9 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
     });
     if (response.ok) return response;
     lastResponse = response;
+    // If this vision request fails, let the provider chain try another
+    // vision-capable provider. Never retry after stripping the image.
+    if (hasImage) return response;
     if (response.status === 413) {
       await response.body?.cancel();
       // Continue the same conversation with a compact context rather than
@@ -288,9 +291,8 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
       const recovered = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        // GPT-OSS has a generous text context. It is deliberately used for
-        // this recovery attempt, even after a vision model failed, because
-        // attachments are omitted from the compact retry.
+        // GPT-OSS has a generous text context. This recovery is only for
+        // text-only requests; image requests keep their attachments.
         body: JSON.stringify({ ...compactBodyForGroq(body), model: "openai/gpt-oss-20b", max_tokens: deep ? 3_000 : 1_000 }),
         signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
       });

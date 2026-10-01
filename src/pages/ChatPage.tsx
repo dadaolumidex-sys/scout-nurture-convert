@@ -174,6 +174,7 @@ async function streamChat({
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let receivedText = false;
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -190,6 +191,16 @@ async function streamChat({
         if (json === "[DONE]") {
           window.clearTimeout(timeout);
           signal?.removeEventListener("abort", abortFromCaller);
+          if (!receivedText) {
+            try {
+              await tryPersonalFallback();
+            } catch {
+              onError(lastImageIndex >= 0
+                ? "The AI finished without analyzing your image. Tap Retry, or check your AI keys in Settings."
+                : "The AI finished without writing a reply. Tap Retry, or check your AI keys in Settings.", "empty_reply");
+            }
+            return;
+          }
           await onDone();
           return;
         }
@@ -210,7 +221,10 @@ async function streamChat({
             return;
           }
           const content = parsed.choices?.[0]?.delta?.content;
-          if (content) onDelta(content);
+          if (content) {
+            receivedText = true;
+            onDelta(content);
+          }
         } catch {
           buffer = line + "\n" + buffer;
           break;
