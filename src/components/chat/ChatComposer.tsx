@@ -66,6 +66,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
     const finalTranscriptRef = useRef("");
     const userStoppedRef = useRef(true);
     const textRef = useRef("");
+    const voiceLatestRef = useRef("");
     textRef.current = text;
 
     // Keep one private draft per conversation. This survives navigation and a
@@ -187,6 +188,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
       }
 
       userStoppedRef.current = false;
+      voiceLatestRef.current = "";
       try {
         startRecognitionSession(Recognition);
         setListening(true);
