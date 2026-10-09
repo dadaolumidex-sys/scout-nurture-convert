@@ -64,6 +64,9 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
     const recognitionRef = useRef<VoiceRecognition | null>(null);
     const voiceBaseTextRef = useRef("");
     const finalTranscriptRef = useRef("");
+    const userStoppedRef = useRef(true);
+    const textRef = useRef("");
+    textRef.current = text;
 
     // Keep one private draft per conversation. This survives navigation and a
     // browser/app restart, but is never part of the message history.
@@ -110,8 +113,61 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
     const disabled = loading || (!text.trim() && !hasPendingImages);
 
     const stopVoiceTyping = () => {
+      userStoppedRef.current = true;
       recognitionRef.current?.stop();
+      recognitionRef.current = null;
       setListening(false);
+    };
+
+    // Browsers end speech recognition on their own after a pause or ~60s.
+    // We quietly restart it so listening continues until the user taps Stop.
+    const startRecognitionSession = (Recognition: VoiceRecognitionConstructor) => {
+      const recognition = new Recognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || "en-US";
+      voiceBaseTextRef.current = textRef.current.trimEnd();
+      finalTranscriptRef.current = "";
+
+      recognition.onresult = (event) => {
+        let interim = "";
+        for (let index = event.resultIndex; index < event.results.length; index++) {
+          const result = event.results[index];
+          const transcript = result[0]?.transcript || "";
+          if (result.isFinal) finalTranscriptRef.current += `${transcript} `;
+          else interim += transcript;
+        }
+        const spoken = `${finalTranscriptRef.current}${interim}`.trim();
+        const base = voiceBaseTextRef.current;
+        updateText(`${base}${base && spoken ? " " : ""}${spoken}`);
+      };
+
+      recognition.onerror = (event) => {
+        // Silence / network blips: let onend restart the session.
+        if (["no-speech", "aborted", "network"].includes(event.error)) return;
+        userStoppedRef.current = true;
+        setListening(false);
+        recognitionRef.current = null;
+        toast.error(event.error === "not-allowed" || event.error === "service-not-allowed"
+          ? "Microphone access was blocked. Allow microphone permission and try again."
+          : "Voice typing stopped unexpectedly. Please try again.");
+      };
+
+      recognition.onend = () => {
+        if (recognitionRef.current !== recognition) return;
+        if (!userStoppedRef.current) {
+          window.setTimeout(() => {
+            if (userStoppedRef.current) return;
+            try { startRecognitionSession(Recognition); } catch { setListening(false); }
+          }, 250);
+          return;
+        }
+        setListening(false);
+        recognitionRef.current = null;
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
     };
 
     const toggleVoiceTyping = () => {
@@ -126,54 +182,18 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
         return;
       }
 
-      const recognition = new Recognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = navigator.language || "en-US";
-      voiceBaseTextRef.current = text.trimEnd();
-      finalTranscriptRef.current = "";
-
-      recognition.onresult = (event) => {
-        let interim = "";
-        for (let index = event.resultIndex; index < event.results.length; index++) {
-          const result = event.results[index];
-          const transcript = result[0]?.transcript || "";
-          if (result.isFinal) finalTranscriptRef.current += `${transcript} `;
-          else interim += transcript;
-        }
-        const spoken = `${finalTranscriptRef.current}${interim}`.trim();
-        const base = voiceBaseTextRef.current;
-        updateText(`${base}${base && spoken ? " " : ""}${spoken}`);
-        window.requestAnimationFrame(() => textareaRef.current?.focus());
-      };
-
-      recognition.onerror = (event) => {
-        setListening(false);
-        recognitionRef.current = null;
-        const message = event.error === "not-allowed" || event.error === "service-not-allowed"
-          ? "Microphone access was blocked. Allow microphone permission and try again."
-          : event.error === "no-speech"
-            ? "I couldn't hear anything. Tap the microphone and try again."
-            : "Voice typing stopped unexpectedly. Please try again.";
-        toast.error(message);
-      };
-
-      recognition.onend = () => {
-        setListening(false);
-        recognitionRef.current = null;
-      };
-
-      recognitionRef.current = recognition;
+      userStoppedRef.current = false;
       try {
-        recognition.start();
+        startRecognitionSession(Recognition);
         setListening(true);
-        toast.info("Listening… speak naturally, then tap Stop when finished.");
+        toast.info("Listening… take your time. Tap Stop when you're finished.");
       } catch {
         recognitionRef.current = null;
         setListening(false);
         toast.error("Voice typing couldn't start. Please try again.");
       }
     };
+
 
     // Let people paste a copied screenshot straight into the message box.
     const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {

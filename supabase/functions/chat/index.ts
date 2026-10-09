@@ -491,6 +491,7 @@ serve(async (req) => {
 
     let systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
     if (isDeepResearch) systemPrompt += DEEP_RESEARCH_SUFFIX;
+    systemPrompt += "\n\nUNDERSTANDING THE USER: The user often writes or dictates by voice in non-native English, with typos, missing words, run-on sentences, phonetic spellings, or voice-to-text mistakes. Silently work out what they most likely mean from context and answer that intent fully. Never correct or comment on their grammar. Only ask a short clarifying question if the meaning is truly impossible to infer.";
     if (memoryFacts.length > 0) {
       systemPrompt += `\n\nLONG-TERM MEMORY about this user (from previous chats — use it naturally to give personalized, context-aware answers; don't mention that you have memory unless asked):\n- ${memoryFacts.join("\n- ")}`;
     }
