@@ -112,32 +112,38 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
 
     const stopVoiceTyping = () => {
       userStoppedRef.current = true;
-      recognitionRef.current?.stop();
+      const recognition = recognitionRef.current;
       recognitionRef.current = null;
+      recognition?.stop();
+      // Keep everything heard so far, including words still being processed.
+      if (voiceLatestRef.current) updateText(voiceLatestRef.current);
       setListening(false);
+      window.requestAnimationFrame(() => textareaRef.current?.focus());
     };
 
     // Browsers end speech recognition on their own after a pause or ~60s.
     // We quietly restart it so listening continues until the user taps Stop.
     const startRecognitionSession = (Recognition: VoiceRecognitionConstructor) => {
       const recognition = new Recognition();
-      recognition.continuous = true;
+      // Phones (Android Chrome) repeat words in continuous mode; short
+      // sessions that auto-restart are far more reliable there.
+      const isPhone = /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+      recognition.continuous = !isPhone;
       recognition.interimResults = true;
       recognition.lang = navigator.language || "en-US";
-      voiceBaseTextRef.current = textRef.current.trimEnd();
-      finalTranscriptRef.current = "";
+      voiceBaseTextRef.current = (voiceLatestRef.current || textRef.current).trimEnd();
 
       recognition.onresult = (event) => {
-        let interim = "";
-        for (let index = event.resultIndex; index < event.results.length; index++) {
-          const result = event.results[index];
-          const transcript = result[0]?.transcript || "";
-          if (result.isFinal) finalTranscriptRef.current += `${transcript} `;
-          else interim += transcript;
+        // Rebuild from every result in this session so nothing is lost.
+        let spoken = "";
+        for (let index = 0; index < event.results.length; index++) {
+          spoken += `${event.results[index][0]?.transcript || ""} `;
         }
-        const spoken = `${finalTranscriptRef.current}${interim}`.trim();
+        spoken = spoken.replace(/\s+/g, " ").trim();
         const base = voiceBaseTextRef.current;
-        updateText(`${base}${base && spoken ? " " : ""}${spoken}`);
+        const full = `${base}${base && spoken ? " " : ""}${spoken}`;
+        voiceLatestRef.current = full;
+        updateText(full);
       };
 
       recognition.onerror = (event) => {
