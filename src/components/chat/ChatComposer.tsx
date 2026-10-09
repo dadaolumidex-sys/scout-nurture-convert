@@ -87,6 +87,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
     };
 
     useEffect(() => () => {
+      userStoppedRef.current = true;
       recognitionRef.current?.abort();
       recognitionRef.current = null;
     }, []);
@@ -102,10 +103,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, ChatComposerProps>(
     const submit = () => {
       const trimmed = text.trim();
       if ((!trimmed && !hasPendingImages) || loading) return;
-      if (listening) {
-        recognitionRef.current?.stop();
-        setListening(false);
-      }
+      if (listening) stopVoiceTyping();
       onSend(text);
       updateText("");
     };
