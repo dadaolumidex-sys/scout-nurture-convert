@@ -61,7 +61,7 @@ export function buildKickInsights(audit: KickAudit) {
   const covered = scored.reduce((total, criterion) => total + criterion.possible, 0);
   // Without a live snapshot, presentation alone cannot stand in for audience performance.
   const value = viewers !== null && title !== null
-    ? Math.round(scored.reduce((total, criterion) => total + criterion.earned!, 0) / covered * 100)
+    ? Math.min(79, Math.round(scored.reduce((total, criterion) => total + criterion.earned!, 0) / covered * 100))
     : null;
 
   const findings: KickFinding[] = [];

@@ -45,6 +45,9 @@ describe("Channel Audit page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run audit" }));
     expect(await screen.findByText("Priority: review live reach and viewer-facing setup")).toBeInTheDocument();
     expect(screen.getByText("40/100")).toBeInTheDocument();
+    expect(screen.getByText("Channel priorities detected")).toBeInTheDocument();
+    expect(screen.getByText("2 priorities to address")).toBeInTheDocument();
+    expect(screen.getByText("What needs attention now")).toBeInTheDocument();
     expect(screen.getByText("Follower total")).toBeInTheDocument();
     expect(screen.getByText("Shown on Kick, not supplied by its Developer API")).toBeInTheDocument();
     expect(screen.getByText("Live broadcast at retrieval")).toBeInTheDocument();
@@ -84,7 +87,7 @@ describe("Channel Audit page", () => {
     expect(screen.getAllByText("6 streams on 6 unique days")).toHaveLength(2);
     expect(screen.getByText(/Missing private metrics are not zero/)).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /Achievements/ })).toHaveLength(2);
-    expect(screen.getByText("Public opportunity score")).toBeInTheDocument();
+    expect(screen.getByText("Public growth signal score")).toBeInTheDocument();
     expect(screen.getByText("Not enough data")).toBeInTheDocument();
     expect(screen.queryByText(/42\/100|100\/100/)).not.toBeInTheDocument();
     expect(screen.getByText("Verified setup checks (2/2)")).toBeInTheDocument();
@@ -105,6 +108,7 @@ describe("Channel Audit page", () => {
     expect(await screen.findByText("Example")).toBeInTheDocument();
     expect(screen.getByText("Views on returned recent VODs")).toBeInTheDocument();
     expect(screen.getByText("3–11")).toBeInTheDocument();
+    expect(screen.getByText("Critical review priority: small live audience snapshot")).toBeInTheDocument();
     expect(screen.getByText(/These public snapshots are not average viewers/)).toBeInTheDocument();
   });
 
@@ -139,10 +143,10 @@ describe("Channel Audit page", () => {
     submit();
     expect(await screen.findByText("Recent broadcasts need a replay-reach review")).toBeInTheDocument();
     expect(screen.getByText("Priority: needs work")).toHaveClass("text-rose-500");
-    expect(screen.getByText("26/100")).toHaveClass("text-rose-500");
+    expect(screen.getByText("24/100")).toHaveClass("text-rose-500");
     fireEvent.click(screen.getByText("How this score is calculated"));
-    expect(screen.getByText("Public follower milestone")).toBeInTheDocument();
-    expect(screen.getByText("20/20")).toBeInTheDocument();
+    expect(screen.getByText("Public follower base")).toBeInTheDocument();
+    expect(screen.getByText("15/15")).toBeInTheDocument();
     expect(screen.getByText("Lead with the stream, not a follow request")).toBeInTheDocument();
     expect(screen.queryByText("100/100")).not.toBeInTheDocument();
     expect(screen.getByText(/not a Twitch health score/)).toBeInTheDocument();
@@ -164,7 +168,7 @@ describe("Channel Audit page", () => {
     render(<AnalyzerPage />);
     submit();
     expect(await screen.findByText("Critical review priority: repeated low replay activity")).toBeInTheDocument();
-    expect(screen.getByText("45/100")).toHaveClass("text-rose-500");
+    expect(screen.getByText("25/100")).toHaveClass("text-rose-500");
     expect(screen.getByText("Critical issue to investigate")).toBeInTheDocument();
     expect(screen.getByText(/70 followers are already present/)).toBeInTheDocument();
     expect(screen.getByText("Get an expert review before the next broadcasts")).toBeInTheDocument();

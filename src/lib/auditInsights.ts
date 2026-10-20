@@ -60,39 +60,63 @@ export function buildPublicOpportunityScore(audit: ChannelAudit): PublicOpportun
     : null;
   const title = audit.stream.data?.isLive ? audit.stream.data.title : audit.channel.data?.title;
   const followerCount = audit.followers.data;
-  const replayPoints = sample.length >= 2 && medianViews !== null ? Math.round(60 * Math.min(medianViews, 100) / 100) : null;
+  const replayPoints = sample.length >= 2 && medianViews !== null ? Math.round(50 * Math.min(medianViews, 250) / 250) : null;
+  const liveViewers = audit.stream.data?.isLive ? audit.stream.data.viewers : null;
+  const livePoints = liveViewers === null ? null : Math.round(20 * Math.min(liveViewers, 25) / 25);
   const titlePoints = title === null || title === undefined ? null
     : !title.trim() || isFollowFirst(title) ? 0
-    : words(title) >= 4 && title.trim().length >= 24 ? 20 : 10;
-  const followerPoints = followerCount === null ? null : Math.round(20 * Math.min(followerCount, 25) / 25);
+    : words(title) >= 4 && title.trim().length >= 24 ? 5 : 2;
+  const followerPoints = followerCount === null ? null : Math.round(15 * Math.min(followerCount, 100) / 100);
+  const statusPoints = audit.profile.broadcasterType === null ? null
+    : audit.profile.broadcasterType === "partner" ? 10
+    : audit.profile.broadcasterType === "affiliate" ? 7 : 0;
+  const scoreCap = liveViewers === null ? 79 : liveViewers < 3 ? 49 : liveViewers < 10 ? 79 : 100;
   const criteria: PublicOpportunityCriterion[] = [
     {
       label: "Recent public VOD replay",
-      earned: replayPoints, possible: 60,
+      earned: replayPoints, possible: 50,
       basis: sample.length < 2
         ? "Need at least 2 archived broadcasts aged 2–90 days with known view counts; missing data is not zero."
-        : "Median " + medianViews + " VOD views across " + sample.length + " archived broadcasts aged 2–90 days. Earn 60 × min(median views, 100) / 100, rounded. 100 views is an editorial comparison target, not a Twitch rule or live-viewer metric.",
+        : "Median " + medianViews + " VOD views across " + sample.length + " archived broadcasts aged 2–90 days. Earn 50 × min(median views, 250) / 250, rounded. 250 views is an editorial comparison target, not a Twitch rule or live-viewer metric.",
+    },
+    {
+      label: "Live viewers at retrieval",
+      earned: livePoints, possible: 20,
+      basis: liveViewers === null
+        ? "No live-viewer snapshot was available. Offline time is not zero viewers."
+        : liveViewers.toLocaleString() + " viewers at retrieval. Earn 20 × min(live viewers, 25) / 25, rounded. One snapshot is not an average or proof of retention.",
     },
     {
       label: "Viewer-facing title",
-      earned: titlePoints, possible: 20,
+      earned: titlePoints, possible: 5,
       basis: title === null || title === undefined
         ? "The stream or channel title was unavailable, not scored as zero."
-        : "20 points for a title with at least 4 words and 24 characters; 10 for a shorter nonempty title; 0 for an empty title or one that leads with a follow request. This is an editorial clarity proxy, not SEO ranking.",
+        : "5 points for a title with at least 4 words and 24 characters; 2 for a shorter nonempty title; 0 for an empty title or one that leads with a follow request. Presentation alone cannot produce a strong score.",
     },
     {
-      label: "Public follower milestone",
-      earned: followerPoints, possible: 20,
+      label: "Public follower base",
+      earned: followerPoints, possible: 15,
       basis: followerCount === null
         ? "Follower total was unavailable, not scored as zero."
         : followerCount >= 25
-        ? followerCount.toLocaleString() + " followers returned by Twitch. The 25-follower Affiliate milestone is met; follower count is not flagged as a deficit. Other eligibility requirements are not scored."
-        : followerCount.toLocaleString() + " followers returned by Twitch; " + (25 - followerCount) + " below the 25-follower Affiliate milestone. Earn 20 × min(followers, 25) / 25, rounded. Organic audience growth is worth testing; other eligibility requirements are not scored.",
+        ? followerCount.toLocaleString() + " followers returned by Twitch. The 25-follower Affiliate milestone is met; follower count is not flagged as a deficit. Score awards up to 15 points at 100 followers as an editorial audience-size signal, not follower quality."
+        : followerCount.toLocaleString() + " followers returned by Twitch; " + (25 - followerCount) + " below the 25-follower Affiliate milestone. Score awards up to 15 points at 100 followers. Organic audience growth is worth testing; other eligibility requirements are not scored.",
+    },
+    {
+      label: "Affiliate or Partner status",
+      earned: statusPoints, possible: 10,
+      basis: audit.profile.broadcasterType === null
+        ? "Broadcaster status was unavailable."
+        : audit.profile.broadcasterType === "partner"
+          ? "Twitch returned Partner status: 10 points. Status is not proof of current audience activity."
+          : audit.profile.broadcasterType === "affiliate"
+            ? "Twitch returned Affiliate status: 7 points. Status is not proof of current audience activity."
+            : "Twitch returned neither Affiliate nor Partner status: 0 points. This is a milestone signal, not a channel error.",
     },
   ];
   return {
-    value: criteria.every((criterion) => criterion.earned !== null)
-      ? criteria.reduce((sum, criterion) => sum + criterion.earned!, 0)
+    value: replayPoints !== null && followerPoints !== null
+      ? Math.min(criteria.reduce((sum, criterion) => sum + (criterion.earned ?? 0), 0), scoreCap)
       : null,
     criteria,
     sampleCount: sample.length,
@@ -158,6 +182,14 @@ export function buildAuditInsights(audit: ChannelAudit): {
     whyItMatters: "The public follower milestone is one part of Affiliate eligibility. The other requirements are visible only to the creator; this does not diagnose reach or follower quality.",
     action: "Test organic discovery: share one useful clip, give the next stream a clear topic, and invite relevant viewers to return. Check actual progress in the Creator Dashboard.",
     sourceEndpoint: "get-channel-followers", sourceLabel: "Twitch follower total",
+  });
+
+  if (live?.viewers !== null && live?.viewers !== undefined && live.viewers < 3) findings.push({
+    id: "live-viewers", priority: "review", title: "Investigate the small live audience snapshot",
+    observation: "Twitch showed " + live.viewers + " live " + (live.viewers === 1 ? "viewer" : "viewers") + " at retrieval.",
+    whyItMatters: "This is a small audience at one moment. It is not the creator's average and does not prove why viewers leave.",
+    action: "Check the Creator Dashboard's viewer trend and traffic sources, then test one discovery or scheduling change on the next streams.",
+    sourceEndpoint: "get-streams", sourceLabel: "Twitch live stream",
   });
 
   if (live?.title !== null && live?.title !== undefined) {

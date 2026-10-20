@@ -41,4 +41,12 @@ describe("Kick public opportunity score", () => {
     expect(insights.criteria.every((criterion) => criterion.earned === null)).toBe(true);
     expect(insights.findings).toHaveLength(0);
   });
+
+  it("does not call a polished title and one high live snapshot overall success", () => {
+    const insights = buildKickInsights({
+      ...base, stream: { ...base.stream, viewers: 100 },
+    });
+    expect(insights.value).toBe(79);
+    expect(insights.criteria.map((criterion) => criterion.earned)).toEqual([60, 30, 10]);
+  });
 });

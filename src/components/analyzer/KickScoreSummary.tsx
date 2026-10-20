@@ -5,6 +5,7 @@ import { formatAuditDate } from "@/lib/channelAudit";
 import type { KickAudit } from "@/lib/kickAudit";
 import { buildKickInsights } from "@/lib/kickInsights";
 import { presentationScoreBand } from "@/lib/auditInsights";
+import { AuditPriorityCards, type AuditPriorityCard } from "./AuditPriorityCards";
 
 export function KickScoreSummary({ audit }: { audit: KickAudit }) {
   const { value, covered, criteria, findings } = buildKickInsights(audit);
@@ -12,6 +13,13 @@ export function KickScoreSummary({ audit }: { audit: KickAudit }) {
   const criticalCount = findings.filter((finding) => finding.severity === "critical").length;
   const critical = criticalCount > 0;
   const lowLive = findings.some((finding) => finding.id === "live-snapshot");
+  const priorityCards: AuditPriorityCard[] = findings.map((finding) => ({
+    id: finding.id,
+    level: finding.severity === "critical" || (finding.id === "live-snapshot" && band === "danger") ? "critical" : "priority",
+    title: finding.title,
+    evidence: finding.evidence,
+    action: finding.fix,
+  }));
   const urgent = critical || band === "danger";
   const headline = critical
     ? "Critical channel presentation issue to fix"
@@ -29,7 +37,7 @@ export function KickScoreSummary({ audit }: { audit: KickAudit }) {
     <CardContent className="space-y-5 p-5 sm:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="max-w-2xl">
-          <p className={"text-xs font-bold uppercase tracking-[0.16em] " + (urgent ? "text-rose-500" : "text-amber-500")}>{critical ? criticalCount + " critical public issue detected" : "Kick public-channel opportunities"}</p>
+          <p className={"flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] " + (urgent ? "text-rose-500" : "text-amber-500")}><AlertTriangle className="h-5 w-5 shrink-0" aria-hidden="true" />{priorityCards.length ? "Channel priorities detected" : "Kick public-channel review"}</p>
           <h2 className="mt-2 text-2xl font-bold leading-tight sm:text-3xl">{headline}</h2>
           <p className="mt-3 text-sm text-muted-foreground">
             {critical
@@ -42,16 +50,16 @@ export function KickScoreSummary({ audit }: { audit: KickAudit }) {
           </p>
         </div>
         <Badge variant="outline" className={urgent ? "border-rose-500/60 text-rose-500" : "border-amber-500/50 text-amber-500"}>
-          <ShieldCheck className="mr-1 h-3 w-3" />
-          {critical ? criticalCount + " critical issue to test" : band === "danger" ? "Priority: needs work" : value === null ? "Score unavailable" : findings.length + " to test"}
+          {priorityCards.length ? <AlertTriangle className="mr-1 h-3 w-3" /> : <ShieldCheck className="mr-1 h-3 w-3" />}
+          {priorityCards.length ? priorityCards.length + " " + (priorityCards.length === 1 ? "priority" : "priorities") + " to address" : band === "danger" ? "Priority: needs work" : value === null ? "Score unavailable" : "0 public priorities"}
         </Badge>
       </div>
 
       <div className={"rounded-xl border bg-background/80 p-4 sm:p-5 " + (band === "danger" ? "border-rose-500/70" : "border-border/70")}>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Public opportunity score</p>
-            <p className={"mt-1 text-3xl font-extrabold " + (band === "danger" ? "text-rose-500" : band === "review" ? "text-amber-500" : band === "strong" ? "text-emerald-500" : "text-foreground")}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Provisional public growth signal score</p>
+            <p className={"mt-1 text-4xl font-extrabold " + (band === "danger" ? "text-rose-500" : band === "review" ? "text-amber-500" : band === "strong" ? "text-emerald-500" : "text-foreground")}>
               {value === null ? "Not enough live data" : value + "/100"}
             </p>
           </div>
@@ -59,15 +67,16 @@ export function KickScoreSummary({ audit }: { audit: KickAudit }) {
             {band === "danger" ? "Priority: needs work" : band === "review" ? "Opportunities to test" : band === "strong" ? "Stronger public signals" : "Unscored"}
           </Badge>
         </div>
-        {value !== null && <div role="meter" aria-label="Kick public opportunity score" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
+        {value !== null && <div role="meter" aria-label="Kick public growth signal score" aria-valuemin={0} aria-valuemax={100} aria-valuenow={value} className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
           <div className={"h-full rounded-full " + (band === "danger" ? "bg-rose-500" : band === "review" ? "bg-amber-500" : "bg-emerald-500")} style={{ width: value + "%" }} />
         </div>}
+        {priorityCards.length > 0 && <div className="mt-5"><AuditPriorityCards items={priorityCards} /></div>}
         <p className="mt-3 text-sm text-muted-foreground">
           {audit.stream.isLive && audit.stream.viewers !== null
             ? "Kick showed " + audit.stream.viewers.toLocaleString() + " live viewers at " + formatAuditDate(audit.fetchedAt) + ". That is one moment, not an average or proof of lost viewers."
             : "No live-viewer count was available. Offline time is never treated as zero viewers."}
         </p>
-        <p className="mt-2 text-xs text-muted-foreground">This is an editorial snapshot score, not a Kick health score, search ranking, follower-quality test, or explanation of why viewers leave. Red is below 50; amber is 50-79; green is 80-100. Missing API fields are excluded, not scored as zero.</p>
+        <p className="mt-2 text-xs text-muted-foreground">This is an editorial snapshot score, not a Kick health score, search ranking, follower-quality test, or explanation of why viewers leave. Kick's public API does not supply follower totals, VOD views, or chat activity here, so this score is provisional and capped at 79: presentation and one live-viewer count cannot prove channel success. Red is below 50; amber is 50-79. Missing API fields are not scored as zero.</p>
         <details className="mt-4 border-t border-border/70 pt-3">
           <summary className="cursor-pointer text-sm font-semibold">How this score is calculated</summary>
           <p className="mt-2 text-xs text-muted-foreground">A score requires both a live-viewer snapshot and a returned stream title. {covered} of 100 possible points had data; unavailable criteria are excluded from the calculation.</p>

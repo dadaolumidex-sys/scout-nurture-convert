@@ -119,9 +119,9 @@ describe("evidence-based audit insights", () => {
       ], reason: null },
     };
     const score = buildPublicOpportunityScore(report);
-    expect(score.value).toBe(24);
-    expect(score.criteria.map((criterion) => criterion.earned)).toEqual([4, 0, 20]);
-    expect(score.criteria[2].basis).toContain("not flagged as a deficit");
+    expect(score.value).toBe(23);
+    expect(score.criteria.map((criterion) => criterion.earned)).toEqual([1, null, 0, 15, 7]);
+    expect(score.criteria[3].basis).toContain("not flagged as a deficit");
     expect(presentationScoreBand(score.value)).toBe("danger");
     expect(buildAuditInsights(report).findings.some((finding) => finding.id === "follower-milestone")).toBe(false);
   });
@@ -135,6 +135,31 @@ describe("evidence-based audit insights", () => {
     expect(buildAuditInsights(report).findings.some((finding) => finding.id === "follower-milestone")).toBe(true);
     const score = buildPublicOpportunityScore(report);
     expect(score.value).toBeNull();
-    expect(score.criteria.map((criterion) => criterion.earned)).toEqual([null, 10, 8]);
+    expect(score.criteria.map((criterion) => criterion.earned)).toEqual([null, null, 2, 2, 0]);
+  });
+
+  it("reserves a strong score for multiple observed audience and milestone signals", () => {
+    const report: ChannelAudit = {
+      ...auditFixture,
+      fetchedAt: "2026-09-28T12:00:00Z",
+      profile: { ...auditFixture.profile, broadcasterType: "partner" },
+      followers: { status: "available", data: 100, reason: null },
+      stream: { status: "available", data: { isLive: true, title: "Playing ranked games with viewers tonight", category: "Games", viewers: 25, startedAt: "2026-09-28T11:00:00Z" }, reason: null },
+      channel: { status: "available", data: { title: "Playing ranked games with viewers tonight", category: "Games", language: "en" }, reason: null },
+      videos: { status: "available", data: [1, 2].map((id) => ({
+        id: String(id), title: "Playing ranked games with viewers tonight",
+        createdAt: "2026-09-23T10:00:00Z", duration: "2h", views: 250,
+      })), reason: null },
+    };
+    expect(buildPublicOpportunityScore(report).value).toBe(100);
+    expect(buildPublicOpportunityScore({ ...report, stream: auditFixture.stream }).value).toBe(79);
+    expect(buildPublicOpportunityScore({ ...report, stream: { ...report.stream, data: { ...report.stream.data!, viewers: 1 } } }).value).toBe(49);
+    const weakReach = {
+      ...report,
+      stream: { ...report.stream, data: { ...report.stream.data!, viewers: 1 } },
+      videos: { ...report.videos, data: report.videos.data!.map((video) => ({ ...video, views: 10 })) },
+    } as ChannelAudit;
+    expect(buildPublicOpportunityScore(weakReach).value).toBe(33);
+    expect(buildAuditInsights(weakReach).findings.some((finding) => finding.id === "live-viewers")).toBe(true);
   });
 });
