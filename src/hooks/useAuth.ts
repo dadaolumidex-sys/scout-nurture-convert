@@ -42,7 +42,7 @@ export function useAuth() {
     subscribers.add(update);
     if (cachedSession !== undefined) update(cachedSession);
 
-    return () => subscribers.delete(update);
+    return () => { subscribers.delete(update); };
   }, []);
 
   const signOut = async () => {

@@ -24,7 +24,7 @@ describe("public report transport", () => {
     expect(options.referrerPolicy).toBe("no-referrer");
     expect(options.cache).toBe("no-store");
     expect(JSON.parse(options.body)).toEqual({ action: "read", token });
-    expect(result.report.followers.data).toBe(0);
+    expect((result.report as any).followers.data).toBe(0);
   });
 
   it("rejects malformed tokens before any request", async () => {
