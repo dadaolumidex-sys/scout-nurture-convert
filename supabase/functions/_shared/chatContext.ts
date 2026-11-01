@@ -52,15 +52,22 @@ export function selectMemoryFacts<T extends MemoryFact>(facts: T[], queryText: s
   return facts.map((fact, index) => ({
     fact,
     index,
-    score: overlap(query, fact.content) * 10 + (fact.source === "manual" ? 5 : 0),
+    score: overlap(query, fact.content) * 10
+      + (fact.source === "manual" ? 5 : 0)
+      + (/^user (prefers|wants|uses|is building|runs|works with|always)/i.test(fact.content) ? 4 : 0),
   })).sort((a, b) => b.score - a.score || a.index - b.index)
     .slice(0, limit)
     .map((item) => item.fact);
 }
 
 /** Only the current user task can request the saved streamer-sales playbooks. */
-export function shouldUseWorkspaceContext(latestUserText: string): boolean {
-  return /\b(client|prospect|streamer|discord|twitch|kick|outreach|pitch|convert|conversion|objection|audit|nifimas|brozeen)\b/i.test(latestUserText);
+export function shouldUseWorkspaceContext(latestUserText: string, conversationText = ""): boolean {
+  const businessTerms = /\b(client|prospect|streamer|discord|twitch|kick|outreach|pitch|convert|conversion|objection|audit|nifimas|brozeen)\b/i;
+  if (businessTerms.test(latestUserText)) return true;
+  const asksForReply = /\b(reply|respond|response|message|dm|follow.?up|approach|handle|close)\b/i.test(latestUserText);
+  if (!asksForReply) return false;
+  return businessTerms.test(conversationText)
+    || /\b(same way|like we|our method|our approach|use our|this person|that person)\b/i.test(latestUserText);
 }
 
 /** Do not turn a one-off prospect update into an account-owner memory fact. */
