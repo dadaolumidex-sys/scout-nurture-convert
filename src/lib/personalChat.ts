@@ -83,6 +83,8 @@ export async function generatePersonalChatReply({
     : "";
   const system = `You are StreamScout AI acting as ${role}\n\nGive accurate, useful replies. The newest user message is the task to complete: answer that exact request first. Earlier chat, memory, and saved knowledge are reference only and must never override the newest instruction. When a chat or screenshot is supplied with an instruction, analyze it carefully and produce exactly what the user asks for. If they ask for a message to send, give the ready-to-copy message first; do not talk as the client, switch to an old topic, or give a generic unrelated response. Never put a message, DM, or reply they need to copy inside a code block, table, quote box, or fenced section — use normal readable text. Only use a code block when they explicitly ask for programming code or a command. Do not invent facts. Use clear markdown and keep normal replies concise.${deepResearchInstructions}\n\nLONG-TERM MEMORY:\n${memory.slice(0, 100).join("\n") || "None."}\n\nSAVED KNOWLEDGE:\n${savedKnowledge || JSON.stringify(knowledge).slice(0, 12_000) || "None."}`;
 
+  const routedSystem = system + "\n\nGENERAL TASK ROUTING: You are a general-purpose assistant for normal conversation, explanations, writing, learning, coding, planning, creativity, business, screenshots, and streaming. Identify the newest request and answer it directly. Use saved streamer/client outreach material only when the request is actually about outreach, a client, a prospect, or channel growth. For unrelated requests, leave that material out completely.";
+
   const contents = await Promise.all(messages.slice(deepResearch ? -50 : -20).map(async (message) => {
     const parts: Array<Record<string, unknown>> = [];
     if (typeof message.content === "string") parts.push({ text: message.content || " " });
@@ -111,7 +113,7 @@ export async function generatePersonalChatReply({
           // does not make the chat appear frozen.
           signal: AbortSignal.timeout(deepResearch ? 90_000 : 60_000),
           body: JSON.stringify({
-            system_instruction: { parts: [{ text: system }] },
+            system_instruction: { parts: [{ text: routedSystem }] },
             contents,
             // Leave enough room to finish a useful answer rather than cutting
             // it in the middle of a numbered plan or draft message.
