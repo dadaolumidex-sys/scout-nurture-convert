@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { buildKnowledgeContext, KNOWLEDGE_GUARDRAIL, type KnowledgeEntry } from "../_shared/knowledge.ts";
 import { buildLiveUrlContext, type ApifyKey } from "../_shared/urlContext.ts";
+import { selectMemoryFacts, shouldUseWorkspaceContext } from "../_shared/chatContext.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,12 +12,12 @@ const corsHeaders = {
 const FORMAT_RULES = `
 
 FORMATTING RULES (always follow):
-- Structure every answer with clear markdown: short intro, then \`##\` headings for sections when helpful.
-- Use bullet points or numbered lists for steps, options, or multiple items — never cram everything into one long paragraph.
-- Use **bold** for key terms. Use code blocks only when the user explicitly asks for programming code or a command.
+- Match the user's requested depth. Answer a greeting or simple question directly, without a long template.
+- Use headings or lists when they genuinely make a complex answer easier to read.
+- Use **bold** sparingly. Use code blocks only when the user explicitly asks for programming code or a command.
 - When writing a message, DM, reply, or text the user will copy and send, never put it inside a code block, table, quote box, or fenced section. Write it as normal, easy-to-copy text first.
 - Keep paragraphs short (2-3 sentences). Leave blank lines between sections so the answer is easy to scan.
-- End with a brief takeaway or next step when relevant.`;
+- End with a next step only when it is genuinely useful.`;
 
 const PRIVATE_REASONING_RULE = `
 
@@ -88,9 +89,14 @@ const NORMAL_TRAINING_CHARS = 2_500;
 // a thoughtful response. A 45-second server deadline could cut off a reply
 // after text had already reached the user, so normal chat needs enough time
 // to finish while the browser still protects against a genuinely idle request.
-const NORMAL_PROVIDER_TIMEOUT_MS = 90_000;
-const DEEP_RESEARCH_TIMEOUT_MS = 180_000;
-const CHAT_FUNCTION_VERSION = "vision-413-recovery-v3";
+const NORMAL_PROVIDER_TIMEOUT_MS = 20_000;
+const DEEP_RESEARCH_TIMEOUT_MS = 90_000;
+const CHAT_FUNCTION_VERSION = "chat-memory-speed-v1";
+
+function providerSignal(deep: boolean, deadline: number, perCallLimit?: number): AbortSignal {
+  const limit = perCallLimit ?? (deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS);
+  return AbortSignal.timeout(Math.max(1_000, Math.min(limit, deadline - Date.now())));
+}
 
 type ChatMessagePart = { type: "text"; text?: string } | { type: "image_url"; image_url?: { url: string } };
 type ChatMessage = { role: "user" | "assistant" | "system"; content: string | ChatMessagePart[] };
@@ -109,6 +115,7 @@ function trimTranscript(value: string, maxChars: number) {
 }
 
 const GEMINI_MODEL_MAP: Record<string, string> = {
+  "google/gemini-3.8-flash": "gemini-3.8-flash",
   "google/gemini-2.5-flash": "gemini-2.5-flash",
   "google/gemini-3.7-flash": "gemini-3.7-flash",
   "google/gemini-3.6-flash": "gemini-3.6-flash",
@@ -155,21 +162,21 @@ function normalizeMessages(rawMessages: unknown, maxContextMessages = MAX_CONTEX
   });
 }
 
-async function callLovable(body: Record<string, unknown>, key: string, deep: boolean) {
+async function callLovable(body: Record<string, unknown>, key: string, deep: boolean, deadline: number) {
   return await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
-    signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+    signal: providerSignal(deep, deadline),
   });
 }
 
-async function callOpenAI(body: Record<string, unknown>, key: string, deep: boolean) {
+async function callOpenAI(body: Record<string, unknown>, key: string, deep: boolean, deadline: number) {
   return await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ ...body, model: deep ? "gpt-4o" : "gpt-4o-mini" }),
-    signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+    signal: providerSignal(deep, deadline),
   });
 }
 
@@ -279,7 +286,7 @@ function compactBodyForGroqVision(body: Record<string, unknown>): Record<string,
 // browser compression. Read every image separately, then synthesize from
 // those grounded observations rather than silently dropping attachments.
 async function recoverMultiImageFromGroq413(
-  body: Record<string, unknown>, key: string, deep: boolean,
+  body: Record<string, unknown>, key: string, deep: boolean, deadline: number,
 ): Promise<Response | null> {
   const messages = Array.isArray(body.messages) ? body.messages as ChatMessage[] : [];
   const latest = [...messages].reverse().find((message) =>
@@ -296,6 +303,7 @@ async function recoverMultiImageFromGroq413(
     .map((part) => part.text || "").join("\n").slice(0, 1_800);
   const observations: string[] = [];
   for (let index = 0; index < images.length; index++) {
+    if (Date.now() >= deadline) throw new Error("Provider selection deadline reached");
     const singleImage = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -314,7 +322,7 @@ async function recoverMultiImageFromGroq413(
         // Keep extraction concise so the fallback also fits rate limits.
         max_tokens: images.length >= 3 ? 400 : (deep ? 900 : 700),
       }),
-      signal: AbortSignal.timeout(deep ? 45_000 : 25_000),
+      signal: providerSignal(deep, deadline, deep ? 45_000 : 25_000),
     });
     if (!singleImage.ok) return singleImage;
     const result = await singleImage.json().catch(() => null);
@@ -340,12 +348,12 @@ async function recoverMultiImageFromGroq413(
       reasoning_effort: "low",
       max_tokens: deep ? 2_500 : 1_400,
     }),
-    signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+    signal: providerSignal(deep, deadline),
   });
 }
 
 // Groq uses the OpenAI-compatible Chat Completions format.
-async function callGroq(body: Record<string, unknown>, key: string, deep: boolean) {
+async function callGroq(body: Record<string, unknown>, key: string, deep: boolean, deadline: number) {
   const hasImage = Array.isArray(body.messages) && body.messages.some((message: any) =>
     Array.isArray(message?.content) && message.content.some((part: any) => part?.type === "image_url"),
   );
@@ -363,11 +371,12 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
   let lastResponse: Response | null = null;
   let usedEmergencyRecovery = false;
   for (const model of models) {
+    if (Date.now() >= deadline) break;
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
       body: JSON.stringify({ ...initialBody, model, max_tokens: startCompact ? (deep ? 3_000 : 1_000) : (deep ? 6_000 : 1_600), temperature: 0.4 }),
-      signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+      signal: providerSignal(deep, deadline),
     });
     if (response.ok) return response;
     lastResponse = response;
@@ -378,10 +387,10 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
         body: JSON.stringify({ ...compactBodyForGroqVision(body), model: GROQ_VISION_MODEL, reasoning_effort: "none", temperature: 0.4 }),
-        signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+        signal: providerSignal(deep, deadline),
       });
       if (compact.ok || compact.status !== 413) return compact;
-      const separated = await recoverMultiImageFromGroq413(body, key, deep);
+      const separated = await recoverMultiImageFromGroq413(body, key, deep, deadline);
       if (!separated) return compact;
       await compact.body?.cancel();
       return separated;
@@ -396,7 +405,7 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
         // GPT-OSS has a generous text context. This recovery is only for
         // text-only requests; image requests keep their attachments.
         body: JSON.stringify({ ...compactBodyForGroq(body), model: "openai/gpt-oss-20b", max_tokens: deep ? 3_000 : 1_000 }),
-        signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+        signal: providerSignal(deep, deadline),
       });
       if (recovered.ok) return recovered;
       lastResponse = recovered;
@@ -412,7 +421,7 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
           method: "POST",
           headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
           body: JSON.stringify({ ...emergencyBodyForGroq(body, deep), model: "openai/gpt-oss-20b", temperature: 0.4 }),
-          signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+          signal: providerSignal(deep, deadline),
         });
         if (emergency.ok) return emergency;
         lastResponse = emergency;
@@ -426,27 +435,26 @@ async function callGroq(body: Record<string, unknown>, key: string, deep: boolea
     if ([401, 429].includes(response.status)) return response;
     await response.body?.cancel();
   }
-  return lastResponse!;
+  if (!lastResponse) throw new Error("Provider selection deadline reached");
+  return lastResponse;
 }
 
-async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string, deep: boolean) {
-  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.7-flash";
-  // Main chat is 3.6 (stable). Image understanding also uses 3.6 and deep
-  // research uses 3.1 Pro. Fall back through stable Flash models so a
-  // model-specific rate limit (429) or access issue never stops a reply.
-  const models = [primary, "gemini-3.7-flash", "gemini-3.6-flash", "gemini-flash-latest"];
+async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string, primaryModel: string, deep: boolean, deadline: number) {
+  const primary = GEMINI_MODEL_MAP[primaryModel] || "gemini-3.8-flash";
+  const models = [primary, "gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
   const tried = new Set<string>();
   let lastErr = "";
   let rateLimited = 0;
   for (const m of models) {
+    if (Date.now() >= deadline) break;
     if (tried.has(m)) continue;
     tried.add(m);
     try {
       const r = await fetch("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", {
         method: "POST",
         headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, model: m }),
-        signal: AbortSignal.timeout(deep ? DEEP_RESEARCH_TIMEOUT_MS : NORMAL_PROVIDER_TIMEOUT_MS),
+        body: JSON.stringify({ ...body, model: m, reasoning_effort: deep ? "medium" : "low" }),
+        signal: providerSignal(deep, deadline),
       });
       if (r.ok) return { ok: true as const, response: r };
       lastErr = `${m}:${r.status}`;
@@ -458,9 +466,13 @@ async function tryGeminiWithFallbacks(body: Record<string, unknown>, key: string
       if (r.status === 429) {
         rateLimited++;
         if (rateLimited >= 3) break; // key itself is likely exhausted
-        await new Promise((resolve) => setTimeout(resolve, 1_500));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
-    } catch (e) { console.error("Gemini err:", m, e); lastErr = `${m}:err`; }
+    } catch (e) {
+      console.error("Gemini err:", m, e);
+      lastErr = `${m}:err`;
+      if (e instanceof Error && e.name === "TimeoutError") break;
+    }
   }
   return { ok: false as const, error: lastErr };
 }
@@ -469,14 +481,14 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { messages: rawMessages, persona, deepResearch, memory, knowledge: guestKnowledge } = await req.json();
+    const { messages: rawMessages, persona, deepResearch, memory, memoryEnabled, knowledge: guestKnowledge } = await req.json();
     const isDeepResearch = Boolean(deepResearch);
     const safeMessages = normalizeMessages(
       rawMessages,
       isDeepResearch ? 30 : MAX_CONTEXT_MESSAGES,
       isDeepResearch ? 12_000 : NORMAL_MESSAGE_CHARS,
     );
-    const memoryFacts: string[] = Array.isArray(memory)
+    let memoryFacts: string[] = memoryEnabled !== false && Array.isArray(memory)
       ? memory.filter((m: unknown) => typeof m === "string" && (m as string).trim())
         .slice(0, isDeepResearch ? 60 : NORMAL_MEMORY_LIMIT)
         .map((m: string) => m.slice(0, isDeepResearch ? 1_500 : 500))
@@ -489,13 +501,15 @@ serve(async (req) => {
       });
     }
 
+    const latestUserMessage = [...safeMessages].reverse().find((message) => message.role === "user");
+    const latestUserText = typeof latestUserMessage?.content === "string"
+      ? latestUserMessage.content
+      : (latestUserMessage?.content || []).filter((part) => part.type === "text").map((part) => part.text || "").join(" ");
+    const useWorkspaceContext = shouldUseWorkspaceContext(latestUserText);
+
     let systemPrompt = SYSTEM_PROMPTS[persona] || SYSTEM_PROMPTS.friend;
     if (isDeepResearch) systemPrompt += DEEP_RESEARCH_SUFFIX;
     systemPrompt += "\n\nUNDERSTANDING THE USER: The user often writes or dictates by voice in non-native English, with typos, missing words, run-on sentences, phonetic spellings, or voice-to-text mistakes. Silently work out what they most likely mean from context and answer that intent fully. Never correct or comment on their grammar. Only ask a short clarifying question if the meaning is truly impossible to infer.";
-    if (memoryFacts.length > 0) {
-      systemPrompt += `\n\nLONG-TERM MEMORY about this user (from previous chats — use it naturally to give personalized, context-aware answers; don't mention that you have memory unless asked):\n- ${memoryFacts.join("\n- ")}`;
-    }
-
     // Get user's API keys (fallback chain) and their saved knowledge / objection playbook.
     const userKeys: { groq: ProviderKey[]; gemini: ProviderKey[]; openai: ProviderKey[] } = { groq: [], gemini: [], openai: [] };
     const apifyKeys: ApifyKey[] = [];
@@ -513,31 +527,38 @@ serve(async (req) => {
         const token = authHeader.replace("Bearer ", "");
         const { data: { user } } = await sb.auth.getUser(token);
         if (user) {
-          const { data: keyRows } = await sb.from("api_keys")
-            .select("id, provider, api_key")
-            .eq("user_id", user.id)
-            .eq("is_active", true)
-            .in("provider", ["groq", "gemini", "openai", "apify"])
-            .order("failure_count", { ascending: true })
-            .order("last_used_at", { ascending: true, nullsFirst: true });
+          // Run independent reads together. Ordinary chat does not need to
+          // download outreach playbooks or training conversations at all.
+          const [{ data: keyRows }, { data: storedMemory }, { data: kn }, { data: training }] = await Promise.all([
+            sb.from("api_keys").select("id, provider, api_key")
+              .eq("user_id", user.id).eq("is_active", true)
+              .in("provider", ["groq", "gemini", "openai", "apify"])
+              .order("failure_count", { ascending: true })
+              .order("last_used_at", { ascending: true, nullsFirst: true }),
+            memoryEnabled === false ? Promise.resolve({ data: null }) : sb.from("user_memory")
+              .select("content, source").eq("user_id", user.id)
+              .order("created_at", { ascending: false }).limit(100),
+            useWorkspaceContext ? sb.from("knowledge_entries")
+              .select("title, content, category, insights")
+              .eq("user_id", user.id).or(`persona.eq.${personaKey},persona.eq.shared`)
+              .limit(isDeepResearch ? 20 : 12) : Promise.resolve({ data: null }),
+            useWorkspaceContext ? sb.from("training_conversations")
+              .select("title, content, style_analysis")
+              .eq("user_id", user.id).eq("persona", personaKey)
+              .in("status", ["ready", "analyzed"])
+              .limit(isDeepResearch ? 8 : 4) : Promise.resolve({ data: null }),
+          ]);
           for (const row of keyRows || []) {
             if (row.provider === "groq" && row.api_key?.trim()) userKeys.groq.push({ id: row.id, key: row.api_key.trim(), provider: "groq" });
             if (row.provider === "gemini" && row.api_key?.trim()) userKeys.gemini.push({ id: row.id, key: row.api_key.trim(), provider: "gemini" });
             if (row.provider === "openai" && row.api_key?.trim()) userKeys.openai.push({ id: row.id, key: row.api_key.trim(), provider: "openai" });
             if (row.provider === "apify" && row.api_key?.trim()) apifyKeys.push({ key: row.api_key.trim() });
           }
-          const { data: kn } = await sb.from("knowledge_entries")
-            .select("title, content, category, insights")
-            .eq("user_id", user.id)
-            .or(`persona.eq.${personaKey},persona.eq.shared`)
-            .limit(isDeepResearch ? 20 : 12);
+          if (Array.isArray(storedMemory) && storedMemory.length > 0) {
+            memoryFacts = selectMemoryFacts(storedMemory, latestUserText, isDeepResearch ? 60 : NORMAL_MEMORY_LIMIT)
+              .map((fact) => fact.content.slice(0, isDeepResearch ? 1_500 : 500));
+          }
           if (Array.isArray(kn)) dbKnowledge = kn as KnowledgeEntry[];
-          const { data: training } = await sb.from("training_conversations")
-            .select("title, content, style_analysis")
-            .eq("user_id", user.id)
-            .eq("persona", personaKey)
-            .in("status", ["ready", "analyzed"])
-            .limit(isDeepResearch ? 8 : 4);
           if (Array.isArray(training)) dbTraining = training as TrainingConversation[];
         }
       }
@@ -547,14 +568,10 @@ serve(async (req) => {
     const knowledgeEntries: KnowledgeEntry[] = dbKnowledge.length
       ? dbKnowledge
       : (Array.isArray(guestKnowledge) ? guestKnowledge : []);
-    const conversationText = safeMessages.map((message) => {
-      if (typeof message.content === "string") return message.content;
-      return message.content.map((part) => part.type === "text" ? part.text || "" : "").join(" ");
-    }).join("\n");
-    // The stored playbooks are helpful for a client/outreach task, but adding
-    // them to every normal chat made unrelated replies sound like a sales bot.
-    const shouldUseWorkspaceContext = isDeepResearch || /\b(reply|respond|message|client|prospect|streamer|discord|twitch|kick|outreach|pitch|convert|conversion|objection|audit|nifimas|brozeen)\b/i.test(conversationText);
-    const { knowledgeContext, objectionContext } = shouldUseWorkspaceContext
+    if (memoryFacts.length > 0) {
+      systemPrompt += `\n\nLONG-TERM MEMORY about this user (reference only when relevant to the current request; do not present guesses as memories):\n- ${memoryFacts.join("\n- ")}`;
+    }
+    const { knowledgeContext, objectionContext } = useWorkspaceContext
       ? buildKnowledgeContext(knowledgeEntries)
       : { knowledgeContext: "", objectionContext: "" };
     if (knowledgeContext || objectionContext) {
@@ -567,7 +584,7 @@ serve(async (req) => {
         + objectionContext.slice(0, objectionLimit)
         + KNOWLEDGE_GUARDRAIL;
     }
-    if (shouldUseWorkspaceContext && dbTraining.length > 0) {
+    if (useWorkspaceContext && dbTraining.length > 0) {
       // Training teaches writing style and successful conversation patterns.
       // It is reference material, never a replacement for the newest task or
       // permission to invent proof, claims, or details about a client.
@@ -587,11 +604,7 @@ serve(async (req) => {
       systemPrompt += trainingContext.slice(0, isDeepResearch ? 12_000 : NORMAL_TRAINING_CHARS);
     }
 
-    const latestUserText = [...safeMessages].reverse().find((message) => message.role === "user");
-    const linkText = typeof latestUserText?.content === "string"
-      ? latestUserText.content
-      : (latestUserText?.content || []).filter((part) => part.type === "text").map((part) => part.text || "").join(" ");
-    systemPrompt += await buildLiveUrlContext(linkText, apifyKeys);
+    systemPrompt += await buildLiveUrlContext(latestUserText, apifyKeys);
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const ENV_GEMINI_KEY = Deno.env.get("GEMINI_API_KEY");
@@ -599,12 +612,10 @@ serve(async (req) => {
       Array.isArray(message.content) && message.content.some((part) => part.type === "image_url"),
     );
     // Route each task to the model that fits it, not one model for every job.
-    // 3.6 is the stable default chat brain; 3.1 Pro is reserved for the
-    // deliberate Deep Research mode. 3.7 stays as a fallback inside
-    // tryGeminiWithFallbacks.
+    // Deep Research keeps Pro; everyday replies use the current Flash model.
     const model = isDeepResearch
       ? "google/gemini-3.1-pro-preview"
-      : "google/gemini-3.7-flash";
+      : "google/gemini-3.8-flash";
 
     const body = {
       model,
@@ -612,7 +623,7 @@ serve(async (req) => {
       stream: true,
       // Deep research must have enough room to finish multi-step analysis.
       // Normal chat remains capped to keep ordinary reply suggestions quick.
-      max_tokens: isDeepResearch ? 6000 : 1600,
+      max_tokens: isDeepResearch ? 6000 : 2400,
     };
 
     let response: Response | null = null;
@@ -656,7 +667,7 @@ serve(async (req) => {
     }
     for (const candidate of geminiCandidates) {
       if (outOfTime()) break;
-      const result = await tryGeminiWithFallbacks(body, candidate.key, model, isDeepResearch);
+      const result = await tryGeminiWithFallbacks(body, candidate.key, model, isDeepResearch, selectionDeadline);
       if (result.ok) {
         response = result.response;
         await recordKeyResult(candidate, true);
@@ -669,7 +680,7 @@ serve(async (req) => {
     // 2. Use Groq only when every available Gemini key is unavailable.
     for (const candidate of response || outOfTime() ? [] : userKeys.groq) {
       try {
-        const r = await callGroq(body, candidate.key, isDeepResearch);
+        const r = await callGroq(body, candidate.key, isDeepResearch, selectionDeadline);
         if (r.ok) {
           response = r;
           await recordKeyResult(candidate, true);
@@ -688,7 +699,7 @@ serve(async (req) => {
     // 3. Rotate through every active OpenAI key.
     for (const candidate of response || outOfTime() ? [] : userKeys.openai) {
       try {
-        const r = await callOpenAI(body, candidate.key, isDeepResearch);
+        const r = await callOpenAI(body, candidate.key, isDeepResearch, selectionDeadline);
         if (r.ok) {
           response = r;
           await recordKeyResult(candidate, true);
@@ -706,9 +717,9 @@ serve(async (req) => {
 
     // 4. Shared Lovable gateway is the last fallback, so a slow shared
     // allowance never delays users who supplied their own provider key.
-    if (!response && LOVABLE_API_KEY) {
+    if (!response && LOVABLE_API_KEY && !outOfTime()) {
       try {
-        const r = await callLovable(body, LOVABLE_API_KEY, isDeepResearch);
+        const r = await callLovable(body, LOVABLE_API_KEY, isDeepResearch, selectionDeadline);
         if (r.ok) response = r;
         else { lastErr = `Lovable ${r.status}`; await r.body?.cancel(); console.log("Lovable failed:", r.status); }
       } catch (e) { console.error("Lovable err:", e); lastErr = "Lovable timeout"; }

@@ -17,6 +17,7 @@ import { guestStorage } from "@/lib/guestStorage";
 import { ChatHistoryPanel } from "@/components/chat/ChatHistoryPanel";
 import { ChatComposer, ChatComposerHandle } from "@/components/chat/ChatComposer";
 import { compressImageFile } from "@/lib/imageCompress";
+import { selectChatContext, selectMemoryFacts } from "../../supabase/functions/_shared/chatContext";
 import { generatePersonalChatReply } from "@/lib/personalChat";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -41,9 +42,10 @@ const personaConfig = {
 };
 
 async function streamChat({
-  messages, persona, deepResearch, memory, knowledge, signal, onDelta, onDone, onError, compactRetry = false,
+  messages, persona, deepResearch, memory, memoryEnabled, knowledge, signal, onDelta, onDone, onError, compactRetry = false,
 }: {
   messages: ChatMessage[]; persona: Persona; deepResearch: boolean; memory?: string[]; knowledge?: unknown[];
+  memoryEnabled: boolean;
   signal?: AbortSignal;
   onDelta: (text: string) => void; onDone: () => void | Promise<void>; onError: (msg: string, code?: string) => void;
   compactRetry?: boolean;
@@ -61,8 +63,8 @@ async function streamChat({
   // Do this in the browser as well as in the edge function. Otherwise a huge
   // pasted transcript can be rejected by the network gateway before the
   // server gets a chance to safely shorten it.
-  const recentMessages = messages.slice(-8);
-  const recentImageIndex = lastImageIndex < 0 ? -1 : lastImageIndex - Math.max(0, messages.length - recentMessages.length);
+  const recentMessages = compactRetry ? messages.slice(-2) : selectChatContext(messages);
+  const recentImageIndex = lastImageIndex < 0 ? -1 : recentMessages.indexOf(lastMessage);
   const apiMessages = recentMessages.map((msg, i) => {
     if (i === recentImageIndex && msg.images && msg.images.length > 0) {
       return {
@@ -99,7 +101,7 @@ async function streamChat({
     // recovery gets a chance to run. Retry once from the browser with just
     // the two newest turns and no optional training context.
     await streamChat({
-      messages: messages.slice(-2), persona, deepResearch,
+      messages: messages.slice(-2), persona, deepResearch, memoryEnabled,
       memory: [], knowledge: [], signal, onDelta, onDone, onError,
       compactRetry: true,
     });
@@ -129,7 +131,7 @@ async function streamChat({
     resp = await fetch(CHAT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
-      body: JSON.stringify({ messages: apiMessages, persona, deepResearch, memory: memory || [], knowledge: knowledge || [] }),
+      body: JSON.stringify({ messages: apiMessages, persona, deepResearch, memoryEnabled, memory: memory || [], knowledge: knowledge || [] }),
       signal: controller.signal,
     });
   } catch (error) {
@@ -268,16 +270,16 @@ function TypingIndicator({ name }: { name: string }) {
 
 function ModelBadge({ deepResearch }: { deepResearch: boolean }) {
   return (
-    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] font-medium text-muted-foreground" title={deepResearch ? "Deep Research uses Gemini 3.1 Pro when available" : "Normal chat uses Gemini 3.7; screenshots use Gemini 3.6"}>
+    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-[10px] font-medium text-muted-foreground" title={deepResearch ? "Deep Research uses the best available configured provider" : "Chat uses the best available configured provider"}>
       <Cpu className="h-2.5 w-2.5" />
-      {deepResearch ? "Deep Research" : "Gemini AI"}
+      {deepResearch ? "Deep Research" : "AI Chat"}
     </div>
   );
 }
 
 const ChatPage = () => {
   const isMobile = useIsMobile();
-  const { memories, addMany, enabled: memoryEnabled } = useMemory();
+  const { memories, addMany, reload: reloadMemory, enabled: memoryEnabled } = useMemory();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [persona, setPersona] = useState<Persona>("friend");
@@ -390,14 +392,17 @@ const ChatPage = () => {
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/extract-memory`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY },
+        keepalive: true,
         body: JSON.stringify({
-          messages: msgs.map((m) => ({ role: m.role, content: m.content })),
-          knownMemory: memories.map((m) => m.content),
+          messages: msgs.slice(-8).map((m) => ({ role: m.role, content: compactChatText(m.content, 1_500) })),
+          knownMemory: memories.slice(0, 100).map((m) => compactChatText(m.content, 300)),
         }),
       });
       if (!res.ok) return;
       const data = await res.json();
-      if (Array.isArray(data.facts) && data.facts.length > 0) {
+      if (data.persisted) {
+        await reloadMemory();
+      } else if (Array.isArray(data.facts) && data.facts.length > 0) {
         await addMany(data.facts, "auto");
       }
     } catch (e) {
@@ -441,13 +446,16 @@ const ChatPage = () => {
       else if (paintTimer === null) paintTimer = window.setTimeout(paintAssistant, 80);
     };
 
-    const memoryPayload = memoryEnabled ? memories.map((m) => m.content) : [];
+    const latestUserText = [...msgs].reverse().find((message) => message.role === "user")?.content || "";
+    const memoryPayload = memoryEnabled
+      ? selectMemoryFacts(memories, latestUserText).map((memory) => memory.content)
+      : [];
     // Guests: pass their locally-saved knowledge/objections so the AI can use them.
     const guestKnowledge = user ? [] : guestStorage.knowledge.list();
 
     try {
       await streamChat({
-        messages: msgs, persona, deepResearch,
+        messages: msgs, persona, deepResearch, memoryEnabled,
         memory: memoryPayload,
         knowledge: guestKnowledge,
         signal: requestController.signal,

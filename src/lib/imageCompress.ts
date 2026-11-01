@@ -8,8 +8,8 @@
  */
 export async function compressImageFile(
   file: File,
-  maxDimension = 480,
-  quality = 0.42
+  maxDimension = 1280,
+  quality = 0.55
 ): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("Unsupported image file");
   if (/heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)) {

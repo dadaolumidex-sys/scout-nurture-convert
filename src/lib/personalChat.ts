@@ -9,9 +9,9 @@ type ApiMessage = {
 // Keep the local reply path quick. Each extra model is another network request
 // when a key is invalid or rate-limited, which used to make a failed reply look
 // like the chat was hanging for minutes.
-const TEXT_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
-const IMAGE_MODELS = ["gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
-const DEEP_RESEARCH_MODELS = ["gemini-3.1-pro-preview", "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-flash-latest", "gemini-2.5-flash"];
+const TEXT_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
+const IMAGE_MODELS = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
+const DEEP_RESEARCH_MODELS = ["gemini-3.1-pro-preview", "gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.5-flash"];
 const NORMAL_MEMORY_LIMIT = 24;
 const NORMAL_KNOWLEDGE_LIMIT = 8;
 
@@ -115,7 +115,7 @@ export async function generatePersonalChatReply({
             contents,
             // Leave enough room to finish a useful answer rather than cutting
             // it in the middle of a numbered plan or draft message.
-            generationConfig: { maxOutputTokens: deepResearch ? 6_000 : 1_600 },
+            generationConfig: { maxOutputTokens: deepResearch ? 6_000 : 2_400, thinkingConfig: { thinkingLevel: deepResearch ? "medium" : "low" } },
           }),
         });
         if (!response.ok) {
